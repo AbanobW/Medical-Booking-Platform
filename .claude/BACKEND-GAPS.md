@@ -1,8 +1,15 @@
 # MedPoint API — integration gaps
 
-Everything below was verified against the live staging API (`https://medpoint.intrazero.org`)
-on 2026-07-14, not inferred from the Postman collection — the collection ships request
-shapes only, no example responses.
+**This is the ask to the backend team.** The frontend-side companion is
+[`INTEGRATION.md`](./INTEGRATION.md) — capability state, workaround registry, and the
+ordered path to full-live. Field-level wire↔domain shapes are in
+[`API-CONTRACT.md`](./API-CONTRACT.md).
+
+Everything below was **verified against the live staging API**
+(`https://medpoint.intrazero.org`) **on 2026-07-14** — not inferred from the Postman
+collection, which ships request shapes only and no example responses. `INTEGRATION.md`
+carries the `curl` probes to re-check every item here in about a minute; do that before
+trusting this file.
 
 The app runs a **hybrid backend** (`NEXT_PUBLIC_API_MODE`):
 when set to `live`, per-capability routing in `src/lib/api/capabilities.ts` sends each
@@ -12,9 +19,9 @@ domain to MedPoint or the mock as appropriate. See `src/lib/api/session.ts` for 
 
 | Capability | Live? | Module | Notes |
 |---|---|---|---|
-| Auth (login/register/logout/profile) | Yes | `session.ts` → `medpoint/auth`, `medpoint/profile` | Register 500 fallback; refresh unwired |
+| Auth (login/register/logout/profile) | Yes | `session.ts` → `medpoint/auth`, `medpoint/profile` | Register now works (delete the fallback); refresh still unwired |
 | Avatar upload/delete | Yes | `session.ts` → `medpoint/profile` | |
-| Patient profiles CRUD | Partial | `profiles.ts` → `medpoint/profiles` | List 500s — overlay cache of created ids |
+| Patient profiles CRUD | 🔴 **Broken** | `profiles.ts` → `medpoint/profiles` | **Route 404s entirely** (§2.3) — was: list 500s, overlay cache of created ids |
 | Provider discovery | Degraded | `providers.ts` → `medpoint/providers` | Client-side filters; thin Provider payload |
 | Availability | Degraded | `providers.ts` → `medpoint/availability` | Slots/sessions filtered client-side |
 | Booking write (hold/pay) | Partial | `bookings.ts` → `medpoint/bookings` | Overlay enriches wire booking |
@@ -113,27 +120,52 @@ currently glued into the `name` string rather than being its own field.
 There is no `/v1/favorites` (or equivalent) in the collection or on the server.
 `/patient/favorites` — a built, working screen — has nothing to talk to.
 
+### 1.7 `Service` never returns its preparation or eligibility rules
+
+`POST /v1/services` accepts `prep_instructions`, `eligibility_rules` and `home_collection`
+— the schema was built for §3 of the business rules. But nothing comes back populated on
+the read side, and there are no `chronic_conditions` / `is_pregnant` columns on a patient
+profile to screen against even if it did.
+
+This is a **safety** rule, not a nice-to-have. §3 requires that where a lab test or scan
+carries preparation instructions or eligibility restrictions, the booking flow *must*
+display them and the patient *must* acknowledge them before the booking can be finalized —
+so a patient does not turn up having eaten before a fasting test, or ineligible for a scan.
+
+In live mode there is nothing to display. `mappers.ts#wireServiceToLabTest` and
+`#wireServiceToScan` synthesize empty `preparation` / `eligibility` blocks, so the gate
+renders and passes vacuously.
+
+Probed, to rule out the possibility that this was merely a frontend oversight — it is not.
+`GET /v1/services` returns `"prep_instructions": null` and **omits `eligibility_rules` from
+the payload entirely**:
+
+```json
+{ "type": "Service", "id": "W6V1Y2Pn83Q7mDEK", "name": "Initial Consultation",
+  "category": "consultation", "price": "449.00", "prep_instructions": null,
+  "home_collection": false, … }
+```
+
+**Ask:** return `prep_instructions` and `eligibility_rules` populated on `GET /v1/services`,
+and add `chronic_conditions` + `is_pregnant` to the patient profile so there is something
+to screen against. No frontend change can substitute for this — the data is not on the wire.
+
 ---
 
 ## 2. Server bugs — endpoints that exist but 500
 
-### 2.1 `POST /v1/auth/register` → 500
+### 2.1 ✅ `POST /v1/auth/register` → FIXED
 
-```
-RuntimeException: Personal access client not found for 'users' user provider.
-  vendor/laravel/passport/src/ClientRepository.php:74
-```
+Was a 500 (`RuntimeException: Personal access client not found for 'users' user provider.`
+— Passport had no personal-access client, so registration created the user row and *then*
+died issuing the token, leaving the account real but the user un-told).
 
-Passport has no personal-access client configured, so registration creates the user row
-and *then* dies issuing the token. **The account does exist afterwards** — logging in
-with the same credentials works.
+**Re-probed: it now returns `201` with a live token pair.** Nothing more is needed from the
+backend here.
 
-Because a naïve "registration failed" error would strand the user (the account is real,
-so they cannot re-register — the email is taken — and they were never told they have an
-account), `medpoint/auth.ts#register` falls back to `login()` on a 5xx. A 422 still
-surfaces normally. **Delete that fallback once this is fixed.**
-
-Run `php artisan passport:client --personal`.
+Frontend follow-up: `medpoint/auth.ts#register` still falls back to `login()` on a 5xx.
+That is now dead code which would mask a genuine future failure — **delete it**
+(`medpoint/auth.ts:73-80`), keeping the 422 path intact.
 
 ### 2.2 `POST /v1/auth/refresh-token` → 500
 
@@ -149,18 +181,58 @@ so a session dies 24h after sign-in (the access token's TTL) with no way to rene
 401-retry interceptor until this works — doing so now would just turn every expired
 session into a 500. Today a 401 clears the token and signs the user out.
 
-### 2.3 `GET /v1/patient-profiles` → 500
+### 2.3 🔴 `/v1/patient-profiles` → the whole route is GONE (404 on every verb)
+
+**This is now the most urgent item in this document, and it is a regression.**
+
+```
+$ curl -H "Authorization: Bearer $TOKEN" -H 'Accept: application/json' \
+    https://medpoint.intrazero.org/v1/patient-profiles
+  {"message": "The route v1/patient-profiles could not be found."}
+```
+
+Every verb — `GET`, `POST`, and by extension `GET|PATCH|DELETE /:id` — 404s. The resource
+has disappeared from routing since it was last probed.
+
+Previously the picture was narrower: `POST` worked and returned a created profile, while
+`GET` (list) 500'd with
 
 ```
 ListPatientProfilesTask::{closure}(): Argument #1 ($query) must be of type
   Eloquent\Builder, PatientProfile given
 ```
 
-`POST /v1/patient-profiles` works and returns a created profile. **Listing them does
-not.** Since a booking belongs to a patient profile (§1 of the business rules), and the
-booking wizard opens by choosing one, this blocks the booking flow independently of 1.2.
+Both need fixing, in that order: **restore the route, then fix the list closure.**
 
-### 2.4 Debug mode is on in staging
+Why this matters more than anything else here: a booking belongs to a patient profile (§1
+of the business rules) and the booking wizard *opens* by choosing one. With no profile
+resource at all, **the live booking flow cannot run** — this is no longer a degradation,
+it is a hard stop, and it blocks the flow independently of 1.2.
+
+### 2.4 `POST /v1/payments` may reject the shape — and the app currently swallows it
+
+The most dangerous item in this document, because it is a divergence on the **money path**.
+
+`medpoint/bookings.ts#payBooking` posts `{ booking_id, amount, purpose, gateway }` and then
+catches and ignores any failure:
+
+```ts
+} catch {
+  // Scaffold API may reject payment shape — overlay still confirms locally.
+}
+overlay.status = "confirmed";
+overlay.paymentStatus = "paid";
+```
+
+So the patient can be shown a **confirmed, paid booking while the server holds no payment
+row at all.** That was an acceptable stopgap while the booking read path was mock anyway;
+it stops being acceptable the moment anything real depends on it.
+
+**Ask:** confirm the accepted request shape for `POST /v1/payments` and make it return a
+deterministic success or a 4xx we can act on. The frontend then lets the error propagate
+and fails the booking honestly rather than confirming a payment that did not happen.
+
+### 2.5 Debug mode is on in staging
 
 Responses carry full PHP stack traces, file paths (`/var/www/MedPoint/…`) and an
 `OPTIONS` request returns the whole PHP Debugbar HTML payload. Stack traces are never
