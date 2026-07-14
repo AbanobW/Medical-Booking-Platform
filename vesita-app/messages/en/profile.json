@@ -1,0 +1,243 @@
+{
+  "meta": {
+    "doctorNotFound": "Doctor not found",
+    "labNotFound": "Lab not found",
+    "radiologyNotFound": "Radiology center not found"
+  },
+  "error": {
+    "loadTitle": "Couldn't load this profile"
+  },
+  "notFound": {
+    "doctorTitle": "We couldn't find that doctor",
+    "doctorDescription": "This link points to a profile that isn't a doctor. It may have moved.",
+    "browseDoctors": "Browse doctors",
+    "labTitle": "We couldn't find that lab",
+    "labDescription": "This link points to a profile that isn't a medical lab. It may have moved.",
+    "browseLabs": "Browse labs",
+    "radiologyTitle": "We couldn't find that radiology center",
+    "radiologyDescription": "This link points to a profile that isn't a radiology center. It may have moved.",
+    "browseRadiology": "Browse radiology centers",
+    "genericTitle": "We couldn't find that profile",
+    "genericDescription": "The link may be out of date, or the provider is no longer listed on Vesita.",
+    "browseProviders": "Browse providers",
+    "backHome": "Back home"
+  },
+  "hero": {
+    "reviews": "({count, plural, =0 {no reviews} one {# review} other {# reviews}})",
+    "wait": "~{duration} wait",
+    "bookings": "{count, plural, =0 {No bookings yet on Vesita} one {# booking on Vesita} other {# bookings on Vesita}}",
+    "call": "Call",
+    "share": "Share this profile",
+    "shareCopied": "Profile link copied to your clipboard.",
+    "shareFailed": "Couldn't share this profile.",
+    "subtitleLab": "Medical Laboratory",
+    "subtitleRadiology": "Radiology Center",
+    "priceConsultation": "Consultation fee",
+    "priceTestsFrom": "Tests from",
+    "priceScansFrom": "Scans from",
+    "chipExperience": "{years, plural, one {# yr experience} other {# yrs experience}}",
+    "chipHomeCollection": "Home sample collection",
+    "verified": "Verified",
+    "freeCancellation": "Free cancellation up to 24h before",
+    "stats": {
+      "rating": "Rating",
+      "reviews": "Reviews",
+      "experience": "Years of experience",
+      "bookings": "Bookings on Vesita"
+    }
+  },
+  "tabs": {
+    "overview": "Overview",
+    "services": "Services",
+    "clinic": "Clinic",
+    "branches": "Branches ({count})",
+    "reviews": "Reviews ({count})",
+    "tests": "Tests ({count})",
+    "scans": "Scans ({count})",
+    "packages": "Packages ({count})"
+  },
+  "about": {
+    "title": "About {name}",
+    "specialty": "Specialty",
+    "experience": "Experience",
+    "experienceValue": "{years, plural, one {# year of practice} other {# years of practice}}",
+    "degrees": "Degrees",
+    "languages": "Languages",
+    "focus": "Areas of focus",
+    "catalogue": "Catalogue",
+    "catalogueTests": "{tests} tests · {packages} packages",
+    "catalogueScans": "{scans} scans · {packages} packages",
+    "homeCollection": "Home sample collection",
+    "homeCollectionYes": "Available — a phlebotomist comes to you",
+    "homeCollectionNo": "Not offered — visit a branch",
+    "typicalScanTime": "Typical scan time",
+    "variesByScan": "Varies by scan",
+    "mainBranch": "Main branch",
+    "phone": "Phone",
+    "accreditations": "Accreditations",
+    "mainLocation": "Main location",
+    "clinicTitle": "Clinic & location"
+  },
+  "consultations": {
+    "title": "Consultation types",
+    "feesVary": "Fees can differ between clinics — you'll see the exact fee for the clinic you pick.",
+    "book": "Book"
+  },
+  "sidebar": {
+    "consultationFee": "Consultation fee",
+    "testsFrom": "Tests starting from",
+    "scansFrom": "Scans starting from",
+    "bookNow": "Book Now",
+    "freeCancellation": "Free cancellation up to {hours} hours before your appointment.",
+    "bringImaging": "Bring any previous imaging or referral letter with you.",
+    "homeCollectionNote": "Home sample collection available — pick the home visit option while booking."
+  },
+  "availability": {
+    "title": "Live availability",
+    "subtitle": "Real places at this branch, right now.",
+    "branch": "Branch",
+    "selectBranch": "Select a branch",
+    "noBranch": "This provider has no active branch taking bookings at the moment.",
+    "errorTitle": "Couldn't load availability",
+    "noneInTwoWeeks": "No open places at {branch} in the next two weeks. Try another branch, or call them directly.",
+    "noneTodayPrefix": "No places left today. The next is",
+    "today": "Today",
+    "busy": "busy",
+    "busyTitle": "Busy session — you may wait longer",
+    "remainingTitle": "{remaining} of {capacity} places left",
+    "moreSlots": "+{count} more",
+    "pickTime": "Pick a time",
+    "holdNote": "Your place is only held once the booking is confirmed."
+  },
+  "schedule": {
+    "title": "Weekly schedule",
+    "today": "Today",
+    "closed": "Closed",
+    "breaks": "{count, plural, one {Break} other {Breaks}}: {times}",
+    "places": "{count, plural, one {# place} other {# places}}"
+  },
+  "branches": {
+    "emptyTitle": "No branches listed",
+    "emptyGeneric": "This provider operates from its main location only.",
+    "emptyDoctor": "This doctor practises from a single clinic.",
+    "emptyLab": "This lab operates from its main location only.",
+    "emptyRadiology": "This center operates from its main location only.",
+    "temporarilyClosed": "Temporarily closed",
+    "openToday": "Open today · {from} – {to}",
+    "closedToday": "Closed today",
+    "servicesOffered": "{count, plural, one {# service offered here} other {# services offered here}}",
+    "noWorkingDays": "No working days",
+    "priceOverrides": "Some services are priced differently at this branch — the price you see when you pick this branch is the price you pay."
+  },
+  "price": {
+    "from": "from {price}",
+    "variesByBranch": "varies by branch"
+  },
+  "insurance": {
+    "title": "Accepted insurance",
+    "comingSoonLabel": "Coming soon.",
+    "comingSoon": "These are the networks this provider accepts at the clinic. Booking with insurance isn't live on Vesita yet — for now, bookings are paid directly."
+  },
+  "packages": {
+    "emptyTitle": "No packages available",
+    "emptyDescription": "This center doesn't currently bundle its services into packages.",
+    "includedService": "Included service",
+    "save": "Save {percent}%",
+    "youSave": "You save {amount}",
+    "book": "Book package"
+  },
+  "catalog": {
+    "searchPlaceholderTest": "Search tests by name or category…",
+    "searchPlaceholderScan": "Search scans by name or category…",
+    "searchLabelTest": "Search tests",
+    "searchLabelScan": "Search scans",
+    "allCategories": "All categories",
+    "categoryLabel": "Category",
+    "sortLabelTest": "Sort tests",
+    "sortLabelScan": "Sort scans",
+    "sort": "Sort",
+    "sortName": "Name (A–Z)",
+    "sortPriceAsc": "Price: low to high",
+    "sortPriceDesc": "Price: high to low",
+    "showingTests": "Showing {visible} of {total} tests",
+    "showingScans": "Showing {visible} of {total} scans",
+    "emptyTitleTest": "No tests match your search",
+    "emptyTitleScan": "No scans match your search",
+    "emptyDescription": "Try a different keyword, or clear the category filter.",
+    "clearFilters": "Clear filters",
+    "resultsIn": "Results in {hours}h",
+    "fasting": "Fasting",
+    "fastingHours": "Fasting {hours}h",
+    "contrast": "Contrast",
+    "preparationRequired": "Preparation required",
+    "eligibilityRules": "Eligibility rules",
+    "readPrep": "Read preparation & eligibility",
+    "hidePrep": "Hide preparation & eligibility",
+    "book": "Book"
+  },
+  "preparation": {
+    "title": "Before you book",
+    "fastingRequired": "Fasting required",
+    "fastingRequiredHours": "Fasting required — {hours} hours",
+    "waterAllowed": "Water is allowed during the fast.",
+    "noWater": "No water during the fast.",
+    "noFasting": "No fasting needed — eat and drink as normal.",
+    "medication": "Medication:",
+    "onArrival": "On arrival:",
+    "bring": "Bring with you:",
+    "whoCanBook": "Who can book this:",
+    "confirmNote": "You'll be asked to confirm you've read this before the booking is finalised."
+  },
+  "eligibility": {
+    "menOnly": "Men only",
+    "womenOnly": "Women only",
+    "agesRange": "Ages {min}–{max}",
+    "agesMin": "Ages {min} and over",
+    "agesMax": "Ages {max} and under",
+    "notInPregnancy": "Not performed during pregnancy",
+    "notSuitableWith": "Not suitable with {condition}"
+  },
+  "nearby": {
+    "titleProviders": "Nearby providers",
+    "titleDoctors": "Nearby doctors",
+    "titleLabs": "Nearby labs",
+    "titleCenters": "Nearby centers",
+    "errorTitle": "Couldn't load nearby providers",
+    "emptyTitle": "Nothing nearby",
+    "emptyDescription": "We couldn't find another provider close to this location."
+  },
+  "reviews": {
+    "errorTitle": "Couldn't load reviews",
+    "errorDescription": "We hit a problem fetching the reviews for this profile.",
+    "emptyTitle": "No reviews yet",
+    "emptyDescription": "Be the first to share your experience after your visit.",
+    "showMore": "Show more reviews ({count} left)"
+  },
+  "category": {
+    "Hematology": "Hematology",
+    "Diabetes": "Diabetes",
+    "Cardiac": "Cardiac",
+    "Chemistry": "Chemistry",
+    "Hormones": "Hormones",
+    "Vitamins": "Vitamins",
+    "Microbiology": "Microbiology",
+    "Immunology": "Immunology",
+    "Virology": "Virology",
+    "Tumor Markers": "Tumor Markers",
+    "Andrology": "Andrology",
+    "X-Ray": "X-Ray",
+    "Ultrasound": "Ultrasound",
+    "Doppler": "Doppler",
+    "CT Scan": "CT Scan",
+    "MRI": "MRI",
+    "Mammography": "Mammography",
+    "DEXA": "DEXA",
+    "Fluoroscopy": "Fluoroscopy"
+  },
+  "seo": {
+    "doctorTitle": "{name} — {specialty} in {where}",
+    "providerTitle": "{name} — {where}",
+    "doctorDescription": "Book {name}, {specialty} in {where}. {years} years of experience · {rating}★ from {reviews} reviews · Consultation from {price}.",
+    "providerDescription": "Book {name} in {where}. {rating}★ from {reviews} reviews · {count} {kind, select, lab {tests} other {scans}} from {price}."
+  }
+}

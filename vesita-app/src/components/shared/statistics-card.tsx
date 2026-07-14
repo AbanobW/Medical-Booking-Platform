@@ -1,9 +1,10 @@
 "use client";
 
 import { TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { formatDelta } from "@/lib/format";
+import { useFormat } from "@/lib/i18n/use-format";
 import { cn } from "@/lib/utils";
 
 const TONES = {
@@ -39,6 +40,9 @@ export function StatisticsCard({
   hint,
   className,
 }: StatisticsCardProps) {
+  const t = useTranslations("common");
+  const { formatDelta } = useFormat();
+
   const isUp = (change ?? 0) >= 0;
   // A rise in cancellations is bad; a rise in revenue is good.
   const isGood = invertChange ? !isUp : isUp;
@@ -72,7 +76,7 @@ export function StatisticsCard({
             {change !== undefined && (
               <span
                 className={cn(
-                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 font-medium tabular-nums",
+                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 font-medium tabular-nums ltr-nums",
                   isGood
                     ? "bg-success/10 text-success"
                     : "bg-destructive/10 text-destructive",
@@ -83,7 +87,7 @@ export function StatisticsCard({
               </span>
             )}
             <span className="truncate text-muted-foreground">
-              {hint ?? "vs last month"}
+              {hint ?? t("stats.vsLastMonth")}
             </span>
           </div>
         )}

@@ -12,7 +12,8 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useTranslations } from "next-intl";
+import { useMemo, type ReactNode } from "react";
 
 import { BookingCard } from "@/components/patient/booking-card";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -32,10 +33,17 @@ import { getBookings } from "@/lib/api/bookings";
 import { getPatientProfiles } from "@/lib/api/profiles";
 import { getProviderById } from "@/lib/api/providers";
 import { getPatientStats } from "@/lib/api/stats";
-import { formatEGP } from "@/lib/site";
-import { RELATIONSHIP_LABELS, type PatientProfile, type Provider } from "@/lib/types";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
+import type { PatientProfile, Provider } from "@/lib/types";
 
 export default function PatientDashboardPage() {
+  const t = useTranslations("patient");
+  const L = useLabels();
+  const { formatEGP, locale } = useFormat();
+  const describeError = useApiError();
+
   const { user } = useAuth();
   const patientId = user?.id ?? "";
 
@@ -90,15 +98,38 @@ export default function PatientDashboardPage() {
     profiles.refetch();
   }
 
+  const strong = (chunks: ReactNode) => (
+    <span className="font-medium text-foreground">{chunks}</span>
+  );
+
+  const profileList = profiles.data ?? [];
+  // Arabic separates a list with the Arabic comma, not the Latin one.
+  const separator = locale === "ar" ? "، " : ", ";
+  const profileNames =
+    profileList
+      .slice(0, 3)
+      .map((p) =>
+        t("dashboard.profiles.entry", {
+          name: p.fullName.split(" ")[0],
+          relationship: L.relationship(p.relationship),
+        }),
+      )
+      .join(separator) +
+    (profileList.length > 3
+      ? t("dashboard.profiles.more", { count: profileList.length - 3 })
+      : "");
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">
-            Welcome back{user ? `, ${user.name.split(" ")[0]}` : ""}
+            {user
+              ? t("dashboard.welcome", { name: user.name.split(" ")[0] })
+              : t("dashboard.welcomeAnonymous")}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Here&apos;s what&apos;s happening with your care.
+            {t("dashboard.subtitle")}
           </p>
         </div>
 
@@ -107,7 +138,7 @@ export default function PatientDashboardPage() {
           className="h-10 rounded-xl px-4"
         >
           <CalendarPlus className="size-4" />
-          Book an appointment
+          {t("dashboard.book")}
         </Button>
       </div>
 
@@ -117,64 +148,64 @@ export default function PatientDashboardPage() {
           <StatGridSkeleton count={4} />
         ) : stats.error ? (
           <ErrorState
-            title="Couldn't load your stats"
-            description={stats.error.message}
+            title={t("dashboard.stats.error")}
+            description={describeError(stats.error)}
             onRetry={stats.refetch}
           />
         ) : stats.data ? (
           <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatisticsCard
-                label="Upcoming"
+                label={t("dashboard.stats.upcoming")}
                 value={stats.data.upcomingCount}
                 icon={CalendarClock}
                 tone="info"
-                hint="Appointments ahead"
+                hint={t("dashboard.stats.upcomingHint")}
               />
               <StatisticsCard
-                label="Completed"
+                label={t("dashboard.stats.completed")}
                 value={stats.data.completedCount}
                 icon={CalendarCheck}
                 tone="success"
-                hint="Visits so far"
+                hint={t("dashboard.stats.completedHint")}
               />
               <StatisticsCard
-                label="Cancelled"
+                label={t("dashboard.stats.cancelled")}
                 value={stats.data.cancelledCount}
                 icon={CalendarX}
                 tone="destructive"
-                hint="Cancelled bookings"
+                hint={t("dashboard.stats.cancelledHint")}
               />
               <StatisticsCard
-                label="Total spent"
+                label={t("dashboard.stats.totalSpent")}
                 value={formatEGP(stats.data.totalSpent)}
                 icon={Wallet}
                 tone="primary"
-                hint="Across completed visits"
+                hint={t("dashboard.stats.totalSpentHint")}
               />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
               <StatisticsCard
-                label="Cashback earned"
+                label={t("dashboard.stats.cashback")}
                 value={formatEGP(stats.data.cashbackEarned)}
                 icon={Coins}
                 tone="warning"
-                hint="Credited to your wallet"
+                hint={t("dashboard.stats.cashbackHint")}
               />
               <StatisticsCard
-                label="Favorites"
+                label={t("dashboard.stats.favorites")}
                 value={stats.data.favoriteCount}
                 icon={Heart}
                 tone="destructive"
-                hint="Saved providers"
+                hint={t("dashboard.stats.favoritesHint")}
               />
               <StatisticsCard
-                label="Reviews written"
+                label={t("dashboard.stats.reviews")}
                 value={stats.data.reviewCount}
                 icon={Star}
                 tone="warning"
-                hint="Thanks for the feedback"
+                hint={t("dashboard.stats.reviewsHint")}
               />
             </div>
           </>
@@ -189,35 +220,25 @@ export default function PatientDashboardPage() {
               <Users className="size-5" />
             </div>
             <div className="min-w-0">
-              <h3 className="font-semibold">Patient profiles</h3>
+              <h3 className="font-semibold">{t("dashboard.profiles.title")}</h3>
 
               {profiles.isLoading ? (
                 <Skeleton className="mt-2 h-4 w-56" />
               ) : profiles.error ? (
                 <p className="mt-1 text-sm text-destructive">
-                  {profiles.error.message}
+                  {describeError(profiles.error)}
                 </p>
-              ) : (profiles.data ?? []).length === 0 ? (
+              ) : profileList.length === 0 ? (
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Add yourself and the family you book for — history is kept per
-                  person.
+                  {t("dashboard.profiles.empty")}
                 </p>
               ) : (
                 <p className="mt-1 text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">
-                    {profiles.data!.length}
-                  </span>{" "}
-                  {profiles.data!.length === 1 ? "profile" : "profiles"} —{" "}
-                  {profiles
-                    .data!.slice(0, 3)
-                    .map(
-                      (p) =>
-                        `${p.fullName.split(" ")[0]} (${RELATIONSHIP_LABELS[p.relationship]})`,
-                    )
-                    .join(", ")}
-                  {profiles.data!.length > 3
-                    ? ` +${profiles.data!.length - 3} more`
-                    : ""}
+                  {t.rich("dashboard.profiles.summary", {
+                    count: profileList.length,
+                    names: profileNames,
+                    b: strong,
+                  })}
                 </p>
               )}
             </div>
@@ -228,7 +249,7 @@ export default function PatientDashboardPage() {
             variant="outline"
             className="h-10 rounded-xl px-4"
           >
-            Manage profiles
+            {t("dashboard.profiles.manage")}
           </Button>
         </div>
       </section>
@@ -236,13 +257,15 @@ export default function PatientDashboardPage() {
       {/* Upcoming --------------------------------------------------------- */}
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-lg font-semibold">Upcoming appointments</h3>
+          <h3 className="text-lg font-semibold">
+            {t("dashboard.upcoming.title")}
+          </h3>
           <Button
             render={<Link href="/patient/bookings" />}
             variant="ghost"
             size="sm"
           >
-            View all
+            {t("dashboard.upcoming.viewAll")}
           </Button>
         </div>
 
@@ -250,21 +273,21 @@ export default function PatientDashboardPage() {
           <ListSkeleton count={2} />
         ) : upcoming.error ? (
           <ErrorState
-            title="Couldn't load your appointments"
-            description={upcoming.error.message}
+            title={t("dashboard.upcoming.error")}
+            description={describeError(upcoming.error)}
             onRetry={upcoming.refetch}
           />
         ) : !upcoming.data || upcoming.data.items.length === 0 ? (
           <EmptyState
             icon={CalendarClock}
-            title="No upcoming appointments"
-            description="When you book a doctor, lab or scan, it will show up here."
+            title={t("dashboard.upcoming.emptyTitle")}
+            description={t("dashboard.upcoming.emptyDescription")}
             action={
               <Button
                 render={<Link href="/search" />}
                 className="h-10 rounded-xl px-4"
               >
-                Find a provider
+                {t("dashboard.upcoming.find")}
               </Button>
             }
           />
@@ -284,21 +307,23 @@ export default function PatientDashboardPage() {
 
       {/* Recently completed ----------------------------------------------- */}
       <section className="space-y-4">
-        <h3 className="text-lg font-semibold">Recently completed</h3>
+        <h3 className="text-lg font-semibold">
+          {t("dashboard.completed.title")}
+        </h3>
 
         {completed.isLoading ? (
           <ListSkeleton count={2} />
         ) : completed.error ? (
           <ErrorState
-            title="Couldn't load your visit history"
-            description={completed.error.message}
+            title={t("dashboard.completed.error")}
+            description={describeError(completed.error)}
             onRetry={completed.refetch}
           />
         ) : !completed.data || completed.data.items.length === 0 ? (
           <EmptyState
             icon={CalendarCheck}
-            title="No completed visits yet"
-            description="Your visit history will appear here after your first appointment."
+            title={t("dashboard.completed.emptyTitle")}
+            description={t("dashboard.completed.emptyDescription")}
           />
         ) : (
           <div className="grid gap-4 xl:grid-cols-2">
@@ -316,21 +341,23 @@ export default function PatientDashboardPage() {
 
       {/* Book again ------------------------------------------------------- */}
       <section className="space-y-4">
-        <h3 className="text-lg font-semibold">Book again</h3>
+        <h3 className="text-lg font-semibold">
+          {t("dashboard.bookAgain.title")}
+        </h3>
 
         {bookAgain.isLoading ? (
           <ProviderListSkeleton count={3} />
         ) : bookAgain.error ? (
           <ErrorState
-            title="Couldn't load your providers"
-            description={bookAgain.error.message}
+            title={t("dashboard.bookAgain.error")}
+            description={describeError(bookAgain.error)}
             onRetry={bookAgain.refetch}
           />
         ) : !bookAgain.data || bookAgain.data.length === 0 ? (
           <EmptyState
             icon={CalendarPlus}
-            title="Nothing to rebook yet"
-            description="Providers you've visited before will appear here for a one-tap rebooking."
+            title={t("dashboard.bookAgain.emptyTitle")}
+            description={t("dashboard.bookAgain.emptyDescription")}
           />
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">

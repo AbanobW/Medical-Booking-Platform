@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -17,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutation } from "@/hooks/use-async";
 import { replyToReview } from "@/lib/api/engagement";
+import { useApiError } from "@/lib/i18n/use-api-error";
 import type { Review } from "@/lib/types";
 
 export function ReplyDialog({
@@ -30,6 +32,10 @@ export function ReplyDialog({
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
+  const t = useTranslations("provider");
+  const tCommon = useTranslations("common");
+  const describeError = useApiError();
+
   const [comment, setComment] = useState("");
   const reply = useMutation(replyToReview);
 
@@ -41,7 +47,7 @@ export function ReplyDialog({
     if (!review) return;
 
     if (comment.trim().length < 5) {
-      toast.error("Write a slightly longer reply.");
+      toast.error(t("replyDialog.tooShort"));
       return;
     }
 
@@ -49,11 +55,9 @@ export function ReplyDialog({
       await reply.mutate(review.id, comment.trim());
       onOpenChange(false);
       onSaved();
-      toast.success("Reply published.");
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Couldn't publish your reply.",
-      );
+      toast.success(t("replyDialog.published"));
+    } catch (error) {
+      toast.error(describeError(error));
     }
   }
 
@@ -62,11 +66,9 @@ export function ReplyDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {review?.reply ? "Edit your reply" : "Reply to review"}
+            {review?.reply ? t("replyDialog.editTitle") : t("replyDialog.title")}
           </DialogTitle>
-          <DialogDescription>
-            Your reply is public and shown under the review.
-          </DialogDescription>
+          <DialogDescription>{t("replyDialog.description")}</DialogDescription>
         </DialogHeader>
 
         {review && (
@@ -82,13 +84,13 @@ export function ReplyDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="reply-comment">Your reply</Label>
+              <Label htmlFor="reply-comment">{t("replyDialog.label")}</Label>
               <Textarea
                 id="reply-comment"
                 rows={4}
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder="Thank you for your feedback…"
+                placeholder={t("replyDialog.placeholder")}
                 className="rounded-xl"
               />
             </div>
@@ -101,14 +103,16 @@ export function ReplyDialog({
             onClick={() => onOpenChange(false)}
             className="h-10 rounded-xl px-4"
           >
-            Cancel
+            {tCommon("actions.cancel")}
           </Button>
           <Button
             onClick={onSubmit}
             disabled={reply.isPending}
             className="h-10 rounded-xl px-4"
           >
-            {reply.isPending ? "Publishing…" : "Publish reply"}
+            {reply.isPending
+              ? t("replyDialog.publishing")
+              : t("replyDialog.publish")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { MessageSquareOff, Pencil, Star, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -23,9 +24,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAsync, useMutation } from "@/hooks/use-async";
 import { deleteReview, getReviewsByPatient } from "@/lib/api/engagement";
+import { useApiError } from "@/lib/i18n/use-api-error";
 import type { Review } from "@/lib/types";
 
 export default function PatientReviewsPage() {
+  const t = useTranslations("patient");
+  const describeError = useApiError();
+
   const { user } = useAuth();
   const patientId = user?.id ?? "";
 
@@ -53,25 +58,23 @@ export default function PatientReviewsPage() {
     try {
       await remove(deleting.id);
       setData((current) => (current ?? []).filter((r) => r.id !== deleting.id));
-      toast.success("Review deleted.");
+      toast.success(t("reviews.deleted"));
       setDeleting(null);
     } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : "Couldn't delete this review. Please try again.",
-      );
+      toast.error(describeError(err));
     }
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">My reviews</h2>
+        <h2 className="text-2xl font-bold tracking-tight">
+          {t("reviews.title")}
+        </h2>
         <p className="text-sm text-muted-foreground">
           {reviews.length > 0
-            ? `You've written ${reviews.length} review${reviews.length === 1 ? "" : "s"}.`
-            : "Feedback you leave after a visit shows up here."}
+            ? t("reviews.count", { count: reviews.length })
+            : t("reviews.subtitle")}
         </p>
       </div>
 
@@ -79,22 +82,22 @@ export default function PatientReviewsPage() {
         <ListSkeleton count={4} />
       ) : error ? (
         <ErrorState
-          title="Couldn't load your reviews"
-          description={error.message}
+          title={t("reviews.error")}
+          description={describeError(error)}
           onRetry={refetch}
         />
       ) : reviews.length === 0 ? (
         <EmptyState
           icon={MessageSquareOff}
-          title="No reviews yet"
-          description="After a completed appointment you can rate your visit and help other patients."
+          title={t("reviews.emptyTitle")}
+          description={t("reviews.emptyDescription")}
           action={
             <Button
               render={<Link href="/patient/bookings" />}
               className="h-10 rounded-xl px-4"
             >
               <Star className="size-4" />
-              Review a visit
+              {t("reviews.reviewVisit")}
             </Button>
           }
         />
@@ -109,7 +112,7 @@ export default function PatientReviewsPage() {
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Edit review"
+                    aria-label={t("reviews.edit")}
                     onClick={() => setEditing(review)}
                   >
                     <Pencil className="size-4" />
@@ -117,7 +120,7 @@ export default function PatientReviewsPage() {
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Delete review"
+                    aria-label={t("reviews.delete")}
                     className="text-muted-foreground hover:text-destructive"
                     onClick={() => setDeleting(review)}
                   >
@@ -152,21 +155,22 @@ export default function PatientReviewsPage() {
             <AlertDialogMedia className="bg-destructive/10 text-destructive">
               <Trash2 />
             </AlertDialogMedia>
-            <AlertDialogTitle>Delete this review?</AlertDialogTitle>
+            <AlertDialogTitle>{t("reviews.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Your rating will be removed from the provider&apos;s profile. This can&apos;t
-              be undone, but you can always write a new review for that visit.
+              {t("reviews.deleteDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Keep it</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>
+              {t("reviews.keep")}
+            </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               disabled={isDeleting}
               onClick={onConfirmDelete}
             >
-              {isDeleting ? "Deleting…" : "Delete review"}
+              {isDeleting ? t("reviews.deleting") : t("reviews.confirmDelete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

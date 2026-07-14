@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -36,29 +37,35 @@ import {
   type CampaignInput,
 } from "@/lib/api/admin";
 import { addDays, TODAY } from "@/lib/data/seed";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useLabels } from "@/lib/i18n/use-labels";
 import { PROVIDER_ROLES, type CashbackCampaign, type ProviderRole } from "@/lib/types";
 
-const schema = z
-  .object({
-    name: z.string().min(3, "Give the campaign a name."),
-    description: z.string().min(5, "Describe what patients get."),
-    percentage: z
-      .number({ message: "Enter a number." })
-      .positive("Must be greater than zero.")
-      .max(100, "Cashback cannot exceed 100%."),
-    maxCashback: z
-      .number({ message: "Enter a number." })
-      .positive("Set a cap greater than zero."),
-    startsAt: z.string().min(1, "Pick a start date."),
-    endsAt: z.string().min(1, "Pick an end date."),
-    appliesTo: z.array(z.enum(["doctor", "lab", "radiology"])),
-  })
-  .refine((values) => values.endsAt >= values.startsAt, {
-    message: "The end date must fall after the start date.",
-    path: ["endsAt"],
-  });
+type Translate = (key: string) => string;
 
-type CampaignFormValues = z.infer<typeof schema>;
+/** Validation copy comes from the catalogue, so a rejected field speaks the user's language. */
+const campaignSchema = (t: Translate) =>
+  z
+    .object({
+      name: z.string().min(3, t("validation.name")),
+      description: z.string().min(5, t("validation.description")),
+      percentage: z
+        .number({ message: t("validation.number") })
+        .positive(t("validation.positive"))
+        .max(100, t("validation.max100")),
+      maxCashback: z
+        .number({ message: t("validation.number") })
+        .positive(t("validation.capPositive")),
+      startsAt: z.string().min(1, t("validation.start")),
+      endsAt: z.string().min(1, t("validation.end")),
+      appliesTo: z.array(z.enum(["doctor", "lab", "radiology"])),
+    })
+    .refine((values) => values.endsAt >= values.startsAt, {
+      message: t("validation.endAfterStart"),
+      path: ["endsAt"],
+    });
+
+type CampaignFormValues = z.infer<ReturnType<typeof campaignSchema>>;
 
 const toDateInput = (iso: string) => iso.slice(0, 10);
 const fromStart = (value: string) =>
@@ -104,6 +111,13 @@ export function CampaignDialog({
   campaign: CashbackCampaign | null;
   onSaved: () => void;
 }) {
+  const t = useTranslations("admin.campaignDialog");
+  const tCommon = useTranslations("common");
+  const L = useLabels();
+  const describeError = useApiError();
+
+  const schema = useMemo(() => campaignSchema(t), [t]);
+
   const form = useForm<CampaignFormValues>({
     resolver: zodResolver(schema),
     defaultValues: emptyValues(),
@@ -131,17 +145,15 @@ export function CampaignDialog({
     try {
       if (campaign) {
         await update(campaign.id, input);
-        toast.success(`${input.name} updated.`);
+        toast.success(t("toastUpdated", { name: input.name }));
       } else {
         await create(input);
-        toast.success(`${input.name} launched.`);
+        toast.success(t("toastCreated", { name: input.name }));
       }
       onOpenChange(false);
       onSaved();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not save the campaign.",
-      );
+    } catch (error) {
+      toast.error(describeError(error));
     }
   }
 
@@ -149,12 +161,8 @@ export function CampaignDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>
-            {campaign ? "Edit campaign" : "New cashback campaign"}
-          </DialogTitle>
-          <DialogDescription>
-            Wallet credit returned to patients after a completed booking.
-          </DialogDescription>
+          <DialogTitle>{campaign ? t("titleEdit") : t("titleNew")}</DialogTitle>
+          <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
@@ -168,11 +176,11 @@ export function CampaignDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Campaign name</FormLabel>
+                  <FormLabel>{t("fields.name")}</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
-                      placeholder="Ramadan lab cashback"
+                      placeholder={t("placeholders.name")}
                       className="h-11 rounded-xl"
                     />
                   </FormControl>
@@ -186,12 +194,12 @@ export function CampaignDialog({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description</FormLabel>
+                  <FormLabel>{t("fields.description")}</FormLabel>
                   <FormControl>
                     <Textarea
                       {...field}
                       rows={2}
-                      placeholder="Get 10% back as wallet credit on every lab test."
+                      placeholder={t("placeholders.description")}
                       className="rounded-xl"
                     />
                   </FormControl>
@@ -206,7 +214,7 @@ export function CampaignDialog({
                 name="percentage"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Cashback (%)</FormLabel>
+                    <FormLabel>{t("fields.percentage")}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -230,7 +238,7 @@ export function CampaignDialog({
                 name="maxCashback"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Max. cashback (EGP)</FormLabel>
+                    <FormLabel>{t("fields.maxCashback")}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -243,7 +251,7 @@ export function CampaignDialog({
                         className="h-11 rounded-xl"
                       />
                     </FormControl>
-                    <FormDescription>Per booking.</FormDescription>
+                    <FormDescription>{t("maxCashbackHint")}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -256,7 +264,7 @@ export function CampaignDialog({
                 name="startsAt"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Starts</FormLabel>
+                    <FormLabel>{t("fields.startsAt")}</FormLabel>
                     <FormControl>
                       <Input {...field} type="date" className="h-11 rounded-xl" />
                     </FormControl>
@@ -270,7 +278,7 @@ export function CampaignDialog({
                 name="endsAt"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Ends</FormLabel>
+                    <FormLabel>{t("fields.endsAt")}</FormLabel>
                     <FormControl>
                       <Input {...field} type="date" className="h-11 rounded-xl" />
                     </FormControl>
@@ -285,10 +293,10 @@ export function CampaignDialog({
               name="appliesTo"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Applies to</FormLabel>
+                  <FormLabel>{t("fields.appliesTo")}</FormLabel>
                   <div className="flex flex-wrap gap-4 rounded-xl border p-4">
                     {PROVIDER_ROLES.map((role) => {
-                      const { icon: Icon, label } = PROVIDER_TYPE_META[role];
+                      const { icon: Icon } = PROVIDER_TYPE_META[role];
 
                       return (
                         <label
@@ -307,14 +315,12 @@ export function CampaignDialog({
                             }}
                           />
                           <Icon className="size-4 text-muted-foreground" aria-hidden />
-                          {label}
+                          {L.providerType(role)}
                         </label>
                       );
                     })}
                   </div>
-                  <FormDescription>
-                    Leave every box unchecked to apply the campaign to all services.
-                  </FormDescription>
+                  <FormDescription>{t("appliesToHint")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -328,7 +334,7 @@ export function CampaignDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={isPending}
               >
-                Cancel
+                {tCommon("actions.cancel")}
               </Button>
               <Button
                 type="submit"
@@ -336,7 +342,7 @@ export function CampaignDialog({
                 disabled={isPending}
               >
                 {isPending && <Loader2 className="size-4 animate-spin" />}
-                {campaign ? "Save changes" : "Launch campaign"}
+                {campaign ? tCommon("actions.saveChanges") : t("submitNew")}
               </Button>
             </DialogFooter>
           </form>

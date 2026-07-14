@@ -1,9 +1,10 @@
 "use client";
 
 import { Banknote, CreditCard, Wallet } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
-import { formatEGP } from "@/lib/site";
+import { useFormat } from "@/lib/i18n/use-format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -38,11 +39,14 @@ export function OrderSummary({
   isPaid?: boolean;
   className?: string;
 }) {
+  const t = useTranslations("booking");
+  const { formatEGP } = useFormat();
+
   const atClinic = Math.max(price - discount, 0);
 
   return (
     <div className={cn("rounded-2xl border bg-card p-5 shadow-soft", className)}>
-      <p className="text-sm font-semibold">Order summary</p>
+      <p className="text-sm font-semibold">{t("summary.title")}</p>
 
       <dl className="mt-4 space-y-3 text-sm">
         <div className="flex items-start justify-between gap-4">
@@ -58,7 +62,7 @@ export function OrderSummary({
         {discount > 0 && (
           <div className="flex items-start justify-between gap-4">
             <dt className="flex items-center gap-2 text-muted-foreground">
-              Discount
+              {t("summary.discount")}
               {couponCode && (
                 <Badge variant="secondary" className="font-mono text-[0.65rem]">
                   {couponCode}
@@ -66,7 +70,7 @@ export function OrderSummary({
               )}
             </dt>
             <dd className="shrink-0 font-medium tabular-nums text-success">
-              −{formatEGP(discount)}
+              <span className="ltr-nums">−{formatEGP(discount)}</span>
             </dd>
           </div>
         )}
@@ -75,10 +79,10 @@ export function OrderSummary({
           <div className="flex items-start justify-between gap-4">
             <dt className="flex items-center gap-2 text-muted-foreground">
               <Wallet className="size-3.5" />
-              Cashback to wallet
+              {t("summary.cashback")}
             </dt>
             <dd className="shrink-0 font-medium tabular-nums text-success">
-              +{formatEGP(cashback)}
+              <span className="ltr-nums">+{formatEGP(cashback)}</span>
             </dd>
           </div>
         )}
@@ -90,12 +94,12 @@ export function OrderSummary({
             <CreditCard className="mt-0.5 size-4 shrink-0 text-primary" />
             <div className="min-w-0">
               <p className="text-sm font-semibold">
-                {isPaid ? "Paid online" : "Pay online now"}
+                {isPaid ? t("summary.paidOnline") : t("summary.payOnline")}
               </p>
               <p className="text-xs text-muted-foreground">
                 {bookingFee > 0
-                  ? "The booking fee that confirms your place."
-                  : "Nothing to pay online — cash bookings carry no fee."}
+                  ? t("summary.onlineHint")
+                  : t("summary.onlineNone")}
               </p>
             </div>
           </div>
@@ -108,9 +112,9 @@ export function OrderSummary({
           <div className="flex min-w-0 items-start gap-2">
             <Banknote className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0">
-              <p className="text-sm font-semibold">Pay at the clinic</p>
+              <p className="text-sm font-semibold">{t("summary.atClinic")}</p>
               <p className="text-xs text-muted-foreground">
-                The visit fee itself, settled in cash on the day.
+                {t("summary.atClinicHint")}
               </p>
             </div>
           </div>
@@ -122,8 +126,7 @@ export function OrderSummary({
 
       {cashback === undefined && (
         <p className="mt-3 text-xs text-muted-foreground">
-          Any active cashback campaign is credited to your wallet automatically
-          once the booking is confirmed.
+          {t("summary.cashbackNote")}
         </p>
       )}
     </div>

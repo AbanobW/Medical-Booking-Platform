@@ -1,17 +1,25 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+
 import { cn } from "@/lib/utils";
 import { SITE } from "@/lib/site";
 
 /** The Vesita wordmark: a blue cross-in-pulse glyph plus the name. */
 export function Logo({
   className,
+  textClassName,
   showText = true,
 }: {
   className?: string;
+  textClassName?: string;
   showText?: boolean;
 }) {
+  const t = useTranslations("nav");
+
   return (
     <span className={cn("flex items-center gap-2", className)}>
-      <span className="flex size-9 items-center justify-center rounded-xl bg-brand-gradient shadow-glow">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-gradient shadow-glow">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -29,11 +37,16 @@ export function Logo({
       </span>
 
       {showText && (
-        <span className="text-xl font-bold tracking-tight">
+        <span
+          className={cn(
+            "text-xl font-bold tracking-tight whitespace-nowrap",
+            textClassName,
+          )}
+        >
           {SITE.name}
         </span>
       )}
-      <span className="sr-only">{SITE.name} home</span>
+      <span className="sr-only">{t("logo.home", { site: SITE.name })}</span>
     </span>
   );
 }

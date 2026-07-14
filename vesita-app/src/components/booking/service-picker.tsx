@@ -1,13 +1,13 @@
 "use client";
 
 import { Check, Clock, MapPin, Search } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { getAreaName, getGovernorateName } from "@/lib/data/egypt";
-import { formatDuration } from "@/lib/format";
-import { formatEGP } from "@/lib/site";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
+import type { Named } from "@/lib/i18n/domain";
 import {
   branchPriceOf,
   requiresAcknowledgement,
@@ -17,9 +17,26 @@ import {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+/** Group headings are keys, not copy — the component translates them. */
+type GroupKey = "consultation" | "tests" | "scans" | "packages";
+
 interface ServiceGroup {
-  title: string;
+  key: GroupKey;
   services: Service[];
+}
+
+/**
+ * A service in the shape `named()` understands.
+ *
+ * Lab tests and scans ship `nameAr`; consultation types and packages do not
+ * (yet). `named()` falls back to the English name when the Arabic one is blank,
+ * so this is safe either way.
+ */
+export function serviceNamed(service: Service): Named {
+  return {
+    name: service.name,
+    nameAr: "nameAr" in service ? service.nameAr : "",
+  };
 }
 
 /** Every service the provider offers, whatever their type. */
@@ -46,44 +63,25 @@ export function serviceGroupsFor(
   if (provider.type === "doctor") {
     return [
       {
-        title: "Consultation types",
+        key: "consultation",
         services: provider.consultationTypes.filter(offered),
       },
     ];
   }
 
-  const items =
+  const items: ServiceGroup =
     provider.type === "lab"
-      ? { title: "Tests", services: provider.tests.filter(offered) }
-      : { title: "Scans", services: provider.scans.filter(offered) };
+      ? { key: "tests", services: provider.tests.filter(offered) }
+      : { key: "scans", services: provider.scans.filter(offered) };
 
   const packages = provider.packages.filter(offered);
 
   return [
     ...(packages.length > 0
-      ? [{ title: "Packages", services: packages as Service[] }]
+      ? [{ key: "packages" as const, services: packages as Service[] }]
       : []),
     items,
   ];
-}
-
-function serviceMeta(service: Service): string[] {
-  switch (service.kind) {
-    case "consultation":
-      return [formatDuration(service.durationMinutes)];
-    case "test":
-      return [
-        `Results in ${formatDuration(service.resultTimeHours * 60)}`,
-        ...(service.fastingRequired ? ["Fasting required"] : []),
-      ];
-    case "scan":
-      return [
-        formatDuration(service.durationMinutes),
-        ...(service.contrastRequired ? ["Contrast required"] : []),
-      ];
-    case "package":
-      return [`${service.includes.length} items included`];
-  }
 }
 
 function ServiceCard({
@@ -97,8 +95,40 @@ function ServiceCard({
   isSelected: boolean;
   onSelect: () => void;
 }) {
+  const t = useTranslations("booking");
+  const { named, localized } = useDomain();
+  const { formatDuration, formatEGP, formatNumber } = useFormat();
+
   const pkg = service.kind === "package" ? service : undefined;
   const saving = pkg ? pkg.originalPrice - pkg.price : 0;
+
+  const meta: string[] = (() => {
+    switch (service.kind) {
+      case "consultation":
+        return [formatDuration(service.durationMinutes)];
+      case "test":
+        return [
+          t("service.meta.results", {
+            duration: formatDuration(service.resultTimeHours * 60),
+          }),
+          ...(service.fastingRequired ? [t("service.meta.fasting")] : []),
+        ];
+      case "scan":
+        return [
+          formatDuration(service.durationMinutes),
+          ...(service.contrastRequired ? [t("service.meta.contrast")] : []),
+        ];
+      case "package":
+        return [
+          t("service.meta.includes", {
+            count: service.includes.length,
+            n: formatNumber(service.includes.length),
+          }),
+        ];
+    }
+  })();
+
+  const description = localized(service.description);
 
   return (
     <button
@@ -106,7 +136,7 @@ function ServiceCard({
       onClick={onSelect}
       aria-pressed={isSelected}
       className={cn(
-        "flex w-full flex-col gap-2 rounded-2xl border p-4 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        "flex w-full flex-col gap-2 rounded-2xl border p-4 text-start transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         isSelected
           ? "border-primary bg-primary/5 shadow-glow"
           : "border-border bg-card hover:border-primary/50 hover:shadow-soft",
@@ -115,19 +145,19 @@ function ServiceCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-2 font-semibold">
-            <span className="truncate">{service.name}</span>
+            <span className="truncate">{named(serviceNamed(service))}</span>
             {isSelected && (
               <Check className="size-4 shrink-0 text-primary" aria-hidden />
             )}
           </p>
-          {service.description && (
+          {description && (
             <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-              {service.description}
+              {description}
             </p>
           )}
         </div>
 
-        <div className="shrink-0 text-right">
+        <div className="shrink-0 text-end">
           <p className="font-bold text-primary">{formatEGP(price)}</p>
           {pkg && saving > 0 && (
             <p className="text-xs text-muted-foreground line-through">
@@ -138,18 +168,24 @@ function ServiceCard({
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        {serviceMeta(service).map((meta) => (
-          <Badge key={meta} variant="secondary" className="text-[0.7rem] font-normal">
-            {meta}
+        {meta.map((line) => (
+          <Badge
+            key={line}
+            variant="secondary"
+            className="text-[0.7rem] font-normal"
+          >
+            {line}
           </Badge>
         ))}
         {requiresAcknowledgement(service) && (
           <Badge variant="outline" className="text-[0.7rem] font-normal">
-            Preparation needed
+            {t("service.prepNeeded")}
           </Badge>
         )}
         {saving > 0 && (
-          <Badge className="text-[0.7rem]">Save {formatEGP(saving)}</Badge>
+          <Badge className="text-[0.7rem]">
+            {t("service.save", { amount: formatEGP(saving) })}
+          </Badge>
         )}
       </div>
     </button>
@@ -175,6 +211,9 @@ export function ServicePicker({
   serviceId?: string;
   onSelectService: (id: string) => void;
 }) {
+  const t = useTranslations("booking");
+  const { named, localized, getAreaName, getGovernorateName } = useDomain();
+
   const [query, setQuery] = useState("");
 
   const branches = provider.branches.filter((b) => b.isActive);
@@ -196,26 +235,34 @@ export function ServicePicker({
       .map((group) => ({
         ...group,
         services: group.services.filter((s) =>
-          `${s.name} ${s.description}`.toLowerCase().includes(term),
+          `${s.name} ${named(serviceNamed(s))} ${localized(s.description)}`
+            .toLowerCase()
+            .includes(term),
         ),
       }))
       .filter((group) => group.services.length > 0);
-  }, [groups, query]);
+  }, [groups, query, named, localized]);
+
+  const heading =
+    provider.type === "doctor"
+      ? t("service.titleDoctor")
+      : provider.type === "lab"
+        ? t("service.titleLab")
+        : t("service.titleRadiology");
 
   return (
     <div className="space-y-8">
       <section className="space-y-3">
         <div>
-          <h2 className="text-lg font-semibold">Choose a branch</h2>
+          <h2 className="text-lg font-semibold">{t("service.branchTitle")}</h2>
           <p className="text-sm text-muted-foreground">
-            Each branch keeps its own schedule, services and prices — pick where
-            you&apos;d like to be seen first.
+            {t("service.branchSubtitle")}
           </p>
         </div>
 
         {branches.length === 0 ? (
           <p className="rounded-2xl border border-dashed bg-card/50 px-6 py-8 text-center text-sm text-muted-foreground">
-            This provider has no active branch taking bookings right now.
+            {t("service.branchEmpty")}
           </p>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
@@ -229,7 +276,7 @@ export function ServicePicker({
                   onClick={() => onSelectBranch(item.id)}
                   aria-pressed={isSelected}
                   className={cn(
-                    "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                    "flex w-full items-start gap-3 rounded-2xl border p-4 text-start transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                     isSelected
                       ? "border-primary bg-primary/5 shadow-glow"
                       : "border-border bg-card hover:border-primary/50 hover:shadow-soft",
@@ -250,7 +297,10 @@ export function ServicePicker({
                     <span className="flex items-center gap-2 font-medium">
                       <span className="truncate">{item.name}</span>
                       {isSelected && (
-                        <Check className="size-4 shrink-0 text-primary" aria-hidden />
+                        <Check
+                          className="size-4 shrink-0 text-primary"
+                          aria-hidden
+                        />
                       )}
                     </span>
                     <span className="mt-0.5 block text-sm text-muted-foreground">
@@ -262,7 +312,7 @@ export function ServicePicker({
                     </span>
                     <span className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="size-3" />
-                      {item.openingHours}
+                      <span className="ltr-nums">{item.openingHours}</span>
                     </span>
                   </span>
                 </button>
@@ -275,29 +325,23 @@ export function ServicePicker({
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold">
-              {provider.type === "doctor"
-                ? "Choose a consultation"
-                : provider.type === "lab"
-                  ? "Choose a test or package"
-                  : "Choose a scan or package"}
-            </h2>
+            <h2 className="text-lg font-semibold">{heading}</h2>
             <p className="text-sm text-muted-foreground">
               {branch
-                ? `Offered at ${branch.name}. Prices are this branch's prices — no hidden fees at the counter.`
-                : "Pick a branch first — services and prices differ between branches."}
+                ? t("service.subtitleBranch", { branch: branch.name })
+                : t("service.subtitleNoBranch")}
             </p>
           </div>
 
           {branch && isSearchable && (
             <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search services…"
-                className="h-10 rounded-xl pl-9"
-                aria-label="Search services"
+                placeholder={t("service.searchPlaceholder")}
+                className="h-10 rounded-xl ps-9"
+                aria-label={t("service.searchAria")}
               />
             </div>
           )}
@@ -305,21 +349,21 @@ export function ServicePicker({
 
         {!branch ? (
           <p className="rounded-2xl border border-dashed bg-card/50 px-6 py-10 text-center text-sm text-muted-foreground">
-            Choose a branch above to see what it offers.
+            {t("service.chooseBranchFirst")}
           </p>
         ) : totalServices === 0 ? (
           <p className="rounded-2xl border border-dashed bg-card/50 px-6 py-10 text-center text-sm text-muted-foreground">
-            {branch.name} has no bookable services listed. Try another branch.
+            {t("service.branchNoServices", { branch: branch.name })}
           </p>
         ) : filtered.length === 0 ? (
           <p className="rounded-2xl border border-dashed bg-card/50 px-6 py-10 text-center text-sm text-muted-foreground">
-            No services match &ldquo;{query}&rdquo;. Try a different search.
+            {t("service.noMatches", { query })}
           </p>
         ) : (
           filtered.map((group) => (
-            <div key={group.title} className="space-y-3">
+            <div key={group.key} className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {group.title}
+                {t(`service.group.${group.key}`)}
               </p>
               <div className="grid gap-3 md:grid-cols-2">
                 {group.services.map((service) => (

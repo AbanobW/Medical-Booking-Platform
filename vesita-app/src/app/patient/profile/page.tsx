@@ -2,10 +2,13 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarDays, Mail, Save, ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { ChangePasswordCard } from "@/components/patient/change-password-card";
 import { useAuth } from "@/components/providers/auth-provider";
 import { ProfileSkeleton } from "@/components/shared/states";
 import { AppSelect } from "@/components/ui/app-select";
@@ -29,48 +32,89 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { editableProfileFields } from "@/lib/api/session";
 import { GOVERNORATES } from "@/lib/data/egypt";
-import { formatDate, initialsOf } from "@/lib/format";
-import { ROLE_LABELS } from "@/lib/types";
+import { TODAY } from "@/lib/data/seed";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
 
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
-const GENDER_OPTIONS = [
-  { value: "male", label: "Male" },
-  { value: "female", label: "Female" },
-];
-
 const BLOOD_OPTIONS = BLOOD_TYPES.map((type) => ({ value: type, label: type }));
 
-const GOVERNORATE_OPTIONS = GOVERNORATES.map((governorate) => ({
-  value: governorate.id,
-  label: governorate.name,
-}));
+/**
+ * The validation messages are copy, so the schema is built per-render.
+ *
+ * `requireExtras` is false against MedPoint, which has no column for gender,
+ * date of birth, blood type or governorate. Demanding them there would make the
+ * form permanently unsubmittable — the user cannot supply what the server will
+ * not keep — so those fields are dropped from the form entirely rather than
+ * accepted and silently discarded. They still live on the patient profile
+ * (§1), which is what the booking flow actually reads.
+ */
+function buildSchema(t: (key: string) => string, requireExtras: boolean) {
+  return z
+    .object({
+      name: z.string().trim().min(3, t("account.validation.name")),
+      phone: z
+        .string()
+        .trim()
+        .regex(/^01[0125]\d{8}$/, t("account.validation.phone")),
+      gender: z.enum(["male", "female"]).optional(),
+      dateOfBirth: z.string().optional(),
+      bloodType: z.string().optional(),
+      governorateId: z.string().optional(),
+    })
+    .superRefine((values, ctx) => {
+      if (!requireExtras) return;
 
-const profileSchema = z.object({
-  name: z.string().trim().min(3, "Please enter your full name."),
-  phone: z
-    .string()
-    .trim()
-    .regex(/^01[0125]\d{8}$/, "Enter a valid Egyptian mobile number (11 digits)."),
-  gender: z.enum(["male", "female"], { message: "Select your gender." }),
-  dateOfBirth: z
-    .string()
-    .min(1, "Select your date of birth.")
-    .refine((value) => new Date(value).getTime() < Date.now(), {
-      message: "Your date of birth must be in the past.",
-    }),
-  bloodType: z.string().min(1, "Select your blood type."),
-  governorateId: z.string().min(1, "Select your governorate."),
-});
+      const require = (
+        field: "gender" | "dateOfBirth" | "bloodType" | "governorateId",
+        message: string,
+      ) => {
+        if (!values[field]) {
+          ctx.addIssue({ code: "custom", path: [field], message });
+        }
+      };
 
-type ProfileValues = z.infer<typeof profileSchema>;
+      require("gender", t("account.validation.gender"));
+      require("bloodType", t("account.validation.bloodType"));
+      require("governorateId", t("account.validation.governorate"));
+
+      if (!values.dateOfBirth) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["dateOfBirth"],
+          message: t("account.validation.dateOfBirthRequired"),
+        });
+      } else if (new Date(values.dateOfBirth).getTime() >= TODAY.getTime()) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["dateOfBirth"],
+          message: t("account.validation.dateOfBirthPast"),
+        });
+      }
+    });
+}
+
+type ProfileValues = z.infer<ReturnType<typeof buildSchema>>;
 
 export default function PatientProfilePage() {
+  const t = useTranslations("patient");
+  const L = useLabels();
+  const { formatDate, initialsOf } = useFormat();
+  const { getGovernorateName } = useDomain();
+  const describeError = useApiError();
+
   const { user, isLoading, updateProfile } = useAuth();
 
+  // Only offer the fields the active backend can actually keep.
+  const storesExtras = editableProfileFields().includes("gender");
+  const schema = useMemo(() => buildSchema(t, storesExtras), [t, storesExtras]);
+
   const form = useForm<ProfileValues>({
-    resolver: zodResolver(profileSchema),
+    resolver: zodResolver(schema),
     values: user
       ? {
           name: user.name,
@@ -83,18 +127,24 @@ export default function PatientProfilePage() {
       : undefined,
   });
 
+  const genderOptions = [
+    { value: "male", label: L.gender("male") },
+    { value: "female", label: L.gender("female") },
+  ];
+
+  const governorateOptions = GOVERNORATES.map((governorate) => ({
+    value: governorate.id,
+    label: getGovernorateName(governorate.id),
+  }));
+
   if (isLoading || !user) return <ProfileSkeleton />;
 
   async function onSubmit(values: ProfileValues) {
     try {
       await updateProfile(values);
-      toast.success("Profile updated.");
+      toast.success(t("account.saved"));
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Couldn't save your profile. Please try again.",
-      );
+      toast.error(describeError(error));
     }
   }
 
@@ -121,17 +171,17 @@ export default function PatientProfilePage() {
               <h2 className="truncate text-xl font-bold">{user.name}</h2>
               <Badge variant="secondary" className="gap-1">
                 <ShieldCheck />
-                {ROLE_LABELS[user.role]}
+                {L.role(user.role)}
               </Badge>
             </div>
 
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Mail className="size-4 shrink-0" />
-              {user.email}
+              <span className="ltr-nums">{user.email}</span>
             </p>
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <CalendarDays className="size-4 shrink-0" />
-              Member since {formatDate(user.createdAt)}
+              {t("account.memberSince", { date: formatDate(user.createdAt) })}
             </p>
           </div>
         </CardContent>
@@ -140,11 +190,8 @@ export default function PatientProfilePage() {
       {/* Editable details -------------------------------------------------- */}
       <Card>
         <CardHeader>
-          <CardTitle>Personal details</CardTitle>
-          <CardDescription>
-            These details pre-fill your booking forms. Your email address can&apos;t be
-            changed.
-          </CardDescription>
+          <CardTitle>{t("account.detailsTitle")}</CardTitle>
+          <CardDescription>{t("account.detailsDescription")}</CardDescription>
         </CardHeader>
 
         <CardContent>
@@ -160,11 +207,11 @@ export default function PatientProfilePage() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Full name</FormLabel>
+                      <FormLabel>{t("account.fullName")}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
-                          placeholder="Your full name"
+                          placeholder={t("account.fullNamePlaceholder")}
                           className="h-11 rounded-xl"
                         />
                       </FormControl>
@@ -178,7 +225,7 @@ export default function PatientProfilePage() {
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Mobile number</FormLabel>
+                      <FormLabel>{t("account.phone")}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -188,28 +235,28 @@ export default function PatientProfilePage() {
                           className="h-11 rounded-xl"
                         />
                       </FormControl>
-                      <FormDescription>
-                        Used for appointment reminders.
-                      </FormDescription>
+                      <FormDescription>{t("account.phoneHint")}</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
+                {storesExtras && (
+                  <>
                 <FormField
                   control={form.control}
                   name="gender"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Gender</FormLabel>
+                      <FormLabel>{t("account.gender")}</FormLabel>
                       <FormControl>
                         <AppSelect
                           value={field.value ?? ""}
                           onValueChange={(value) =>
                             field.onChange(value as ProfileValues["gender"])
                           }
-                          options={GENDER_OPTIONS}
-                          placeholder="Select gender"
+                          options={genderOptions}
+                          placeholder={t("account.genderPlaceholder")}
                         />
                       </FormControl>
                       <FormMessage />
@@ -222,7 +269,7 @@ export default function PatientProfilePage() {
                   name="dateOfBirth"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Date of birth</FormLabel>
+                      <FormLabel>{t("account.dateOfBirth")}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -240,17 +287,17 @@ export default function PatientProfilePage() {
                   name="bloodType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Blood type</FormLabel>
+                      <FormLabel>{t("account.bloodType")}</FormLabel>
                       <FormControl>
                         <AppSelect
-                          value={field.value}
+                          value={field.value ?? ""}
                           onValueChange={field.onChange}
                           options={BLOOD_OPTIONS}
-                          placeholder="Select blood type"
+                          placeholder={t("account.bloodTypePlaceholder")}
                         />
                       </FormControl>
                       <FormDescription>
-                        Shared with providers in an emergency.
+                        {t("account.bloodTypeHint")}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -262,20 +309,28 @@ export default function PatientProfilePage() {
                   name="governorateId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Governorate</FormLabel>
+                      <FormLabel>{t("account.governorate")}</FormLabel>
                       <FormControl>
                         <AppSelect
-                          value={field.value}
+                          value={field.value ?? ""}
                           onValueChange={field.onChange}
-                          options={GOVERNORATE_OPTIONS}
-                          placeholder="Select governorate"
+                          options={governorateOptions}
+                          placeholder={t("account.governoratePlaceholder")}
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                  </>
+                )}
               </div>
+
+              {!storesExtras && (
+                <p className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-muted-foreground">
+                  {t("account.limitedFields")}
+                </p>
+              )}
 
               <div className="flex justify-end gap-2 border-t pt-5">
                 <Button
@@ -285,7 +340,7 @@ export default function PatientProfilePage() {
                   disabled={!isDirty || isSubmitting}
                   className="h-10 rounded-xl px-4"
                 >
-                  Reset
+                  {t("account.reset")}
                 </Button>
                 <Button
                   type="submit"
@@ -293,13 +348,15 @@ export default function PatientProfilePage() {
                   className="h-10 rounded-xl px-4"
                 >
                   <Save className="size-4" />
-                  {isSubmitting ? "Saving…" : "Save changes"}
+                  {isSubmitting ? t("account.saving") : t("account.save")}
                 </Button>
               </div>
             </form>
           </Form>
         </CardContent>
       </Card>
+
+      <ChangePasswordCard />
     </div>
   );
 }

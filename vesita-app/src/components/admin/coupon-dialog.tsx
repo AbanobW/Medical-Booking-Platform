@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,42 +34,53 @@ import { Textarea } from "@/components/ui/textarea";
 import { useMutation } from "@/hooks/use-async";
 import { createCoupon, updateCoupon, type CouponInput } from "@/lib/api/admin";
 import { addDays, TODAY } from "@/lib/data/seed";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useLabels } from "@/lib/i18n/use-labels";
 import { PROVIDER_ROLES, type Coupon, type ProviderRole } from "@/lib/types";
 import { PROVIDER_TYPE_META } from "@/components/admin/badges";
 
-const schema = z
-  .object({
-    code: z
-      .string()
-      .min(3, "Use at least 3 characters.")
-      .max(24, "Keep it under 24 characters.")
-      .regex(/^[A-Za-z0-9_-]+$/, "Letters, numbers, dashes and underscores only."),
-    description: z.string().min(5, "Describe what this coupon is for."),
-    discountType: z.enum(["percentage", "fixed"]),
-    discountValue: z
-      .number({ message: "Enter a number." })
-      .positive("Must be greater than zero."),
-    minOrderValue: z
-      .number({ message: "Enter a number." })
-      .min(0, "Cannot be negative."),
-    maxDiscount: z
-      .number({ message: "Enter a number." })
-      .min(0, "Cannot be negative.")
-      .optional(),
-    usageLimit: z
-      .number({ message: "Enter a number." })
-      .int("Whole numbers only.")
-      .min(1, "Allow at least one redemption."),
-    expiresAt: z.string().min(1, "Pick an expiry date."),
-    isActive: z.boolean(),
-    appliesTo: z.array(z.enum(["doctor", "lab", "radiology"])),
-  })
-  .refine(
-    (values) => values.discountType !== "percentage" || values.discountValue <= 100,
-    { message: "A percentage discount cannot exceed 100.", path: ["discountValue"] },
-  );
+/** Only the message lookup is needed here — keeps the factory free of `next-intl` generics. */
+type Translate = (key: string) => string;
 
-type CouponFormValues = z.infer<typeof schema>;
+/**
+ * The schema is built from the translator, so a rejected field speaks the
+ * user's language rather than English.
+ */
+const couponSchema = (t: Translate) =>
+  z
+    .object({
+      code: z
+        .string()
+        .min(3, t("validation.codeMin"))
+        .max(24, t("validation.codeMax"))
+        .regex(/^[A-Za-z0-9_-]+$/, t("validation.codePattern")),
+      description: z.string().min(5, t("validation.description")),
+      discountType: z.enum(["percentage", "fixed"]),
+      discountValue: z
+        .number({ message: t("validation.number") })
+        .positive(t("validation.positive")),
+      minOrderValue: z
+        .number({ message: t("validation.number") })
+        .min(0, t("validation.notNegative")),
+      maxDiscount: z
+        .number({ message: t("validation.number") })
+        .min(0, t("validation.notNegative"))
+        .optional(),
+      usageLimit: z
+        .number({ message: t("validation.number") })
+        .int(t("validation.whole"))
+        .min(1, t("validation.minOne")),
+      expiresAt: z.string().min(1, t("validation.expiry")),
+      isActive: z.boolean(),
+      appliesTo: z.array(z.enum(["doctor", "lab", "radiology"])),
+    })
+    .refine(
+      (values) =>
+        values.discountType !== "percentage" || values.discountValue <= 100,
+      { message: t("validation.percentMax"), path: ["discountValue"] },
+    );
+
+type CouponFormValues = z.infer<ReturnType<typeof couponSchema>>;
 
 /** `YYYY-MM-DD` for `<input type="date">`. */
 const toDateInput = (iso: string) => iso.slice(0, 10);
@@ -121,6 +133,13 @@ export function CouponDialog({
   coupon: Coupon | null;
   onSaved: () => void;
 }) {
+  const t = useTranslations("admin.couponDialog");
+  const tCommon = useTranslations("common");
+  const L = useLabels();
+  const describeError = useApiError();
+
+  const schema = useMemo(() => couponSchema(t), [t]);
+
   const form = useForm<CouponFormValues>({
     resolver: zodResolver(schema),
     defaultValues: emptyValues(),
@@ -155,15 +174,15 @@ export function CouponDialog({
     try {
       if (coupon) {
         await update(coupon.id, input);
-        toast.success(`Coupon ${input.code} updated.`);
+        toast.success(t("toastUpdated", { code: input.code }));
       } else {
         await create(input);
-        toast.success(`Coupon ${input.code} created.`);
+        toast.success(t("toastCreated", { code: input.code }));
       }
       onOpenChange(false);
       onSaved();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not save the coupon.");
+    } catch (error) {
+      toast.error(describeError(error));
     }
   }
 
@@ -171,10 +190,8 @@ export function CouponDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{coupon ? "Edit coupon" : "New coupon"}</DialogTitle>
-          <DialogDescription>
-            Discount codes patients can apply at checkout.
-          </DialogDescription>
+          <DialogTitle>{coupon ? t("titleEdit") : t("titleNew")}</DialogTitle>
+          <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
@@ -189,13 +206,14 @@ export function CouponDialog({
                 name="code"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Code</FormLabel>
+                    <FormLabel>{t("fields.code")}</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
-                        placeholder="SUMMER25"
+                        placeholder={t("placeholders.code")}
                         className="h-11 rounded-xl uppercase"
                         autoComplete="off"
+                        dir="ltr"
                       />
                     </FormControl>
                     <FormMessage />
@@ -208,7 +226,7 @@ export function CouponDialog({
                 name="expiresAt"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Expires on</FormLabel>
+                    <FormLabel>{t("fields.expiresAt")}</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
@@ -227,12 +245,12 @@ export function CouponDialog({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description</FormLabel>
+                  <FormLabel>{t("fields.description")}</FormLabel>
                   <FormControl>
                     <Textarea
                       {...field}
                       rows={2}
-                      placeholder="25% off your first lab test this summer."
+                      placeholder={t("placeholders.description")}
                       className="rounded-xl"
                     />
                   </FormControl>
@@ -247,7 +265,7 @@ export function CouponDialog({
                 name="discountType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Discount type</FormLabel>
+                    <FormLabel>{t("fields.discountType")}</FormLabel>
                     <FormControl>
                       <AppSelect
                         value={field.value}
@@ -255,8 +273,11 @@ export function CouponDialog({
                           field.onChange(value as "percentage" | "fixed")
                         }
                         options={[
-                          { value: "percentage", label: "Percentage (%)" },
-                          { value: "fixed", label: "Fixed amount (EGP)" },
+                          {
+                            value: "percentage",
+                            label: t("discountTypes.percentage"),
+                          },
+                          { value: "fixed", label: t("discountTypes.fixed") },
                         ]}
                       />
                     </FormControl>
@@ -272,8 +293,8 @@ export function CouponDialog({
                   <FormItem>
                     <FormLabel>
                       {discountType === "percentage"
-                        ? "Discount (%)"
-                        : "Discount (EGP)"}
+                        ? t("fields.discountPercent")
+                        : t("fields.discountFixed")}
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -299,7 +320,7 @@ export function CouponDialog({
                 name="minOrderValue"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Min. order (EGP)</FormLabel>
+                    <FormLabel>{t("fields.minOrder")}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -322,13 +343,13 @@ export function CouponDialog({
                 name="maxDiscount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Max. discount (EGP)</FormLabel>
+                    <FormLabel>{t("fields.maxDiscount")}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         min={0}
                         step={10}
-                        placeholder="No cap"
+                        placeholder={t("placeholders.maxDiscount")}
                         disabled={discountType !== "percentage"}
                         value={
                           field.value === undefined || Number.isNaN(field.value)
@@ -347,7 +368,7 @@ export function CouponDialog({
                         className="h-11 rounded-xl"
                       />
                     </FormControl>
-                    <FormDescription>Percentage coupons only.</FormDescription>
+                    <FormDescription>{t("maxDiscountHint")}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -358,7 +379,7 @@ export function CouponDialog({
                 name="usageLimit"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Usage limit</FormLabel>
+                    <FormLabel>{t("fields.usageLimit")}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -382,11 +403,11 @@ export function CouponDialog({
               name="appliesTo"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Applies to</FormLabel>
+                  <FormLabel>{t("fields.appliesTo")}</FormLabel>
                   <div className="flex flex-wrap gap-4 rounded-xl border p-4">
                     {PROVIDER_ROLES.map((role) => {
                       const checked = field.value.includes(role);
-                      const { icon: Icon, label } = PROVIDER_TYPE_META[role];
+                      const { icon: Icon } = PROVIDER_TYPE_META[role];
 
                       return (
                         <label
@@ -405,14 +426,12 @@ export function CouponDialog({
                             }}
                           />
                           <Icon className="size-4 text-muted-foreground" aria-hidden />
-                          {label}
+                          {L.providerType(role)}
                         </label>
                       );
                     })}
                   </div>
-                  <FormDescription>
-                    Leave every box unchecked to apply the coupon to all services.
-                  </FormDescription>
+                  <FormDescription>{t("appliesToHint")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -424,10 +443,8 @@ export function CouponDialog({
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4">
                   <div className="space-y-0.5">
-                    <FormLabel>Active</FormLabel>
-                    <FormDescription>
-                      Inactive coupons are rejected at checkout.
-                    </FormDescription>
+                    <FormLabel>{t("fields.active")}</FormLabel>
+                    <FormDescription>{t("activeHint")}</FormDescription>
                   </div>
                   <FormControl>
                     <Switch
@@ -447,7 +464,7 @@ export function CouponDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={isPending}
               >
-                Cancel
+                {tCommon("actions.cancel")}
               </Button>
               <Button
                 type="submit"
@@ -455,7 +472,7 @@ export function CouponDialog({
                 disabled={isPending}
               >
                 {isPending && <Loader2 className="size-4 animate-spin" />}
-                {coupon ? "Save changes" : "Create coupon"}
+                {coupon ? tCommon("actions.saveChanges") : t("submitNew")}
               </Button>
             </DialogFooter>
           </form>

@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, CalendarX2, Users } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -19,7 +20,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { useMutation } from "@/hooks/use-async";
 import { cancelSession } from "@/lib/api/bookings";
-import { formatDateShort, formatTime } from "@/lib/format";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useFormat } from "@/lib/i18n/use-format";
 import { isHold, schedulingModeFor, type Booking, type Provider } from "@/lib/types";
 
 interface Session {
@@ -32,9 +34,14 @@ interface Session {
 }
 
 /** Live bookings, grouped into the sessions/slots they sit in. */
-function sessionsFrom(provider: Provider, bookings: Booking[], today: string): Session[] {
+function sessionsFrom(
+  provider: Provider,
+  bookings: Booking[],
+  today: string,
+  fallbackBranchName: string,
+): Session[] {
   const branchName = (id?: string) =>
-    provider.branches.find((b) => b.id === id)?.name ?? "Main branch";
+    provider.branches.find((b) => b.id === id)?.name ?? fallbackBranchName;
 
   const map = new Map<string, Session>();
 
@@ -87,21 +94,34 @@ export function CancelSessionDialog({
   today: string;
   onCancelled: () => void;
 }) {
+  const t = useTranslations("provider");
+  const describeError = useApiError();
+  const { formatDateShort, formatTime } = useFormat();
+
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState("");
 
   const cancel = useMutation(cancelSession);
 
-  const sessions = useMemo(
-    () => sessionsFrom(provider, bookings, today),
-    [provider, bookings, today],
-  );
+  // Doctors run sessions; labs and radiology centres run slots (§5). The two
+  // read differently in Arabic, so the copy is picked per mode rather than
+  // interpolating a noun into a sentence.
+  const mode = schedulingModeFor(provider.type) === "session" ? "session" : "slot";
+  const mainBranch = t("cancelSession.mainBranch");
 
-  const noun = schedulingModeFor(provider.type) === "session" ? "session" : "slot";
+  const sessions = useMemo(
+    () => sessionsFrom(provider, bookings, today, mainBranch),
+    [provider, bookings, today, mainBranch],
+  );
 
   const options = sessions.map((s) => ({
     value: s.key,
-    label: `${formatDateShort(s.date)} · ${formatTime(s.time)} · ${s.branchName} — ${s.bookings.length} patient${s.bookings.length === 1 ? "" : "s"}`,
+    label: t("cancelSession.option", {
+      date: formatDateShort(s.date),
+      time: formatTime(s.time),
+      branch: s.branchName,
+      count: s.bookings.length,
+    }),
   }));
 
   const session = sessions.find((s) => s.key === selected);
@@ -118,15 +138,13 @@ export function CancelSessionDialog({
         reason,
       );
       toast.success(
-        `${noun === "session" ? "Session" : "Slot"} cancelled — ${result.cancelled} patient${result.cancelled === 1 ? "" : "s"} notified and refunded in full.`,
+        t(`cancelSession.${mode}.success`, { count: result.cancelled }),
       );
       setSelected("");
       setOpen(false);
       onCancelled();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : `Couldn't cancel this ${noun}.`,
-      );
+    } catch (error) {
+      toast.error(describeError(error));
     }
   }
 
@@ -138,37 +156,38 @@ export function CancelSessionDialog({
         onClick={() => setOpen(true)}
       >
         <CalendarX2 className="size-4" />
-        Cancel a {noun}
+        {t(`cancelSession.${mode}.trigger`)}
       </Button>
 
       <Dialog open={open} onOpenChange={(next: boolean) => setOpen(next)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Cancel a whole {noun}</DialogTitle>
+            <DialogTitle>{t(`cancelSession.${mode}.dialogTitle`)}</DialogTitle>
             <DialogDescription>
-              Use this when you cannot run a {noun} at all — illness, an
-              emergency, a closure. Every patient in it is cancelled and refunded.
+              {t(`cancelSession.${mode}.dialogDescription`)}
             </DialogDescription>
           </DialogHeader>
 
           {sessions.length === 0 ? (
             <Alert>
               <CalendarX2 className="size-4" />
-              <AlertTitle>Nothing to cancel</AlertTitle>
+              <AlertTitle>{t("cancelSession.nothingTitle")}</AlertTitle>
               <AlertDescription>
-                You have no upcoming {noun}s with patients booked into them.
+                {t(`cancelSession.${mode}.nothingDescription`)}
               </AlertDescription>
             </Alert>
           ) : (
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="session-pick">Which {noun}?</Label>
+                <Label htmlFor="session-pick">
+                  {t(`cancelSession.${mode}.which`)}
+                </Label>
                 <AppSelect
                   id="session-pick"
                   value={selected}
                   onValueChange={setSelected}
                   options={options}
-                  placeholder={`Pick the ${noun} you cannot run`}
+                  placeholder={t(`cancelSession.${mode}.pickPlaceholder`)}
                   className="h-10"
                 />
               </div>
@@ -178,8 +197,9 @@ export function CancelSessionDialog({
                   <div className="rounded-2xl border bg-card p-4">
                     <p className="flex items-center gap-2 text-sm font-medium">
                       <Users className="size-4 text-muted-foreground" />
-                      {session.bookings.length} patient
-                      {session.bookings.length === 1 ? "" : "s"} affected
+                      {t("cancelSession.affected", {
+                        count: session.bookings.length,
+                      })}
                     </p>
                     <ul className="mt-3 space-y-1.5">
                       {session.bookings.map((booking) => (
@@ -192,7 +212,9 @@ export function CancelSessionDialog({
                           </span>
                           <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
                             {booking.queueNumber
-                              ? `Queue #${booking.queueNumber}`
+                              ? t("cancelSession.queue", {
+                                  number: booking.queueNumber,
+                                })
                               : formatTime(booking.time)}
                           </span>
                         </li>
@@ -202,24 +224,25 @@ export function CancelSessionDialog({
 
                   <Alert variant="destructive">
                     <AlertTriangle className="size-4" />
-                    <AlertTitle>What happens when you confirm</AlertTitle>
+                    <AlertTitle>
+                      {t("cancelSession.consequencesTitle")}
+                    </AlertTitle>
                     <AlertDescription>
-                      <ul className="list-disc space-y-1 pl-4">
+                      <ul className="list-disc space-y-1 ps-4">
                         <li>
-                          All {session.bookings.length} booking
-                          {session.bookings.length === 1 ? " is" : "s are"}{" "}
-                          cancelled on your behalf, and any booking fee paid is
-                          refunded in full — automatically.
+                          {t("cancelSession.allCancelled", {
+                            count: session.bookings.length,
+                          })}
                         </li>
                         <li>
-                          Every patient is notified straight away and rebooks
-                          themselves. They are <strong>not</strong> moved to
-                          another {noun}: that would overload it and leave people
-                          unsure of their time.
+                          {t.rich(`cancelSession.${mode}.notMoved`, {
+                            strong: (chunks) => <strong>{chunks}</strong>,
+                          })}
                         </li>
                         <li>
-                          Provider-initiated cancellations are tracked and{" "}
-                          <strong>affect your standing on the platform</strong>.
+                          {t.rich("cancelSession.standing", {
+                            strong: (chunks) => <strong>{chunks}</strong>,
+                          })}
                         </li>
                       </ul>
                     </AlertDescription>
@@ -235,7 +258,7 @@ export function CancelSessionDialog({
               onClick={() => setOpen(false)}
               className="h-10 rounded-xl px-4"
             >
-              Keep the {noun}
+              {t(`cancelSession.${mode}.keep`)}
             </Button>
 
             <ReasonDialog
@@ -246,19 +269,24 @@ export function CancelSessionDialog({
                   className="h-10 rounded-xl px-4"
                 >
                   <CalendarX2 className="size-4" />
-                  Cancel this {noun}
+                  {t(`cancelSession.${mode}.confirmTrigger`)}
                 </Button>
               }
-              title={`Cancel this ${noun} for ${session?.bookings.length ?? 0} patient${session?.bookings.length === 1 ? "" : "s"}?`}
+              title={t(`cancelSession.${mode}.confirmTitle`, {
+                count: session?.bookings.length ?? 0,
+              })}
               description={
                 session
-                  ? `${formatDateShort(session.date)} at ${formatTime(session.time)}, ${session.branchName}. Everyone booked in is cancelled and refunded in full, and this counts against your standing.`
+                  ? t("cancelSession.confirmDescription", {
+                      date: formatDateShort(session.date),
+                      time: formatTime(session.time),
+                      branch: session.branchName,
+                    })
                   : ""
               }
-              label="Why can't you run it?"
-              placeholder="I'm unwell and the clinic is closed this evening."
-              confirmLabel={`Cancel ${noun} and refund everyone`}
-              cancelLabel="Go back"
+              label={t("cancelSession.reasonLabel")}
+              placeholder={t("cancelSession.reasonPlaceholder")}
+              confirmLabel={t(`cancelSession.${mode}.confirmLabel`)}
               isPending={cancel.isPending}
               onConfirm={onConfirm}
             />

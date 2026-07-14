@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import {
   CalendarCheck,
   Gauge,
@@ -41,11 +42,23 @@ import { useAsync } from "@/hooks/use-async";
 import { getBookings } from "@/lib/api/bookings";
 import { getProviderStats } from "@/lib/api/stats";
 import { todayISO } from "@/lib/data/seed";
-import { formatDate, formatDuration, formatTime, initialsOf } from "@/lib/format";
-import { formatEGP, formatNumber } from "@/lib/site";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import { isCancelled, schedulingModeFor } from "@/lib/types";
 
 export default function ProviderDashboardPage() {
+  const t = useTranslations("provider");
+  const describeError = useApiError();
+  const {
+    formatDate,
+    formatDuration,
+    formatTime,
+    formatEGP,
+    formatNumber,
+    initialsOf,
+  } = useFormat();
+  const { bookingServiceName } = useDomain();
+
   const { providerId, provider } = useCurrentProvider();
 
   const stats = useAsync(
@@ -77,35 +90,35 @@ export default function ProviderDashboardPage() {
         <StatGridSkeleton />
       ) : stats.error ? (
         <ErrorState
-          title="Couldn't load your statistics"
-          description={stats.error.message}
+          title={t("dashboard.statsError")}
+          description={describeError(stats.error)}
           onRetry={stats.refetch}
         />
       ) : stats.data ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatisticsCard
-            label="Total Bookings"
+            label={t("dashboard.totalBookings")}
             value={formatNumber(stats.data.totalBookings)}
             change={stats.data.bookingsChange}
             icon={CalendarCheck}
             tone="primary"
           />
           <StatisticsCard
-            label="Revenue"
+            label={t("dashboard.revenue")}
             value={formatEGP(stats.data.revenue)}
             change={stats.data.revenueChange}
             icon={Wallet}
             tone="success"
           />
           <StatisticsCard
-            label="New Patients"
+            label={t("dashboard.newPatients")}
             value={formatNumber(stats.data.newPatients)}
             change={stats.data.newPatientsChange}
             icon={UserPlus}
             tone="info"
           />
           <StatisticsCard
-            label="Cancellations"
+            label={t("dashboard.cancellations")}
             value={formatNumber(stats.data.cancellations)}
             change={stats.data.cancellationsChange}
             invertChange
@@ -121,37 +134,37 @@ export default function ProviderDashboardPage() {
       ) : stats.data ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatisticsCard
-            label="Utilization"
-            value={`${stats.data.utilizationRate}%`}
+            label={t("dashboard.utilization")}
+            value={`${formatNumber(stats.data.utilizationRate)}%`}
             change={stats.data.utilizationChange}
             icon={Gauge}
             tone="primary"
             hint={
               isDoctor
-                ? "How full your sessions run"
-                : "How full your slots run"
+                ? t("dashboard.utilizationHintSession")
+                : t("dashboard.utilizationHintSlot")
             }
           />
           <StatisticsCard
-            label="Average wait"
+            label={t("dashboard.averageWait")}
             value={formatDuration(stats.data.averageWaitMinutes)}
             icon={Hourglass}
             tone="warning"
-            hint="From what patients report in reviews"
+            hint={t("dashboard.averageWaitHint")}
           />
           <StatisticsCard
-            label="Cancellation rate"
-            value={`${stats.data.cancellationRate}%`}
+            label={t("dashboard.cancellationRate")}
+            value={`${formatNumber(stats.data.cancellationRate)}%`}
             icon={XCircle}
             tone="destructive"
-            hint="Share of your bookings cancelled"
+            hint={t("dashboard.cancellationRateHint")}
           />
           <StatisticsCard
-            label="Missed visits"
-            value={`${stats.data.noShowRate}%`}
+            label={t("dashboard.missedVisits")}
+            value={`${formatNumber(stats.data.noShowRate)}%`}
             icon={UserX}
             tone="info"
-            hint="Patients who never arrived"
+            hint={t("dashboard.missedVisitsHint")}
           />
         </div>
       ) : null}
@@ -166,8 +179,8 @@ export default function ProviderDashboardPage() {
         <div className="grid gap-6 xl:grid-cols-2">
           <BookingsChart
             data={stats.data.monthly}
-            title="Bookings"
-            description="Monthly bookings against cancellations, last 12 months"
+            title={t("dashboard.bookingsChartTitle")}
+            description={t("dashboard.bookingsChartDescription")}
           />
           <RevenueChart data={stats.data.monthly} />
         </div>
@@ -178,7 +191,9 @@ export default function ProviderDashboardPage() {
         <Card className="lg:col-span-2">
           <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
             <div>
-              <CardTitle className="text-base">Today&apos;s appointments</CardTitle>
+              <CardTitle className="text-base">
+                {t("dashboard.todayTitle")}
+              </CardTitle>
               <CardDescription>{formatDate(todayISO())}</CardDescription>
             </div>
             <Button
@@ -186,7 +201,7 @@ export default function ProviderDashboardPage() {
               size="sm"
               render={<Link href="/provider/bookings" />}
             >
-              All bookings
+              {t("dashboard.allBookings")}
             </Button>
           </CardHeader>
           <CardContent>
@@ -194,15 +209,15 @@ export default function ProviderDashboardPage() {
               <ListSkeleton count={3} />
             ) : today.error ? (
               <ErrorState
-                title="Couldn't load today's appointments"
-                description={today.error.message}
+                title={t("dashboard.todayError")}
+                description={describeError(today.error)}
                 onRetry={today.refetch}
               />
             ) : todaysAppointments.length === 0 ? (
               <EmptyState
                 icon={CalendarCheck}
-                title="Nothing on today"
-                description="You have no appointments scheduled for today."
+                title={t("dashboard.todayEmptyTitle")}
+                description={t("dashboard.todayEmptyDescription")}
               />
             ) : (
               <ul className="space-y-3">
@@ -222,20 +237,25 @@ export default function ProviderDashboardPage() {
                         {booking.patientInfo.fullName}
                       </p>
                       <p className="truncate text-sm text-muted-foreground">
-                        {booking.serviceName}
+                        {bookingServiceName(booking)}
                       </p>
                       {booking.longWaitReported && (
                         <LongWaitBadge className="mt-1" />
                       )}
                     </div>
 
-                    <span className="text-sm font-semibold tabular-nums">
+                    <span className="ltr-nums text-sm font-semibold tabular-nums">
                       {booking.queueNumber !== undefined
-                        ? `#${booking.queueNumber} · ~${formatTime(booking.estimatedTime ?? booking.time)}`
+                        ? t("dashboard.queueAt", {
+                            number: booking.queueNumber,
+                            time: formatTime(
+                              booking.estimatedTime ?? booking.time,
+                            ),
+                          })
                         : formatTime(booking.time)}
                     </span>
                     <BookingStatusBadge status={booking.status} />
-                    <span className="text-sm font-semibold tabular-nums">
+                    <span className="ltr-nums text-sm font-semibold tabular-nums">
                       {formatEGP(booking.total)}
                     </span>
                   </li>
@@ -247,8 +267,10 @@ export default function ProviderDashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Average rating</CardTitle>
-            <CardDescription>Across every review you&apos;ve received</CardDescription>
+            <CardTitle className="text-base">
+              {t("dashboard.ratingTitle")}
+            </CardTitle>
+            <CardDescription>{t("dashboard.ratingDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-3 py-6">
             {stats.isLoading && !stats.data ? (
@@ -261,7 +283,11 @@ export default function ProviderDashboardPage() {
                 <RatingStars value={stats.data.averageRating} size="lg" />
                 <div className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
                   <TrendingUp className="size-4" />
-                  <span>{formatNumber(stats.data.totalBookings)} visits served</span>
+                  <span>
+                    {t("dashboard.visitsServed", {
+                      count: stats.data.totalBookings,
+                    })}
+                  </span>
                 </div>
                 <Button
                   variant="outline"
@@ -269,7 +295,7 @@ export default function ProviderDashboardPage() {
                   render={<Link href="/provider/reviews" />}
                 >
                   <Star className="size-4" />
-                  Read reviews
+                  {t("dashboard.readReviews")}
                 </Button>
               </>
             ) : null}

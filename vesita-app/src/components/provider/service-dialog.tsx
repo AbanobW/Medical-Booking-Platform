@@ -2,7 +2,8 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ShieldCheck } from "lucide-react";
-import { useEffect } from "react";
+import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -40,11 +41,14 @@ import {
   type NewService,
 } from "@/lib/api/provider-admin";
 import { CHRONIC_CONDITIONS } from "@/lib/data/clinical";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useLabels } from "@/lib/i18n/use-labels";
 import type {
   ConsultationType,
   EligibilityRules,
   Gender,
   LabTest,
+  LocalizedText,
   PreparationInstructions,
   ProviderRole,
   RadiologyScan,
@@ -52,8 +56,12 @@ import type {
 
 export type EditableService = ConsultationType | LabTest | RadiologyScan;
 
+/** A plain `(key, values) => string` view of the `provider` namespace. */
+type T = (key: string, values?: Record<string, string | number>) => string;
+
 // ---------------------------------------------------------------------------
-// Multi-line fields are edited as text and stored as lists.
+// Bilingual fields. Everything a patient reads is stored in both languages, so
+// the editor asks for both: a paired textarea per list, zipped line by line.
 // ---------------------------------------------------------------------------
 
 const toLines = (text: string): string[] =>
@@ -64,80 +72,112 @@ const toLines = (text: string): string[] =>
 
 const fromLines = (lines: string[]): string => lines.join("\n");
 
+/** `["a"]`, `["أ"]` → `[{ en: "a", ar: "أ" }]`. A missing line falls back. */
+function zipLines(english: string, arabic: string): LocalizedText[] {
+  const en = toLines(english);
+  const ar = toLines(arabic);
+
+  return Array.from({ length: Math.max(en.length, ar.length) }, (_, i) => ({
+    en: en[i] ?? ar[i] ?? "",
+    ar: ar[i] ?? en[i] ?? "",
+  }));
+}
+
+const unzipLines = (list: LocalizedText[] | undefined, key: "en" | "ar") =>
+  fromLines((list ?? []).map((item) => item[key]));
+
+/** Seeded in both languages: the patient reads whichever they browse in. */
+const ARRIVAL_DEFAULT: LocalizedText = {
+  en: "Arrive 10 minutes before your appointment.",
+  ar: "احضر قبل موعدك بـ 10 دقائق.",
+};
+
+const DOCUMENTS_DEFAULT: LocalizedText[] = [
+  { en: "National ID", ar: "بطاقة الرقم القومي" },
+];
+
 /** One flat shape covers all three provider types; the UI shows what applies. */
-const serviceSchema = z.object({
-  name: z.string().min(2, "Give this service a name."),
-  nameAr: z.string(),
-  category: z.string(),
-  description: z.string().min(5, "Add a short description."),
-  price: z.number().min(0, "Price can't be negative."),
-  durationMinutes: z
-    .number()
-    .int()
-    .min(5, "At least 5 minutes.")
-    .max(480, "That's too long."),
-  resultTimeHours: z
-    .number()
-    .int()
-    .min(1, "At least 1 hour.")
-    .max(720, "That's too long."),
-  contrastRequired: z.boolean(),
-  isActive: z.boolean(),
+function baseSchema(t: T) {
+  return z.object({
+    name: z.string().min(2, t("serviceDialog.validation.name")),
+    nameAr: z.string().min(2, t("serviceDialog.validation.nameArabic")),
+    category: z.string(),
+    description: z.string().min(5, t("serviceDialog.validation.description")),
+    descriptionAr: z
+      .string()
+      .min(5, t("serviceDialog.validation.descriptionArabic")),
+    price: z.number().min(0, t("serviceDialog.validation.priceNegative")),
+    durationMinutes: z
+      .number()
+      .int()
+      .min(5, t("serviceDialog.validation.minMinutes"))
+      .max(480, t("serviceDialog.validation.tooLong")),
+    resultTimeHours: z
+      .number()
+      .int()
+      .min(1, t("serviceDialog.validation.minHour"))
+      .max(720, t("serviceDialog.validation.tooLong")),
+    contrastRequired: z.boolean(),
+    isActive: z.boolean(),
 
-  // -- Preparation (§3) -----------------------------------------------------
-  fastingRequired: z.boolean(),
-  fastingHours: z
-    .number()
-    .int()
-    .min(1, "At least 1 hour.")
-    .max(24, "A fast longer than a day isn't realistic.")
-    .optional(),
-  waterAllowed: z.boolean(),
-  medicationRestrictions: z.string(),
-  arrivalInstructions: z.string(),
-  documentsRequired: z.string(),
+    // -- Preparation (§3) ---------------------------------------------------
+    fastingRequired: z.boolean(),
+    fastingHours: z
+      .number()
+      .int()
+      .min(1, t("serviceDialog.validation.minHour"))
+      .max(24, t("serviceDialog.validation.fastTooLong"))
+      .optional(),
+    waterAllowed: z.boolean(),
+    medicationRestrictions: z.string(),
+    medicationRestrictionsAr: z.string(),
+    arrivalInstructions: z.string(),
+    arrivalInstructionsAr: z.string(),
+    documentsRequired: z.string(),
+    documentsRequiredAr: z.string(),
 
-  // -- Eligibility (§3) -----------------------------------------------------
-  genderRestriction: z.enum(["any", "male", "female"]),
-  minAge: z.number().int().min(0).max(120).optional(),
-  maxAge: z.number().int().min(0).max(120).optional(),
-  pregnancySafe: z.boolean(),
-  excludedConditions: z.array(z.string()),
-});
+    // -- Eligibility (§3) ---------------------------------------------------
+    genderRestriction: z.enum(["any", "male", "female"]),
+    minAge: z.number().int().min(0).max(120).optional(),
+    maxAge: z.number().int().min(0).max(120).optional(),
+    pregnancySafe: z.boolean(),
+    excludedConditions: z.array(z.string()),
+  });
+}
 
-type ServiceFormValues = z.infer<typeof serviceSchema>;
+type ServiceFormValues = z.infer<ReturnType<typeof baseSchema>>;
 
-/** Arabic name, category, preparation and eligibility are lab/radiology only. */
-function schemaFor(type: ProviderRole) {
-  return serviceSchema.superRefine((values, ctx) => {
+/** Category, preparation and eligibility are lab/radiology only. */
+function schemaFor(type: ProviderRole, t: T) {
+  return baseSchema(t).superRefine((values, ctx) => {
     if (type === "doctor") return;
 
-    if (values.nameAr.trim().length < 2) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["nameAr"],
-        message: "Add the Arabic name.",
-      });
-    }
     if (values.category.trim().length < 2) {
       ctx.addIssue({
         code: "custom",
         path: ["category"],
-        message: "Pick a category.",
+        message: t("serviceDialog.validation.category"),
       });
     }
     if (values.arrivalInstructions.trim().length < 5) {
       ctx.addIssue({
         code: "custom",
         path: ["arrivalInstructions"],
-        message: "Tell the patient when to arrive and what to bring.",
+        message: t("serviceDialog.validation.arrival"),
+      });
+    }
+    if (values.arrivalInstructionsAr.trim().length < 5) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["arrivalInstructionsAr"],
+        message: t("serviceDialog.validation.arrivalArabic"),
       });
     }
     if (values.fastingRequired && values.fastingHours === undefined) {
       ctx.addIssue({
         code: "custom",
         path: ["fastingHours"],
-        message: "Say how many hours they must fast.",
+        message: t("serviceDialog.validation.fastingHours"),
       });
     }
     if (
@@ -148,7 +188,7 @@ function schemaFor(type: ProviderRole) {
       ctx.addIssue({
         code: "custom",
         path: ["maxAge"],
-        message: "The maximum age can't be below the minimum.",
+        message: t("serviceDialog.validation.ageRange"),
       });
     }
   });
@@ -159,6 +199,7 @@ const EMPTY: ServiceFormValues = {
   nameAr: "",
   category: "",
   description: "",
+  descriptionAr: "",
   price: 0,
   durationMinutes: 30,
   resultTimeHours: 24,
@@ -169,8 +210,11 @@ const EMPTY: ServiceFormValues = {
   fastingHours: undefined,
   waterAllowed: true,
   medicationRestrictions: "",
-  arrivalInstructions: "Arrive 10 minutes before your appointment.",
-  documentsRequired: "National ID",
+  medicationRestrictionsAr: "",
+  arrivalInstructions: ARRIVAL_DEFAULT.en,
+  arrivalInstructionsAr: ARRIVAL_DEFAULT.ar,
+  documentsRequired: unzipLines(DOCUMENTS_DEFAULT, "en"),
+  documentsRequiredAr: unzipLines(DOCUMENTS_DEFAULT, "ar"),
 
   genderRestriction: "any",
   minAge: undefined,
@@ -196,9 +240,10 @@ function toFormValues(service: EditableService | null): ServiceFormValues {
 
   return {
     name: service.name,
-    nameAr: service.kind === "consultation" ? "" : service.nameAr,
+    nameAr: service.nameAr,
     category: service.kind === "consultation" ? "" : service.category,
-    description: service.description,
+    description: service.description.en,
+    descriptionAr: service.description.ar,
     price: service.price,
     durationMinutes:
       service.kind === "test" ? EMPTY.durationMinutes : service.durationMinutes,
@@ -210,9 +255,18 @@ function toFormValues(service: EditableService | null): ServiceFormValues {
     fastingRequired: prep?.fastingRequired ?? false,
     fastingHours: prep?.fastingHours,
     waterAllowed: prep?.waterAllowed ?? true,
-    medicationRestrictions: fromLines(prep?.medicationRestrictions ?? []),
-    arrivalInstructions: prep?.arrivalInstructions ?? EMPTY.arrivalInstructions,
-    documentsRequired: fromLines(prep?.documentsRequired ?? ["National ID"]),
+    medicationRestrictions: unzipLines(prep?.medicationRestrictions, "en"),
+    medicationRestrictionsAr: unzipLines(prep?.medicationRestrictions, "ar"),
+    arrivalInstructions:
+      prep?.arrivalInstructions.en ?? EMPTY.arrivalInstructions,
+    arrivalInstructionsAr:
+      prep?.arrivalInstructions.ar ?? EMPTY.arrivalInstructionsAr,
+    documentsRequired: prep?.documentsRequired.length
+      ? unzipLines(prep.documentsRequired, "en")
+      : EMPTY.documentsRequired,
+    documentsRequiredAr: prep?.documentsRequired.length
+      ? unzipLines(prep.documentsRequired, "ar")
+      : EMPTY.documentsRequiredAr,
 
     genderRestriction: genderRestrictionOf(rules?.genders),
     minAge: rules?.minAge,
@@ -227,9 +281,18 @@ function preparationOf(values: ServiceFormValues): PreparationInstructions {
     fastingRequired: values.fastingRequired,
     fastingHours: values.fastingRequired ? values.fastingHours : undefined,
     waterAllowed: values.waterAllowed,
-    medicationRestrictions: toLines(values.medicationRestrictions),
-    arrivalInstructions: values.arrivalInstructions.trim(),
-    documentsRequired: toLines(values.documentsRequired),
+    medicationRestrictions: zipLines(
+      values.medicationRestrictions,
+      values.medicationRestrictionsAr,
+    ),
+    arrivalInstructions: {
+      en: values.arrivalInstructions.trim(),
+      ar: values.arrivalInstructionsAr.trim(),
+    },
+    documentsRequired: zipLines(
+      values.documentsRequired,
+      values.documentsRequiredAr,
+    ),
   };
 }
 
@@ -248,10 +311,16 @@ function eligibilityOf(values: ServiceFormValues): EligibilityRules {
 
 /** Strips the fields that don't belong to this provider type. */
 function toPayload(type: ProviderRole, values: ServiceFormValues): NewService {
+  const description: LocalizedText = {
+    en: values.description.trim(),
+    ar: values.descriptionAr.trim(),
+  };
+
   if (type === "doctor") {
     return {
       name: values.name,
-      description: values.description,
+      nameAr: values.nameAr,
+      description,
       price: values.price,
       durationMinutes: values.durationMinutes,
       isActive: values.isActive,
@@ -262,7 +331,7 @@ function toPayload(type: ProviderRole, values: ServiceFormValues): NewService {
     name: values.name,
     nameAr: values.nameAr,
     category: values.category,
-    description: values.description,
+    description,
     price: values.price,
     isActive: values.isActive,
     preparation: preparationOf(values),
@@ -285,17 +354,29 @@ function toPayload(type: ProviderRole, values: ServiceFormValues): NewService {
   };
 }
 
-const NOUN: Record<ProviderRole, string> = {
-  doctor: "consultation type",
-  lab: "test",
-  radiology: "scan",
-};
+const ADD_KEYS = {
+  doctor: "serviceDialog.addDoctor",
+  lab: "serviceDialog.addLab",
+  radiology: "serviceDialog.addRadiology",
+} as const;
 
-const GENDER_OPTIONS = [
-  { value: "any", label: "Anyone" },
-  { value: "male", label: "Men only" },
-  { value: "female", label: "Women only" },
-];
+const EDIT_KEYS = {
+  doctor: "serviceDialog.editDoctor",
+  lab: "serviceDialog.editLab",
+  radiology: "serviceDialog.editRadiology",
+} as const;
+
+const DESCRIPTION_KEYS = {
+  doctor: "serviceDialog.descriptionDoctor",
+  lab: "serviceDialog.descriptionLab",
+  radiology: "serviceDialog.descriptionRadiology",
+} as const;
+
+const NAME_PLACEHOLDER_KEYS = {
+  doctor: "serviceDialog.namePlaceholderDoctor",
+  lab: "serviceDialog.namePlaceholderLab",
+  radiology: "serviceDialog.namePlaceholderRadiology",
+} as const;
 
 export function ServiceDialog({
   providerId,
@@ -313,8 +394,21 @@ export function ServiceDialog({
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
+  const tRich = useTranslations("provider");
+  const tCommon = useTranslations("common");
+  const describeError = useApiError();
+  const L = useLabels();
+
+  // The Zod messages are translations too, so the schema is built from `t`.
+  const t = useCallback<T>(
+    (key, values) => tRich(key as never, values as never),
+    [tRich],
+  );
+
+  const schema = useMemo(() => schemaFor(providerType, t), [providerType, t]);
+
   const form = useForm<ServiceFormValues>({
-    resolver: zodResolver(schemaFor(providerType)),
+    resolver: zodResolver(schema),
     defaultValues: toFormValues(service),
   });
 
@@ -328,8 +422,17 @@ export function ServiceDialog({
   }, [open, service]);
 
   const clinical = providerType !== "doctor";
+  /** The clinical sections only ever render for a lab or a radiology centre. */
+  const suffix = providerType === "lab" ? "Lab" : "Radiology";
+
   const fastingRequired = form.watch("fastingRequired");
   const excluded = form.watch("excludedConditions");
+
+  const genderOptions = [
+    { value: "any", label: t("serviceDialog.genderAny") },
+    { value: "male", label: t("serviceDialog.genderMale") },
+    { value: "female", label: t("serviceDialog.genderFemale") },
+  ];
 
   async function onSubmit(values: ServiceFormValues) {
     const payload = toPayload(providerType, values);
@@ -337,17 +440,15 @@ export function ServiceDialog({
     try {
       if (service) {
         await update.mutate(providerId, service.id, payload);
-        toast.success(`${values.name} updated.`);
+        toast.success(t("serviceDialog.updated", { name: values.name }));
       } else {
         await create.mutate(providerId, payload);
-        toast.success(`${values.name} added.`);
+        toast.success(t("serviceDialog.added", { name: values.name }));
       }
       onOpenChange(false);
       onSaved();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Couldn't save this service.",
-      );
+    } catch (error) {
+      toast.error(describeError(error));
     }
   }
 
@@ -355,9 +456,7 @@ export function ServiceDialog({
     const current = form.getValues("excludedConditions");
     form.setValue(
       "excludedConditions",
-      checked
-        ? [...current, condition]
-        : current.filter((c) => c !== condition),
+      checked ? [...current, condition] : current.filter((c) => c !== condition),
       { shouldDirty: true },
     );
   }
@@ -367,12 +466,10 @@ export function ServiceDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            {service ? "Edit" : "Add"} {NOUN[providerType]}
+            {service ? t(EDIT_KEYS[providerType]) : t(ADD_KEYS[providerType])}
           </DialogTitle>
           <DialogDescription>
-            {providerType === "doctor"
-              ? "Consultation types are what patients pick when they book you."
-              : `Patients book individual ${NOUN[providerType]}s or a package that includes them.`}
+            {t(DESCRIPTION_KEYS[providerType])}
           </DialogDescription>
         </DialogHeader>
 
@@ -382,89 +479,113 @@ export function ServiceDialog({
             className="space-y-4"
             id="service-form"
           >
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder={
-                        providerType === "doctor"
-                          ? "In-clinic consultation"
-                          : providerType === "lab"
-                            ? "Complete blood count"
-                            : "Brain MRI"
-                      }
-                      className="h-10 rounded-xl"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("serviceDialog.nameEnglish")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        dir="ltr"
+                        placeholder={t(NAME_PLACEHOLDER_KEYS[providerType])}
+                        className="h-10 rounded-xl text-start"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="nameAr"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("serviceDialog.nameArabic")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        dir="rtl"
+                        placeholder={t("serviceDialog.nameArabicPlaceholder")}
+                        className="h-10 rounded-xl text-start"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             {clinical && (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="nameAr"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Arabic name</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          dir="rtl"
-                          placeholder="صورة دم كاملة"
-                          className="h-10 rounded-xl"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="category"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Category</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder={providerType === "lab" ? "Hematology" : "MRI"}
-                          className="h-10 rounded-xl"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("serviceDialog.category")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder={t(
+                          `serviceDialog.categoryPlaceholder${suffix}`,
+                        )}
+                        className="h-10 rounded-xl"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
 
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      rows={3}
-                      placeholder="What the patient should expect."
-                      className="rounded-xl"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("serviceDialog.descriptionEnglish")}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        dir="ltr"
+                        rows={3}
+                        placeholder={t("serviceDialog.descriptionPlaceholder")}
+                        className="rounded-xl text-start"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="descriptionAr"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("serviceDialog.descriptionArabic")}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        dir="rtl"
+                        rows={3}
+                        placeholder={t("serviceDialog.descriptionPlaceholderAr")}
+                        className="rounded-xl text-start"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              {t("serviceDialog.bilingualHint")}
+            </p>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
@@ -472,7 +593,7 @@ export function ServiceDialog({
                 name="price"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Price (EGP)</FormLabel>
+                    <FormLabel>{t("serviceDialog.price")}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -487,8 +608,8 @@ export function ServiceDialog({
                     </FormControl>
                     <FormDescription>
                       {clinical
-                        ? "A branch can price this differently — this is the default."
-                        : "Your consultation fee."}
+                        ? t("serviceDialog.priceHintClinical")
+                        : t("serviceDialog.priceHintDoctor")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -501,7 +622,7 @@ export function ServiceDialog({
                   name="resultTimeHours"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Result time (hours)</FormLabel>
+                      <FormLabel>{t("serviceDialog.resultTime")}</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -524,7 +645,7 @@ export function ServiceDialog({
                   name="durationMinutes"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Duration (minutes)</FormLabel>
+                      <FormLabel>{t("serviceDialog.duration")}</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -551,9 +672,9 @@ export function ServiceDialog({
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4">
                     <div className="space-y-0.5">
-                      <FormLabel>Contrast required</FormLabel>
+                      <FormLabel>{t("serviceDialog.contrastRequired")}</FormLabel>
                       <FormDescription>
-                        A contrast agent is administered for this scan.
+                        {t("serviceDialog.contrastHint")}
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -574,22 +695,24 @@ export function ServiceDialog({
 
                 <Alert>
                   <ShieldCheck className="size-4" />
-                  <AlertTitle>The patient must acknowledge all of this</AlertTitle>
+                  <AlertTitle>{t("serviceDialog.acknowledgeTitle")}</AlertTitle>
                   <AlertDescription>
-                    Everything you set below is shown to the patient during
-                    booking, and they <strong>cannot complete the booking</strong>{" "}
-                    until they have confirmed they have read the preparation and
-                    that the profile they are booking for meets the rules. That is
-                    the point of it: nobody turns up un-fasted, and nobody books a{" "}
-                    {NOUN[providerType]} they cannot have.
+                    {tRich.rich(
+                      suffix === "Lab"
+                        ? "serviceDialog.acknowledgeBodyLab"
+                        : "serviceDialog.acknowledgeBodyRadiology",
+                      { strong: (chunks) => <strong>{chunks}</strong> },
+                    )}
                   </AlertDescription>
                 </Alert>
 
                 <div className="space-y-4 rounded-2xl border p-4">
                   <div>
-                    <h4 className="font-semibold">Preparation</h4>
+                    <h4 className="font-semibold">
+                      {t("serviceDialog.preparation")}
+                    </h4>
                     <p className="text-sm text-muted-foreground">
-                      What the patient must do before they arrive.
+                      {t("serviceDialog.preparationHint")}
                     </p>
                   </div>
 
@@ -599,10 +722,11 @@ export function ServiceDialog({
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4">
                         <div className="space-y-0.5">
-                          <FormLabel>Fasting required</FormLabel>
+                          <FormLabel>
+                            {t("serviceDialog.fastingRequired")}
+                          </FormLabel>
                           <FormDescription>
-                            The patient must not eat before the{" "}
-                            {NOUN[providerType]}.
+                            {t(`serviceDialog.fastingHint${suffix}`)}
                           </FormDescription>
                         </div>
                         <FormControl>
@@ -624,7 +748,9 @@ export function ServiceDialog({
                         name="fastingHours"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Fasting hours</FormLabel>
+                            <FormLabel>
+                              {t("serviceDialog.fastingHours")}
+                            </FormLabel>
                             <FormControl>
                               <Input
                                 type="number"
@@ -658,9 +784,11 @@ export function ServiceDialog({
                         render={({ field }) => (
                           <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4">
                             <div className="space-y-0.5">
-                              <FormLabel>Water allowed</FormLabel>
+                              <FormLabel>
+                                {t("serviceDialog.waterAllowed")}
+                              </FormLabel>
                               <FormDescription>
-                                Plain water during the fast.
+                                {t("serviceDialog.waterAllowedHint")}
                               </FormDescription>
                             </div>
                             <FormControl>
@@ -677,82 +805,162 @@ export function ServiceDialog({
                     </div>
                   )}
 
-                  <FormField
-                    control={form.control}
-                    name="medicationRestrictions"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Medication restrictions</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            {...field}
-                            rows={3}
-                            placeholder={
-                              "Stop metformin 48 hours before a contrast scan.\nPause biotin supplements for 48 hours."
-                            }
-                            className="rounded-xl"
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          One per line. Medicines to pause — or to keep taking.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="medicationRestrictions"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {t("serviceDialog.medicationEnglish")}
+                          </FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              dir="ltr"
+                              rows={3}
+                              placeholder={t("serviceDialog.medicationPlaceholder")}
+                              className="rounded-xl text-start"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                  <FormField
-                    control={form.control}
-                    name="arrivalInstructions"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Arrival instructions</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            {...field}
-                            rows={2}
-                            placeholder="Arrive 30 minutes early. Leave all metal at home."
-                            className="rounded-xl"
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          When to arrive and anything they must do on the day.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                    <FormField
+                      control={form.control}
+                      name="medicationRestrictionsAr"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {t("serviceDialog.medicationArabic")}
+                          </FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              dir="rtl"
+                              rows={3}
+                              placeholder={t("serviceDialog.medicationPlaceholderAr")}
+                              className="rounded-xl text-start"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t("serviceDialog.medicationHint")}
+                  </p>
 
-                  <FormField
-                    control={form.control}
-                    name="documentsRequired"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Documents required</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            {...field}
-                            rows={3}
-                            placeholder={"National ID\nDoctor's referral\nPrevious imaging"}
-                            className="rounded-xl"
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          One per line. What the patient must bring with them.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="arrivalInstructions"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {t("serviceDialog.arrivalEnglish")}
+                          </FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              dir="ltr"
+                              rows={2}
+                              placeholder={t("serviceDialog.arrivalPlaceholder")}
+                              className="rounded-xl text-start"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="arrivalInstructionsAr"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {t("serviceDialog.arrivalArabic")}
+                          </FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              dir="rtl"
+                              rows={2}
+                              placeholder={t("serviceDialog.arrivalPlaceholderAr")}
+                              className="rounded-xl text-start"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t("serviceDialog.arrivalHint")}
+                  </p>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="documentsRequired"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {t("serviceDialog.documentsEnglish")}
+                          </FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              dir="ltr"
+                              rows={3}
+                              placeholder={t("serviceDialog.documentsPlaceholder")}
+                              className="rounded-xl text-start"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="documentsRequiredAr"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {t("serviceDialog.documentsArabic")}
+                          </FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              dir="rtl"
+                              rows={3}
+                              placeholder={t("serviceDialog.documentsPlaceholderAr")}
+                              className="rounded-xl text-start"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t("serviceDialog.documentsHint")}
+                  </p>
                 </div>
 
                 {/* ---------------------------------------- eligibility (§3) */}
                 <div className="space-y-4 rounded-2xl border p-4">
                   <div>
-                    <h4 className="font-semibold">Eligibility</h4>
+                    <h4 className="font-semibold">
+                      {t("serviceDialog.eligibility")}
+                    </h4>
                     <p className="text-sm text-muted-foreground">
-                      Who may book this {NOUN[providerType]}. A profile that fails
-                      these rules is blocked from booking, and told why.
+                      {t(`serviceDialog.eligibilityHint${suffix}`)}
                     </p>
                   </div>
 
@@ -762,16 +970,16 @@ export function ServiceDialog({
                       name="genderRestriction"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Gender</FormLabel>
+                          <FormLabel>{t("serviceDialog.gender")}</FormLabel>
                           <FormControl>
                             <AppSelect
                               value={field.value}
                               onValueChange={(value) =>
                                 field.onChange(value || "any")
                               }
-                              options={GENDER_OPTIONS}
+                              options={genderOptions}
                               className="h-10"
-                              aria-label="Gender restriction"
+                              aria-label={t("serviceDialog.genderAria")}
                             />
                           </FormControl>
                           <FormMessage />
@@ -784,7 +992,7 @@ export function ServiceDialog({
                       name="minAge"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Minimum age</FormLabel>
+                          <FormLabel>{t("serviceDialog.minAge")}</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -801,7 +1009,7 @@ export function ServiceDialog({
                               }
                               onBlur={field.onBlur}
                               name={field.name}
-                              placeholder="Any"
+                              placeholder={t("serviceDialog.agePlaceholder")}
                               className="h-10 rounded-xl"
                             />
                           </FormControl>
@@ -815,7 +1023,7 @@ export function ServiceDialog({
                       name="maxAge"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Maximum age</FormLabel>
+                          <FormLabel>{t("serviceDialog.maxAge")}</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -832,7 +1040,7 @@ export function ServiceDialog({
                               }
                               onBlur={field.onBlur}
                               name={field.name}
-                              placeholder="Any"
+                              placeholder={t("serviceDialog.agePlaceholder")}
                               className="h-10 rounded-xl"
                             />
                           </FormControl>
@@ -848,11 +1056,11 @@ export function ServiceDialog({
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4">
                         <div className="space-y-0.5">
-                          <FormLabel>Safe during pregnancy</FormLabel>
+                          <FormLabel>
+                            {t("serviceDialog.pregnancySafe")}
+                          </FormLabel>
                           <FormDescription>
-                            Turn this off for anything unsafe in pregnancy —
-                            ionising radiation, for instance. Pregnant profiles are
-                            then blocked from booking it.
+                            {t("serviceDialog.pregnancySafeHint")}
                           </FormDescription>
                         </div>
                         <FormControl>
@@ -868,14 +1076,15 @@ export function ServiceDialog({
                   />
 
                   <div className="space-y-2">
-                    <Label>Excluded conditions</Label>
+                    <Label>{t("serviceDialog.excludedConditions")}</Label>
                     <p className="text-sm text-muted-foreground">
-                      A profile carrying any of these cannot book this{" "}
-                      {NOUN[providerType]}.
+                      {t(`serviceDialog.excludedHint${suffix}`)}
                     </p>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {CHRONIC_CONDITIONS.map((condition) => {
                         const checked = excluded.includes(condition);
+                        const label = L.condition(condition);
+
                         return (
                           <label
                             key={condition}
@@ -886,9 +1095,9 @@ export function ServiceDialog({
                               onCheckedChange={(next: boolean) =>
                                 toggleCondition(condition, next)
                               }
-                              aria-label={condition}
+                              aria-label={label}
                             />
-                            <span>{condition}</span>
+                            <span>{label}</span>
                           </label>
                         );
                       })}
@@ -904,9 +1113,9 @@ export function ServiceDialog({
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4">
                   <div className="space-y-0.5">
-                    <FormLabel>Active</FormLabel>
+                    <FormLabel>{t("serviceDialog.active")}</FormLabel>
                     <FormDescription>
-                      Inactive services are hidden from patients.
+                      {t("serviceDialog.activeHint")}
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -927,7 +1136,7 @@ export function ServiceDialog({
             onClick={() => onOpenChange(false)}
             className="h-10 rounded-xl px-4"
           >
-            Cancel
+            {tCommon("actions.cancel")}
           </Button>
           <Button
             type="submit"
@@ -935,7 +1144,11 @@ export function ServiceDialog({
             disabled={isPending}
             className="h-10 rounded-xl px-4"
           >
-            {isPending ? "Saving…" : service ? "Save changes" : "Add"}
+            {isPending
+              ? tCommon("states.saving")
+              : service
+                ? tCommon("actions.saveChanges")
+                : t("serviceDialog.add")}
           </Button>
         </DialogFooter>
       </DialogContent>

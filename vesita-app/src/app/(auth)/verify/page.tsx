@@ -4,16 +4,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, MailCheck, RotateCw, ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { OtpInput } from "@/components/auth/otp-input";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { HOME_FOR_ROLE, OTP_CODE, resendOtp, verifyOtp } from "@/lib/api/auth";
+import { useApiError } from "@/lib/i18n/use-api-error";
 
 const RESEND_SECONDS = 45;
 
 export default function VerifyPage() {
+  const t = useTranslations("auth");
+  const describeError = useApiError();
+
   const router = useRouter();
   const { user, isLoading } = useAuth();
 
@@ -39,11 +44,10 @@ export default function VerifyPage() {
 
       try {
         await verifyOtp(value);
-        toast.success("Number verified — you're all set.");
+        toast.success(t("verify.verified"));
         router.push(user ? HOME_FOR_ROLE[user.role] : "/patient");
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "That code is incorrect.";
+        const message = describeError(err);
         setError(message);
         setCode("");
         toast.error(message);
@@ -51,7 +55,7 @@ export default function VerifyPage() {
         setIsVerifying(false);
       }
     },
-    [isVerifying, router, user],
+    [describeError, isVerifying, router, t, user],
   );
 
   async function onResend() {
@@ -61,15 +65,15 @@ export default function VerifyPage() {
       setSecondsLeft(RESEND_SECONDS);
       setCode("");
       setError(null);
-      toast.success("A new code is on its way.");
+      toast.success(t("verify.resent"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't resend the code.");
+      toast.error(describeError(err));
     } finally {
       setIsResending(false);
     }
   }
 
-  const destination = user?.phone ?? "your mobile number";
+  const destination = user?.phone ?? t("verify.fallbackDestination");
 
   return (
     <div className="space-y-8">
@@ -77,17 +81,16 @@ export default function VerifyPage() {
         <span className="inline-flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
           <MailCheck className="size-6" />
         </span>
-        <h1 className="text-3xl font-bold tracking-tight">Verify your number</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{t("verify.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          {isLoading ? (
-            "Loading your account…"
-          ) : (
-            <>
-              We sent a 6-digit code to{" "}
-              <span className="font-medium text-foreground">{destination}</span>.
-              Enter it below to activate your account.
-            </>
-          )}
+          {isLoading
+            ? t("verify.loading")
+            : t.rich("verify.sentTo", {
+                destination,
+                strong: (chunks) => (
+                  <span className="font-medium text-foreground">{chunks}</span>
+                ),
+              })}
         </p>
       </header>
 
@@ -121,17 +124,22 @@ export default function VerifyPage() {
         ) : (
           <ShieldCheck className="size-4" />
         )}
-        Verify
+        {t("verify.submit")}
       </Button>
 
       <div className="flex flex-col items-center gap-2">
         {secondsLeft > 0 ? (
           <p className="text-sm text-muted-foreground">
-            Didn&apos;t get it? Resend in{" "}
-            <span className="font-medium tabular-nums text-foreground">
-              {String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:
-              {String(secondsLeft % 60).padStart(2, "0")}
-            </span>
+            {t.rich("verify.resendIn", {
+              time: `${String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:${String(
+                secondsLeft % 60,
+              ).padStart(2, "0")}`,
+              strong: (chunks) => (
+                <span className="ltr-nums font-medium tabular-nums text-foreground">
+                  {chunks}
+                </span>
+              ),
+            })}
           </p>
         ) : (
           <Button
@@ -146,25 +154,29 @@ export default function VerifyPage() {
             ) : (
               <RotateCw className="size-4" />
             )}
-            Resend code
+            {t("verify.resend")}
           </Button>
         )}
       </div>
 
       <div className="rounded-xl border border-dashed bg-muted/40 p-3 text-center text-xs text-muted-foreground">
-        This is a demo — the code is always{" "}
-        <code className="rounded bg-background px-1.5 py-0.5 font-mono text-sm font-semibold tracking-widest text-foreground">
-          {OTP_CODE}
-        </code>
+        {t.rich("verify.demoHint", {
+          code: OTP_CODE,
+          strong: (chunks) => (
+            <code className="ltr-nums rounded bg-background px-1.5 py-0.5 font-mono text-sm font-semibold tracking-widest text-foreground">
+              {chunks}
+            </code>
+          ),
+        })}
       </div>
 
       <p className="text-center text-sm text-muted-foreground">
-        Wrong account?{" "}
+        {t("verify.wrongAccount")}{" "}
         <Link
           href="/login"
           className="font-medium text-primary underline-offset-4 hover:underline"
         >
-          Sign in with another one
+          {t("verify.useAnother")}
         </Link>
       </p>
     </div>

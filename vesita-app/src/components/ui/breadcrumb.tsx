@@ -1,14 +1,18 @@
+"use client"
+
 import * as React from "react"
 import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
+import { useTranslations } from "next-intl"
 
 import { cn } from "@/lib/utils"
 import { ChevronRightIcon, MoreHorizontalIcon } from "lucide-react"
 
 function Breadcrumb({ className, ...props }: React.ComponentProps<"nav">) {
+  const t = useTranslations("common")
   return (
     <nav
-      aria-label="breadcrumb"
+      aria-label={t("ui.breadcrumb")}
       data-slot="breadcrumb"
       className={cn(className)}
       {...props}
@@ -86,7 +90,7 @@ function BreadcrumbSeparator({
       {...props}
     >
       {children ?? (
-        <ChevronRightIcon />
+        <ChevronRightIcon className="rtl:rotate-180" />
       )}
     </li>
   )
@@ -96,6 +100,7 @@ function BreadcrumbEllipsis({
   className,
   ...props
 }: React.ComponentProps<"span">) {
+  const t = useTranslations("common")
   return (
     <span
       data-slot="breadcrumb-ellipsis"
@@ -109,7 +114,7 @@ function BreadcrumbEllipsis({
     >
       <MoreHorizontalIcon
       />
-      <span className="sr-only">More</span>
+      <span className="sr-only">{t("ui.more")}</span>
     </span>
   )
 }

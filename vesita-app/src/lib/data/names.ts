@@ -1,25 +1,48 @@
-/** Egyptian name pools used to synthesize realistic providers and patients. */
+/**
+ * Egyptian name pools used to synthesize realistic providers and patients.
+ *
+ * Each entry is `[latin, arabic]` — the same person, written in both scripts.
+ * A doctor's name is *content*, not chrome: "د. Nader Kamal" in an Arabic
+ * listing reads like a data-entry error, and `Provider.nameAr` exists precisely
+ * so it doesn't have to. The pair is picked in one draw, so the Arabic form
+ * always matches the Latin one rather than being an independent lottery.
+ */
+type NamePair = readonly [string, string];
 
-export const MALE_FIRST = [
-  "Ahmed", "Mohamed", "Mahmoud", "Mostafa", "Khaled", "Tarek", "Hossam", "Amr",
-  "Karim", "Sherif", "Yasser", "Ayman", "Hesham", "Wael", "Sameh", "Ashraf",
-  "Ibrahim", "Omar", "Youssef", "Adel", "Magdy", "Nader", "Ramy", "Waleed",
-  "Emad", "Islam", "Alaa", "Bassem", "Gamal", "Hany", "Sherbiny", "Mazen",
+export const MALE_FIRST: NamePair[] = [
+  ["Ahmed", "أحمد"], ["Mohamed", "محمد"], ["Mahmoud", "محمود"], ["Mostafa", "مصطفى"],
+  ["Khaled", "خالد"], ["Tarek", "طارق"], ["Hossam", "حسام"], ["Amr", "عمرو"],
+  ["Karim", "كريم"], ["Sherif", "شريف"], ["Yasser", "ياسر"], ["Ayman", "أيمن"],
+  ["Hesham", "هشام"], ["Wael", "وائل"], ["Sameh", "سامح"], ["Ashraf", "أشرف"],
+  ["Ibrahim", "إبراهيم"], ["Omar", "عمر"], ["Youssef", "يوسف"], ["Adel", "عادل"],
+  ["Magdy", "مجدي"], ["Nader", "نادر"], ["Ramy", "رامي"], ["Waleed", "وليد"],
+  ["Emad", "عماد"], ["Islam", "إسلام"], ["Alaa", "علاء"], ["Bassem", "باسم"],
+  ["Gamal", "جمال"], ["Hany", "هاني"], ["Sherbiny", "شربيني"], ["Mazen", "مازن"],
 ];
 
-export const FEMALE_FIRST = [
-  "Mona", "Nadia", "Heba", "Rania", "Yasmin", "Dina", "Sara", "Noha",
-  "Amira", "Ghada", "Salma", "Marwa", "Doaa", "Reem", "Nourhan", "Hala",
-  "Shaimaa", "Eman", "Nesma", "Aya", "Maha", "Sherine", "Injy", "Passant",
-  "Fatma", "Asmaa", "Radwa", "Menna", "Nada", "Basma",
+export const FEMALE_FIRST: NamePair[] = [
+  ["Mona", "منى"], ["Nadia", "نادية"], ["Heba", "هبة"], ["Rania", "رانيا"],
+  ["Yasmin", "ياسمين"], ["Dina", "دينا"], ["Sara", "سارة"], ["Noha", "نهى"],
+  ["Amira", "أميرة"], ["Ghada", "غادة"], ["Salma", "سلمى"], ["Marwa", "مروة"],
+  ["Doaa", "دعاء"], ["Reem", "ريم"], ["Nourhan", "نورهان"], ["Hala", "هالة"],
+  ["Shaimaa", "شيماء"], ["Eman", "إيمان"], ["Nesma", "نسمة"], ["Aya", "آية"],
+  ["Maha", "مها"], ["Sherine", "شيرين"], ["Injy", "إنجي"], ["Passant", "بسنت"],
+  ["Fatma", "فاطمة"], ["Asmaa", "أسماء"], ["Radwa", "رضوى"], ["Menna", "منة"],
+  ["Nada", "ندى"], ["Basma", "بسمة"],
 ];
 
-export const LAST_NAMES = [
-  "Hassan", "Ibrahim", "El Sayed", "Abdel Rahman", "Fouad", "Nabil", "Zaki",
-  "Kamal", "Shawky", "El Masry", "Abdel Aziz", "Mansour", "Soliman", "Fahmy",
-  "El Gohary", "Anwar", "Rashad", "Sabry", "Helmy", "Lotfy", "El Shazly",
-  "Badawy", "Hegazy", "Selim", "Nassar", "Ramadan", "El Kholy", "Sultan",
-  "Darwish", "Awad", "El Bahnasawy", "Farag", "Ghanem", "Hamdy", "Kassem",
+export const LAST_NAMES: NamePair[] = [
+  ["Hassan", "حسن"], ["Ibrahim", "إبراهيم"], ["El Sayed", "السيد"],
+  ["Abdel Rahman", "عبد الرحمن"], ["Fouad", "فؤاد"], ["Nabil", "نبيل"],
+  ["Zaki", "زكي"], ["Kamal", "كمال"], ["Shawky", "شوقي"], ["El Masry", "المصري"],
+  ["Abdel Aziz", "عبد العزيز"], ["Mansour", "منصور"], ["Soliman", "سليمان"],
+  ["Fahmy", "فهمي"], ["El Gohary", "الجوهري"], ["Anwar", "أنور"],
+  ["Rashad", "رشاد"], ["Sabry", "صبري"], ["Helmy", "حلمي"], ["Lotfy", "لطفي"],
+  ["El Shazly", "الشاذلي"], ["Badawy", "بدوي"], ["Hegazy", "حجازي"],
+  ["Selim", "سليم"], ["Nassar", "نصار"], ["Ramadan", "رمضان"],
+  ["El Kholy", "الخولي"], ["Sultan", "سلطان"], ["Darwish", "درويش"],
+  ["Awad", "عوض"], ["El Bahnasawy", "البهنساوي"], ["Farag", "فرج"],
+  ["Ghanem", "غانم"], ["Hamdy", "حمدي"], ["Kassem", "قاسم"],
 ];
 
 export const DOCTOR_TITLES = [

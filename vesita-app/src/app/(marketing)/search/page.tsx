@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Info, SearchX } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Suspense, useCallback, useMemo } from "react";
 
 import { FilterSidebar } from "@/components/shared/filter-sidebar";
@@ -18,7 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAsync } from "@/hooks/use-async";
 import { searchProviders } from "@/lib/api/providers";
-import { getGovernorateName, getSpecialtyName } from "@/lib/data/egypt";
+import { useDomain } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
 import {
   INSURANCE_ENABLED,
   SORT_LABELS,
@@ -29,11 +31,6 @@ import {
 } from "@/lib/types";
 
 const PAGE_SIZE = 12;
-
-const SORT_OPTIONS = (Object.keys(SORT_LABELS) as SortOption[]).map((value) => ({
-  value,
-  label: SORT_LABELS[value],
-}));
 
 const PROVIDER_ROLES: ProviderRole[] = ["doctor", "lab", "radiology"];
 const SORT_KEYS = Object.keys(SORT_LABELS) as SortOption[];
@@ -126,15 +123,17 @@ function countActive(filters: SearchFilters): number {
   ].filter(Boolean).length;
 }
 
-const TYPE_LABELS: Record<ProviderRole, string> = {
-  doctor: "doctors",
-  lab: "labs",
-  radiology: "radiology centers",
-};
-
 function SearchResults() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useTranslations("search");
+  const L = useLabels();
+  const { getGovernorateName, getSpecialtyName } = useDomain();
+
+  const sortOptions = useMemo(
+    () => SORT_KEYS.map((value) => ({ value, label: L.sort(value) })),
+    [L],
+  );
 
   // `searchParams` is a stable ReadonlyURLSearchParams per navigation, so its
   // string form is the right dependency for both parsing and re-fetching.
@@ -179,12 +178,23 @@ function SearchResults() {
   const total = data?.total ?? 0;
   const totalPages = data?.totalPages ?? 1;
   const page = filters.page ?? 1;
-  const noun = filters.type ? TYPE_LABELS[filters.type] : "providers";
+  const kind = filters.type ?? "all";
+
+  // Subspecialties are stored as their English string (the identifier), so they
+  // are translated at render, falling back to the raw value.
+  const subSpecialtyLabel = (value: string): string => {
+    const key = `subSpecialty.${value}`;
+    return t.has(key) ? t(key) : value;
+  };
 
   const summary = [
     filters.specialtyId ? getSpecialtyName(filters.specialtyId) : null,
-    filters.subSpecialty,
-    filters.governorateId ? `in ${getGovernorateName(filters.governorateId)}` : null,
+    filters.subSpecialty ? subSpecialtyLabel(filters.subSpecialty) : null,
+    filters.governorateId
+      ? t("results.inGovernorate", {
+          name: getGovernorateName(filters.governorateId),
+        })
+      : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -224,21 +234,24 @@ function SearchResults() {
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
-                {filters.q ? `Results for “${filters.q}”` : `Browse ${noun}`}
+                {filters.q
+                  ? t("results.queryHeading", { q: filters.q })
+                  : t(`results.browse.${kind}`)}
               </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
+              {/* A div, not a p: Skeleton renders a div, and a div inside a p is
+                  invalid HTML — the browser closes the p early and hydration fails. */}
+              <div className="mt-1 text-sm text-muted-foreground">
                 {isLoading ? (
                   <Skeleton className="inline-block h-4 w-40 align-middle" />
                 ) : (
                   <>
                     <span className="font-medium text-foreground tabular-nums">
-                      {total.toLocaleString()}
-                    </span>{" "}
-                    {total === 1 ? noun.replace(/s$/, "") : noun}
+                      {t(`results.count.${kind}`, { count: total })}
+                    </span>
                     {summary ? ` · ${summary}` : ""}
                   </>
                 )}
-              </p>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -248,9 +261,9 @@ function SearchResults() {
                 onValueChange={(value) =>
                   onChange({ sort: (value || "highest_rated") as SortOption })
                 }
-                options={SORT_OPTIONS}
-                placeholder="Sort by"
-                aria-label="Sort results"
+                options={sortOptions}
+                placeholder={t("results.sortBy")}
+                aria-label={t("results.sortLabel")}
                 className="w-44"
               />
             </div>
@@ -260,15 +273,15 @@ function SearchResults() {
             <ProviderListSkeleton count={6} />
           ) : error ? (
             <ErrorState
-              title="Couldn't load results"
-              description="Something went wrong while searching. Please try again."
+              title={t("error.title")}
+              description={t("error.description")}
               onRetry={refetch}
             />
           ) : !data || data.items.length === 0 ? (
             <EmptyState
               icon={SearchX}
-              title="No providers match these filters"
-              description="Try widening the price range, clearing the area, or lowering the minimum rating."
+              title={t("empty.title")}
+              description={t("empty.description")}
               action={
                 <div className="flex flex-wrap justify-center gap-3">
                   <Button
@@ -276,13 +289,13 @@ function SearchResults() {
                     onClick={onReset}
                     className="h-10 rounded-xl px-4"
                   >
-                    Reset filters
+                    {t("empty.reset")}
                   </Button>
                   <Button
                     render={<Link href="/search?type=doctor" />}
                     className="h-10 rounded-xl px-4"
                   >
-                    Browse all doctors
+                    {t("empty.browseDoctors")}
                   </Button>
                 </div>
               }
@@ -295,8 +308,7 @@ function SearchResults() {
               */}
               <p className="mb-4 flex items-start gap-2 rounded-xl bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
                 <Info className="mt-0.5 size-3.5 shrink-0" />
-                Availability here is a quick estimate. Open a provider&apos;s page to
-                see their live places, and the times they can actually take you.
+                {t("results.availabilityNote")}
               </p>
 
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -307,7 +319,7 @@ function SearchResults() {
 
               {totalPages > 1 && (
                 <nav
-                  aria-label="Pagination"
+                  aria-label={t("pagination.label")}
                   className="mt-10 flex flex-wrap items-center justify-center gap-2"
                 >
                   <Button
@@ -316,8 +328,8 @@ function SearchResults() {
                     onClick={() => goToPage(page - 1)}
                     className="h-10 rounded-xl px-3"
                   >
-                    <ChevronLeft className="size-4" />
-                    Previous
+                    <ChevronLeft className="size-4 rtl:rotate-180" />
+                    {t("pagination.previous")}
                   </Button>
 
                   {pageWindow.map((n) => (
@@ -326,6 +338,7 @@ function SearchResults() {
                       variant={n === page ? "default" : "outline"}
                       onClick={() => goToPage(n)}
                       aria-current={n === page ? "page" : undefined}
+                      aria-label={t("pagination.goToPage", { page: n })}
                       className="size-10 rounded-xl p-0 tabular-nums"
                     >
                       {n}
@@ -338,14 +351,14 @@ function SearchResults() {
                     onClick={() => goToPage(page + 1)}
                     className="h-10 rounded-xl px-3"
                   >
-                    Next
-                    <ChevronRight className="size-4" />
+                    {t("pagination.next")}
+                    <ChevronRight className="size-4 rtl:rotate-180" />
                   </Button>
                 </nav>
               )}
 
               <p className="mt-4 text-center text-xs text-muted-foreground">
-                Page {page} of {totalPages}
+                {t("pagination.pageOf", { page, total: totalPages })}
               </p>
             </>
           )}

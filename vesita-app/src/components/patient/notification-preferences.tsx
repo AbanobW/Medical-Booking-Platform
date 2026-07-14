@@ -1,12 +1,10 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-  CHANNEL_ICONS,
-  CHANNEL_LABELS,
-} from "@/components/shared/notification-center";
+import { CHANNEL_ICONS } from "@/components/shared/notification-center";
 import {
   Card,
   CardContent,
@@ -16,16 +14,10 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { SITE } from "@/lib/site";
 import type { NotificationChannel, NotificationPreferences } from "@/lib/types";
 
 const CHANNELS: NotificationChannel[] = ["sms", "email", "whatsapp", "browser"];
-
-const DESCRIPTIONS: Record<NotificationChannel, string> = {
-  sms: "Appointment reminders sent as a text message.",
-  email: "Booking confirmations, receipts and offers.",
-  whatsapp: "Reminders and updates on WhatsApp.",
-  browser: "Live alerts while you're using Vesita.",
-};
 
 const DEFAULTS: NotificationPreferences = {
   sms: true,
@@ -39,22 +31,28 @@ const DEFAULTS: NotificationPreferences = {
  * stands in for the save round-trip.
  */
 export function NotificationPreferencesCard() {
+  const t = useTranslations("patient");
+
   const [preferences, setPreferences] =
     useState<NotificationPreferences>(DEFAULTS);
 
   function onToggle(channel: NotificationChannel, enabled: boolean) {
     setPreferences((current) => ({ ...current, [channel]: enabled }));
+
+    const name = t(`notifications.channel.${channel}`);
     toast.success(
-      `${CHANNEL_LABELS[channel]} notifications ${enabled ? "enabled" : "disabled"}.`,
+      enabled
+        ? t("notifications.preferences.enabled", { channel: name })
+        : t("notifications.preferences.disabled", { channel: name }),
     );
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Notification preferences</CardTitle>
+        <CardTitle>{t("notifications.preferences.title")}</CardTitle>
         <CardDescription>
-          Choose how you&apos;d like to hear about your appointments.
+          {t("notifications.preferences.description")}
         </CardDescription>
       </CardHeader>
 
@@ -74,10 +72,12 @@ export function NotificationPreferencesCard() {
 
               <div className="min-w-0 flex-1">
                 <Label htmlFor={id} className="cursor-pointer">
-                  {CHANNEL_LABELS[channel]}
+                  {t(`notifications.channel.${channel}`)}
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  {DESCRIPTIONS[channel]}
+                  {t(`notifications.preferences.${channel}`, {
+                    site: SITE.name,
+                  })}
                 </p>
               </div>
 

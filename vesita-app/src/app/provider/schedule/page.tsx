@@ -1,6 +1,7 @@
 "use client";
 
 import { Building2, CalendarOff, Info, Plus, Save, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -42,11 +43,11 @@ import {
   updateSchedule,
 } from "@/lib/api/provider-admin";
 import { TODAY, todayISO, toISODate } from "@/lib/data/seed";
-import { formatDate } from "@/lib/format";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
 import {
-  CAPACITY_LABELS,
   schedulingModeFor,
-  WEEKDAY_NAMES,
   type CapacityType,
   type DaySchedule,
   type SchedulingMode,
@@ -55,41 +56,18 @@ import {
 
 const WEEKDAYS: Weekday[] = [0, 1, 2, 3, 4, 5, 6];
 
-const SLOT_OPTIONS = [15, 20, 30, 45, 60].map((n) => ({
-  value: String(n),
-  label: `${n} minutes`,
-}));
+/** `Weekday` is an index; the `domain.weekday.*` messages are keyed by name. */
+const WEEKDAY_KEYS = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const;
 
-const CAPACITY_TYPE_OPTIONS: { value: CapacityType; label: string }[] = [
-  { value: "comfort", label: CAPACITY_LABELS.comfort },
-  { value: "strict", label: CAPACITY_LABELS.strict },
-];
-
-/** Doctors run sessions; labs and radiology centers run slots (§5). */
-const COPY: Record<
-  SchedulingMode,
-  {
-    capacityLabel: (n: number) => string;
-    capacityHint: string;
-    slotLabel: string;
-    slotHint: string;
-  }
-> = {
-  session: {
-    capacityLabel: (n) => `Session capacity: ${n} patient${n === 1 ? "" : "s"}`,
-    capacityHint:
-      "Patients join the session and get a queue number with an estimated time — not an exact minute.",
-    slotLabel: "Minutes per patient",
-    slotHint: "Used to estimate when each queue number will be seen.",
-  },
-  slot: {
-    capacityLabel: (n) => `Places per slot: ${n}`,
-    capacityHint:
-      "Each slot is a real appointment time. Capacity is how many patients can be handled in the same slot.",
-    slotLabel: "Slot length",
-    slotHint: "The gap between one appointment and the next.",
-  },
-};
+const SLOT_MINUTES = [15, 20, 30, 45, 60];
 
 /** Guarantees all seven days exist, so the editor never renders a hole. */
 function normalize(schedule: DaySchedule[]): DaySchedule[] {
@@ -109,6 +87,13 @@ function normalize(schedule: DaySchedule[]): DaySchedule[] {
 }
 
 export default function ProviderSchedulePage() {
+  const t = useTranslations("provider");
+  const tDomain = useTranslations("domain");
+  const tCommon = useTranslations("common");
+  const describeError = useApiError();
+  const { formatDate } = useFormat();
+  const L = useLabels();
+
   const { providerId, provider, isLoading: providerLoading } = useCurrentProvider();
 
   const [branchId, setBranchId] = useState("");
@@ -155,8 +140,40 @@ export default function ProviderSchedulePage() {
   const mode: SchedulingMode = provider
     ? schedulingModeFor(provider.type)
     : "slot";
-  const copy = COPY[mode];
   const branch = provider?.branches.find((b) => b.id === branchId);
+
+  /** Doctors run sessions; labs and radiology centers run slots (§5). */
+  const isSession = mode === "session";
+  const slotLabel = isSession
+    ? t("schedule.slotLabelSession")
+    : t("schedule.slotLabelSlot");
+  const slotHint = isSession
+    ? t("schedule.slotHintSession")
+    : t("schedule.slotHintSlot");
+  const capacityLabel = isSession
+    ? t("schedule.capacityLabelSession")
+    : t("schedule.capacityLabelSlot");
+  const capacityHint = isSession
+    ? t("schedule.capacityHintSession")
+    : t("schedule.capacityHintSlot");
+
+  const slotOptions = SLOT_MINUTES.map((n) => ({
+    value: String(n),
+    label: t("schedule.slotMinutes", { count: n }),
+  }));
+
+  const capacityTypeOptions: { value: CapacityType; label: string }[] = [
+    { value: "comfort", label: L.capacity("comfort") },
+    { value: "strict", label: L.capacity("strict") },
+  ];
+
+  const weekdayName = (weekday: Weekday) =>
+    tDomain(`weekday.${WEEKDAY_KEYS[weekday]}`);
+
+  const capacityBadge = (day: DaySchedule) =>
+    isSession
+      ? t("schedule.capacityBadgeSession", { count: day.capacity })
+      : t("schedule.capacityBadgeSlot", { count: day.capacity });
 
   function patchDay(weekday: Weekday, patch: Partial<DaySchedule>) {
     setDraft((current) =>
@@ -170,25 +187,31 @@ export default function ProviderSchedulePage() {
       const saved = await save.mutate(providerId, draft, branchId);
       scheduleState.setData(saved);
       setDirty(false);
-      toast.success(`Working hours saved for ${branch?.name ?? "this branch"}.`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't save your schedule.");
+      toast.success(
+        t("schedule.saved", { branch: branch?.name ?? t("shared.thisBranch") }),
+      );
+    } catch (error) {
+      toast.error(describeError(error));
     }
   }
 
   async function onAddHoliday() {
     if (!date) {
-      toast.error("Pick a date first.");
+      toast.error(t("schedule.pickDateFirst"));
       return;
     }
     try {
-      await create.mutate(providerId, date, reason.trim() || "Closed");
+      await create.mutate(
+        providerId,
+        date,
+        reason.trim() || t("schedule.holidayDefaultReason"),
+      );
       setDialogOpen(false);
       setReason("");
       holidaysState.refetch();
-      toast.success("Holiday added.");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't add that holiday.");
+      toast.success(t("schedule.holidayAdded"));
+    } catch (error) {
+      toast.error(describeError(error));
     }
   }
 
@@ -196,9 +219,9 @@ export default function ProviderSchedulePage() {
     try {
       await destroy.mutate(id);
       holidaysState.refetch();
-      toast.success("Holiday removed.");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't remove that holiday.");
+      toast.success(t("schedule.holidayRemoved"));
+    } catch (error) {
+      toast.error(describeError(error));
     }
   }
 
@@ -207,8 +230,8 @@ export default function ProviderSchedulePage() {
   if (!provider) {
     return (
       <EmptyState
-        title="No provider profile"
-        description="This account isn't linked to a provider listing yet."
+        title={t("shared.noProfileTitle")}
+        description={t("shared.noProfileDescription")}
       />
     );
   }
@@ -217,8 +240,8 @@ export default function ProviderSchedulePage() {
     return (
       <EmptyState
         icon={Building2}
-        title="No branches yet"
-        description="Schedules live on branches. Contact the Vesita team to add your first branch."
+        title={t("schedule.noBranchesTitle")}
+        description={t("schedule.noBranchesDescription")}
       />
     );
   }
@@ -229,21 +252,24 @@ export default function ProviderSchedulePage() {
       <Card>
         <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="w-full space-y-1.5 lg:max-w-sm">
-            <Label htmlFor="branch">Branch</Label>
+            <Label htmlFor="branch">{t("schedule.branch")}</Label>
             <AppSelect
               id="branch"
               value={branchId}
               onValueChange={(value) => setBranchId(value)}
               options={provider.branches.map((b) => ({
                 value: b.id,
-                label: b.isActive ? b.name : `${b.name} (inactive)`,
+                label: b.isActive
+                  ? b.name
+                  : t("schedule.branchInactive", { name: b.name }),
               }))}
-              placeholder="Pick a branch"
+              placeholder={t("schedule.branchPlaceholder")}
               className="h-10"
             />
             <p className="text-xs text-muted-foreground">
-              Each branch keeps its own working hours, capacity and services —
-              editing here changes {branch?.name ?? "this branch"} only.
+              {t("schedule.branchHint", {
+                branch: branch?.name ?? t("shared.thisBranch"),
+              })}
             </p>
           </div>
 
@@ -269,12 +295,14 @@ export default function ProviderSchedulePage() {
           <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
             <div>
               <CardTitle className="text-base">
-                Weekly working hours{branch ? ` · ${branch.name}` : ""}
+                {branch
+                  ? t("schedule.workingHoursAt", { branch: branch.name })
+                  : t("schedule.workingHours")}
               </CardTitle>
               <CardDescription>
-                {mode === "session"
-                  ? "Each working day is one session. Patients join it and receive a queue number."
-                  : "Slots are generated from these windows, minus your breaks."}
+                {isSession
+                  ? t("schedule.workingHoursDescriptionSession")
+                  : t("schedule.workingHoursDescriptionSlot")}
               </CardDescription>
             </div>
             <Button
@@ -283,21 +311,20 @@ export default function ProviderSchedulePage() {
               className="h-10 rounded-xl px-4"
             >
               <Save className="size-4" />
-              {save.isPending ? "Saving…" : "Save changes"}
+              {save.isPending
+                ? tCommon("states.saving")
+                : tCommon("actions.saveChanges")}
             </Button>
           </CardHeader>
 
           <CardContent className="space-y-4">
             <Alert>
               <Info className="size-4" />
-              <AlertTitle>Comfort limits and strict limits</AlertTitle>
+              <AlertTitle>{t("schedule.limitsAlertTitle")}</AlertTitle>
               <AlertDescription>
-                A <strong>comfort limit</strong> is a soft one: you can knowingly
-                see one more patient — it just means a longer evening, and the
-                patient is warned about the wait before they take the place. A{" "}
-                <strong>strict limit</strong> is physical — how many scans a
-                machine can do, say — and is <strong>never exceeded</strong>, even
-                when two patients try to take the last place at once.
+                {t.rich("schedule.limitsAlertBody", {
+                  strong: (chunks) => <strong>{chunks}</strong>,
+                })}
               </AlertDescription>
             </Alert>
 
@@ -309,8 +336,8 @@ export default function ProviderSchedulePage() {
               </div>
             ) : scheduleState.error ? (
               <ErrorState
-                title="Couldn't load this branch's schedule"
-                description={scheduleState.error.message}
+                title={t("schedule.scheduleError")}
+                description={describeError(scheduleState.error)}
                 onRetry={scheduleState.refetch}
               />
             ) : (
@@ -333,7 +360,7 @@ export default function ProviderSchedulePage() {
                           htmlFor={`working-${day.weekday}`}
                           className="w-24 font-medium"
                         >
-                          {WEEKDAY_NAMES[day.weekday]}
+                          {weekdayName(day.weekday)}
                         </Label>
                       </div>
 
@@ -346,12 +373,14 @@ export default function ProviderSchedulePage() {
                               : "bg-info/10 text-info"
                           }
                         >
-                          {copy.capacityLabel(day.capacity)} ·{" "}
-                          {day.capacityType === "strict" ? "strict" : "comfort"}
+                          {capacityBadge(day)} ·{" "}
+                          {day.capacityType === "strict"
+                            ? t("schedule.limitShortStrict")
+                            : t("schedule.limitShortComfort")}
                         </Badge>
                       ) : (
                         <span className="text-sm text-muted-foreground">
-                          Closed all day
+                          {t("schedule.closedAllDay")}
                         </span>
                       )}
                     </div>
@@ -360,7 +389,9 @@ export default function ProviderSchedulePage() {
                       <>
                         <div className="grid gap-3 sm:grid-cols-3">
                           <div className="space-y-1.5">
-                            <Label htmlFor={`start-${day.weekday}`}>Opens</Label>
+                            <Label htmlFor={`start-${day.weekday}`}>
+                              {t("schedule.opens")}
+                            </Label>
                             <Input
                               id={`start-${day.weekday}`}
                               type="time"
@@ -372,7 +403,9 @@ export default function ProviderSchedulePage() {
                             />
                           </div>
                           <div className="space-y-1.5">
-                            <Label htmlFor={`end-${day.weekday}`}>Closes</Label>
+                            <Label htmlFor={`end-${day.weekday}`}>
+                              {t("schedule.closes")}
+                            </Label>
                             <Input
                               id={`end-${day.weekday}`}
                               type="time"
@@ -385,7 +418,7 @@ export default function ProviderSchedulePage() {
                           </div>
                           <div className="space-y-1.5">
                             <Label htmlFor={`slot-${day.weekday}`}>
-                              {copy.slotLabel}
+                              {slotLabel}
                             </Label>
                             <AppSelect
                               id={`slot-${day.weekday}`}
@@ -395,12 +428,15 @@ export default function ProviderSchedulePage() {
                                   slotDurationMinutes: Number(value) || 30,
                                 })
                               }
-                              options={SLOT_OPTIONS}
+                              options={slotOptions}
                               className="h-10"
-                              aria-label={`${copy.slotLabel} on ${WEEKDAY_NAMES[day.weekday]}`}
+                              aria-label={t("schedule.slotAria", {
+                                label: slotLabel,
+                                day: weekdayName(day.weekday),
+                              })}
                             />
                             <p className="text-xs text-muted-foreground">
-                              {copy.slotHint}
+                              {slotHint}
                             </p>
                           </div>
                         </div>
@@ -409,9 +445,7 @@ export default function ProviderSchedulePage() {
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div className="space-y-1.5">
                             <Label htmlFor={`capacity-${day.weekday}`}>
-                              {mode === "session"
-                                ? "Session capacity (patients)"
-                                : "Places per slot"}
+                              {capacityLabel}
                             </Label>
                             <Input
                               id={`capacity-${day.weekday}`}
@@ -430,13 +464,13 @@ export default function ProviderSchedulePage() {
                               className="h-10 rounded-xl"
                             />
                             <p className="text-xs text-muted-foreground">
-                              {copy.capacityHint}
+                              {capacityHint}
                             </p>
                           </div>
 
                           <div className="space-y-1.5">
                             <Label htmlFor={`captype-${day.weekday}`}>
-                              How firm is that limit?
+                              {t("schedule.capacityTypeLabel")}
                             </Label>
                             <AppSelect
                               id={`captype-${day.weekday}`}
@@ -446,21 +480,23 @@ export default function ProviderSchedulePage() {
                                   capacityType: (value || "comfort") as CapacityType,
                                 })
                               }
-                              options={CAPACITY_TYPE_OPTIONS}
+                              options={capacityTypeOptions}
                               className="h-10"
-                              aria-label={`Capacity type on ${WEEKDAY_NAMES[day.weekday]}`}
+                              aria-label={t("schedule.capacityTypeAria", {
+                                day: weekdayName(day.weekday),
+                              })}
                             />
                             <p className="text-xs text-muted-foreground">
                               {day.capacityType === "strict"
-                                ? "Never exceeded — the last place is the last place."
-                                : "May run over knowingly: the patient is told the wait is longer and chooses."}
+                                ? t("schedule.capacityTypeHintStrict")
+                                : t("schedule.capacityTypeHintComfort")}
                             </p>
                           </div>
                         </div>
 
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <Label>Breaks</Label>
+                            <Label>{t("schedule.breaks")}</Label>
                             <Button
                               variant="outline"
                               size="sm"
@@ -474,13 +510,13 @@ export default function ProviderSchedulePage() {
                               }
                             >
                               <Plus className="size-3.5" />
-                              Add break
+                              {t("schedule.addBreak")}
                             </Button>
                           </div>
 
                           {day.breaks.length === 0 ? (
                             <p className="text-sm text-muted-foreground">
-                              No breaks — slots run straight through.
+                              {t("schedule.noBreaks")}
                             </p>
                           ) : (
                             day.breaks.map((slot, index) => (
@@ -490,7 +526,7 @@ export default function ProviderSchedulePage() {
                               >
                                 <Input
                                   type="time"
-                                  aria-label="Break starts"
+                                  aria-label={t("schedule.breakStarts")}
                                   value={slot.startTime}
                                   onChange={(e) =>
                                     patchDay(day.weekday, {
@@ -506,7 +542,7 @@ export default function ProviderSchedulePage() {
                                 <span className="text-muted-foreground">–</span>
                                 <Input
                                   type="time"
-                                  aria-label="Break ends"
+                                  aria-label={t("schedule.breakEnds")}
                                   value={slot.endTime}
                                   onChange={(e) =>
                                     patchDay(day.weekday, {
@@ -522,7 +558,7 @@ export default function ProviderSchedulePage() {
                                 <Button
                                   variant="ghost"
                                   size="icon-sm"
-                                  aria-label="Remove break"
+                                  aria-label={t("schedule.removeBreak")}
                                   onClick={() =>
                                     patchDay(day.weekday, {
                                       breaks: day.breaks.filter(
@@ -563,29 +599,33 @@ export default function ProviderSchedulePage() {
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
               <div>
-                <CardTitle className="text-base">Holidays</CardTitle>
+                <CardTitle className="text-base">
+                  {t("schedule.holidays")}
+                </CardTitle>
                 <CardDescription>
-                  Dates you are closed, overriding the week at every branch.
+                  {t("schedule.holidaysDescription")}
                 </CardDescription>
               </div>
 
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <Button size="sm" onClick={() => setDialogOpen(true)}>
                   <Plus className="size-3.5" />
-                  Add
+                  {tCommon("actions.add")}
                 </Button>
 
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Add a holiday</DialogTitle>
+                    <DialogTitle>{t("schedule.addHolidayTitle")}</DialogTitle>
                     <DialogDescription>
-                      Bookings can&apos;t be made on this date.
+                      {t("schedule.addHolidayDescription")}
                     </DialogDescription>
                   </DialogHeader>
 
                   <div className="space-y-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="holiday-date">Date</Label>
+                      <Label htmlFor="holiday-date">
+                        {t("schedule.holidayDate")}
+                      </Label>
                       <Input
                         id="holiday-date"
                         type="date"
@@ -595,12 +635,14 @@ export default function ProviderSchedulePage() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="holiday-reason">Reason</Label>
+                      <Label htmlFor="holiday-reason">
+                        {t("schedule.holidayReason")}
+                      </Label>
                       <Input
                         id="holiday-reason"
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
-                        placeholder="Eid al-Adha, annual leave…"
+                        placeholder={t("schedule.holidayReasonPlaceholder")}
                         className="h-10 rounded-xl"
                       />
                     </div>
@@ -612,14 +654,16 @@ export default function ProviderSchedulePage() {
                       onClick={() => setDialogOpen(false)}
                       className="h-10 rounded-xl px-4"
                     >
-                      Cancel
+                      {tCommon("actions.cancel")}
                     </Button>
                     <Button
                       onClick={onAddHoliday}
                       disabled={create.isPending}
                       className="h-10 rounded-xl px-4"
                     >
-                      {create.isPending ? "Adding…" : "Add holiday"}
+                      {create.isPending
+                        ? t("schedule.addingHoliday")
+                        : t("schedule.addHoliday")}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -631,15 +675,15 @@ export default function ProviderSchedulePage() {
                 <ListSkeleton count={3} />
               ) : holidaysState.error ? (
                 <ErrorState
-                  title="Couldn't load your holidays"
-                  description={holidaysState.error.message}
+                  title={t("schedule.holidaysError")}
+                  description={describeError(holidaysState.error)}
                   onRetry={holidaysState.refetch}
                 />
               ) : (holidaysState.data ?? []).length === 0 ? (
                 <EmptyState
                   icon={CalendarOff}
-                  title="No holidays yet"
-                  description="Add the dates you'll be closed so patients can't book them."
+                  title={t("schedule.noHolidaysTitle")}
+                  description={t("schedule.noHolidaysDescription")}
                 />
               ) : (
                 <ul className="space-y-2">
@@ -662,14 +706,18 @@ export default function ProviderSchedulePage() {
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            aria-label={`Remove holiday on ${holiday.date}`}
+                            aria-label={t("schedule.removeHolidayAria", {
+                              date: formatDate(holiday.date),
+                            })}
                           >
                             <Trash2 className="size-4 text-destructive" />
                           </Button>
                         }
-                        title="Remove this holiday?"
-                        description={`${formatDate(holiday.date)} will become bookable again if it falls on a working day.`}
-                        confirmLabel="Remove"
+                        title={t("schedule.removeHolidayTitle")}
+                        description={t("schedule.removeHolidayDescription", {
+                          date: formatDate(holiday.date),
+                        })}
+                        confirmLabel={tCommon("actions.remove")}
                         isPending={destroy.isPending}
                         onConfirm={() => onRemoveHoliday(holiday.id)}
                       />

@@ -1,0 +1,120 @@
+{
+  "service": {
+    "unavailable": "الخدمة غير متاحة مؤقتًا. من فضلك حاول مرة أخرى.",
+    "notFound": "الخدمة غير موجودة.",
+    "lastOne": "يجب أن تقدّم خدمة واحدة على الأقل."
+  },
+  "booking": {
+    "notFound": "الحجز غير موجود.",
+    "providerNotAccepting": "مقدّم الخدمة لا يستقبل حجوزات جديدة حاليًا.",
+    "serviceNotAtBranch": "هذه الخدمة غير متوفرة في الفرع المختار.",
+    "branchClosed": "الفرع مغلق في التاريخ المختار.",
+    "acknowledgementRequired": "يجب الاطلاع على تعليمات التحضير وشروط الأهلية والموافقة عليها قبل إتمام الحجز.",
+    "slotNoLongerOffered": "هذا الموعد لم يعد متاحًا. من فضلك اختر موعدًا آخر.",
+    "slotUnavailable": "هذا الموعد غير متاح. من فضلك اختر موعدًا آخر.",
+    "duplicateForProfile": "يوجد بالفعل حجز باسم {name} في هذا الموعد.",
+    "notAwaitingPayment": "هذا الحجز لم يعد في انتظار الدفع.",
+    "notHeld": "هذا الحجز ليس محجوزًا مؤقتًا.",
+    "holdExpired": "انتهت مهلة الحجز المؤقت ({minutes} دقيقة) وتم تحرير المكان. من فضلك أعد الحجز.",
+    "paymentFailed": "لم تتم عملية الدفع، لذلك تم تحرير المكان. من فضلك حاول الحجز مرة أخرى.",
+    "cannotCancel": "لا يمكن إلغاء حجز {status, select, completed {مكتمل} no_show {مسجَّل كزيارة فائتة} cancelled_by_patient {تم إلغاؤه بالفعل} cancelled_by_provider {تم إلغاؤه بالفعل} refund_pending {في انتظار استرداد المبلغ} refunded {تم استرداد مبلغه} other {في هذه الحالة}}.",
+    "noRefundPending": "لا يوجد استرداد معلّق على هذا الحجز.",
+    "notConfirmedForCompletion": "لا يمكن إتمام سوى حجز مؤكَّد.",
+    "notConfirmedForNoShow": "لا يمكن تسجيل زيارة فائتة إلا على حجز مؤكَّد.",
+    "noShowTooEarly": "لا يمكن تسجيل زيارة فائتة إلا بعد انتهاء الجلسة.",
+    "longWaitOnNoShow": "هذه الزيارة مسجَّلة كزيارة فائتة. من فضلك تواصل مع الدعم لتصحيحها.",
+    "notReschedulable": "لا يمكن تغيير موعد سوى حجز قائم.",
+    "invalidTransition": "لا يمكن نقل الحجز مباشرةً إلى {status, select, held {حالة الحجز المؤقت} awaiting_payment {حالة انتظار الدفع} confirmed {حالة التأكيد} refund_pending {حالة انتظار الاسترداد} other {هذه الحالة}}."
+  },
+  "capacity": {
+    "comfortBusy": "هذه الجلسة مزدحمة. ما زال بإمكانك الحجز، لكن مدة الانتظار ستكون أطول.",
+    "strictFull": "اكتمل عدد الأماكن في هذه الجلسة. إليك أقرب موعد متاح.",
+    "strictFullReschedule": "اكتمل عدد الأماكن في هذه الجلسة. من فضلك اختر موعدًا آخر."
+  },
+  "eligibility": {
+    "failed": "لا يمكن حجز {service} لملف {name} لعدم استيفاء شروط الخدمة.",
+    "violation": {
+      "gender": "{service} متاح {gender, select, male {للمرضى الذكور} female {للمريضات الإناث} other {للمرضى المؤهلين}} فقط.",
+      "min_age": "{service} متاح للمرضى من عمر {minAge} سنة فأكثر، وعمر {name} هو {age} سنة.",
+      "max_age": "{service} متاح للمرضى حتى عمر {maxAge} سنة، وعمر {name} هو {age} سنة.",
+      "pregnancy": "{service} لا يُجرى أثناء الحمل.",
+      "condition": "{service} غير مناسب للمرضى المصابين بـ {condition}."
+    },
+    "rule": {
+      "gendersOnly": "{gender, select, male {للرجال فقط} female {للسيدات فقط} other {لفئات محددة فقط}}",
+      "ageRange": "من {minAge} إلى {maxAge} سنة",
+      "minAge": "من {minAge} سنة فأكثر",
+      "maxAge": "حتى {maxAge} سنة",
+      "noPregnancy": "لا يُجرى أثناء الحمل",
+      "excludedCondition": "غير مناسب مع {condition}"
+    }
+  },
+  "profile": {
+    "notFound": "ملف المريض غير موجود.",
+    "selfExists": "هذا الحساب يحتوي بالفعل على ملف خاص بك. أضف هذا الشخص كأحد أفراد العائلة بدلًا من ذلك.",
+    "cannotRemoveSelf": "لا يمكن حذف ملفك الشخصي.",
+    "hasBookings": "ملف {name} مرتبط بـ {count, plural, =0 {لا حجوزات} one {حجز واحد} two {حجزين} few {# حجوزات} many {# حجزًا} other {# حجز}} مسجَّلة. السجل الطبي وسجل الحجوزات مرتبطان بالملف، لذلك لا يمكن حذفه."
+  },
+  "provider": {
+    "notFound": "مقدّم الخدمة غير موجود."
+  },
+  "branch": {
+    "notFound": "الفرع غير موجود."
+  },
+  "coupon": {
+    "unknown": "كود الكوبون غير صحيح.",
+    "inactive": "هذا الكوبون لم يعد ساريًا.",
+    "expired": "انتهت صلاحية هذا الكوبون.",
+    "usageLimitReached": "تم استهلاك الحد الأقصى لاستخدام هذا الكوبون.",
+    "onlyForProviderType": "هذا الكوبون يسري على حجوزات {type, select, doctor {الأطباء} lab {التحاليل} radiology {الأشعة} other {نوع معيّن}} فقط.",
+    "notForThisProviderType": "هذا الكوبون لا يسري على هذا النوع من الحجوزات.",
+    "belowMinimum": "يتطلب هذا الكوبون حدًا أدنى للطلب قدره {amount} جنيه.",
+    "applied": "تم تطبيق الكوبون — وفّرت {amount} جنيه.",
+    "codeExists": "يوجد كوبون بهذا الكود بالفعل.",
+    "notFound": "الكوبون غير موجود."
+  },
+  "campaign": {
+    "notFound": "الحملة غير موجودة."
+  },
+  "review": {
+    "notFound": "التقييم غير موجود.",
+    "notCompleted": "يمكنك تقييم الموعد بعد إتمامه فقط.",
+    "alreadyExists": "لقد قمت بتقييم هذا الموعد بالفعل."
+  },
+  "notification": {
+    "notFound": "الإشعار غير موجود."
+  },
+  "user": {
+    "notFound": "المستخدم غير موجود."
+  },
+  "auth": {
+    "accountNotFound": "لا يوجد حساب مسجَّل بهذا البريد الإلكتروني.",
+    "accountSuspended": "تم إيقاف هذا الحساب. من فضلك تواصل مع الدعم.",
+    "emailTaken": "يوجد حساب مسجَّل بهذا البريد الإلكتروني بالفعل.",
+    "otpIncorrect": "الكود غير صحيح. من فضلك حاول مرة أخرى.",
+    "noDemoAccount": "لا يوجد حساب تجريبي متاح لدور \"{role}\"."
+  },
+  "schedule": {
+    "invalidWindow": "‏{startTime}–{endTime} ليست فترة عمل صالحة.",
+    "capacityRequired": "يوم العمل يحتاج إلى سعة لا تقل عن مكان واحد."
+  },
+  "holiday": {
+    "duplicate": "هذا التاريخ مسجَّل بالفعل كإجازة.",
+    "notFound": "الإجازة غير موجودة."
+  },
+  "package": {
+    "notForDoctors": "الأطباء لا يقدّمون باقات.",
+    "notFound": "الباقة غير موجودة."
+  },
+  "api": {
+    "validation": "من فضلك راجع الحقول المميّزة وحاول مرة أخرى.",
+    "unauthenticated": "انتهت جلستك. من فضلك سجّل الدخول مرة أخرى.",
+    "forbidden": "ليس لديك صلاحية للقيام بذلك.",
+    "notFound": "لم نتمكن من العثور على ما تبحث عنه.",
+    "rateLimited": "محاولات كثيرة. انتظر لحظة ثم حاول مرة أخرى.",
+    "serverError": "الخدمة غير متاحة مؤقتًا. من فضلك حاول مرة أخرى.",
+    "requestFailed": "لم يتم تنفيذ هذا الطلب. من فضلك حاول مرة أخرى.",
+    "networkError": "تعذّر الوصول إلى الخادم. تحقق من اتصالك وحاول مرة أخرى.",
+    "notConfigured": "التطبيق غير مهيّأ للوصول إلى الـ API. اضبط NEXT_PUBLIC_API_BASE_URL."
+  }
+}

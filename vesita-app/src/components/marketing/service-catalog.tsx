@@ -14,6 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 
 import { BranchPrice } from "@/components/marketing/branch-pricing";
@@ -23,18 +24,68 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { describeEligibility } from "@/lib/eligibility";
-import { formatDuration } from "@/lib/format";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
 import {
   hasPreparation,
   requiresAcknowledgement,
   type Branch,
+  type EligibilityRules,
   type LabTest,
   type RadiologyScan,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type CatalogItem = LabTest | RadiologyScan;
+
+/**
+ * The catalogue categories are a closed set in the dataset, so each one has a
+ * translation; anything unexpected falls back to the stored English label.
+ */
+function useCategoryName() {
+  const t = useTranslations("profile");
+  return (category: string) =>
+    t.has(`category.${category}`) ? t(`category.${category}`) : category;
+}
+
+/**
+ * A plain-language summary of a service's restrictions — the translated twin of
+ * `describeEligibility`, which returns English strings for non-React callers.
+ */
+function useEligibilityDescription() {
+  const t = useTranslations("profile");
+  const L = useLabels();
+
+  return (rules: EligibilityRules | undefined): string[] => {
+    if (!rules) return [];
+    const out: string[] = [];
+
+    if (rules.genders?.length === 1) {
+      out.push(
+        rules.genders[0] === "male"
+          ? t("eligibility.menOnly")
+          : t("eligibility.womenOnly"),
+      );
+    }
+    if (rules.minAge !== undefined && rules.maxAge !== undefined) {
+      out.push(t("eligibility.agesRange", { min: rules.minAge, max: rules.maxAge }));
+    } else if (rules.minAge !== undefined) {
+      out.push(t("eligibility.agesMin", { min: rules.minAge }));
+    } else if (rules.maxAge !== undefined) {
+      out.push(t("eligibility.agesMax", { max: rules.maxAge }));
+    }
+    if (!rules.pregnancySafe) {
+      out.push(t("eligibility.notInPregnancy"));
+    }
+    for (const condition of rules.excludedConditions) {
+      out.push(
+        t("eligibility.notSuitableWith", { condition: L.condition(condition) }),
+      );
+    }
+
+    return out;
+  };
+}
 
 /**
  * Preparation and eligibility, before the patient books (§3).
@@ -44,14 +95,18 @@ type CatalogItem = LabTest | RadiologyScan;
  * checkout — so nobody discovers the fast four hours too late.
  */
 function PreparationDetails({ item }: { item: CatalogItem }) {
+  const t = useTranslations("profile");
+  const { localized } = useDomain();
+  const describe = useEligibilityDescription();
+
   const prep = item.preparation;
-  const restrictions = describeEligibility(item);
+  const restrictions = describe(item.eligibility);
 
   return (
     <div className="space-y-3 rounded-xl border border-warning/30 bg-warning/5 p-3 text-sm">
       <p className="flex items-center gap-1.5 font-medium text-warning-foreground">
         <TriangleAlert className="size-3.5 shrink-0 text-warning" />
-        Before you book
+        {t("preparation.title")}
       </p>
 
       <ul className="space-y-2 text-muted-foreground">
@@ -60,13 +115,16 @@ function PreparationDetails({ item }: { item: CatalogItem }) {
             <Droplet className="mt-0.5 size-3.5 shrink-0 text-warning" />
             <span>
               <span className="font-medium text-foreground">
-                Fasting required
-                {prep.fastingHours ? ` — ${prep.fastingHours} hours` : ""}
+                {prep.fastingHours
+                  ? t("preparation.fastingRequiredHours", {
+                      hours: prep.fastingHours,
+                    })
+                  : t("preparation.fastingRequired")}
               </span>
               {". "}
               {prep.waterAllowed
-                ? "Water is allowed during the fast."
-                : "No water during the fast."}
+                ? t("preparation.waterAllowed")
+                : t("preparation.noWater")}
             </span>
           </li>
         )}
@@ -74,7 +132,7 @@ function PreparationDetails({ item }: { item: CatalogItem }) {
         {!prep.fastingRequired && prep.waterAllowed && (
           <li className="flex items-start gap-2">
             <GlassWater className="mt-0.5 size-3.5 shrink-0 text-primary" />
-            <span>No fasting needed — eat and drink as normal.</span>
+            <span>{t("preparation.noFasting")}</span>
           </li>
         )}
 
@@ -82,18 +140,22 @@ function PreparationDetails({ item }: { item: CatalogItem }) {
           <li className="flex items-start gap-2">
             <Pill className="mt-0.5 size-3.5 shrink-0 text-warning" />
             <span>
-              <span className="font-medium text-foreground">Medication: </span>
-              {prep.medicationRestrictions.join(" · ")}
+              <span className="font-medium text-foreground">
+                {t("preparation.medication")}{" "}
+              </span>
+              {prep.medicationRestrictions.map(localized).join(" · ")}
             </span>
           </li>
         )}
 
-        {prep.arrivalInstructions && (
+        {localized(prep.arrivalInstructions) && (
           <li className="flex items-start gap-2">
             <Clock className="mt-0.5 size-3.5 shrink-0 text-primary" />
             <span>
-              <span className="font-medium text-foreground">On arrival: </span>
-              {prep.arrivalInstructions}
+              <span className="font-medium text-foreground">
+                {t("preparation.onArrival")}{" "}
+              </span>
+              {localized(prep.arrivalInstructions)}
             </span>
           </li>
         )}
@@ -102,8 +164,10 @@ function PreparationDetails({ item }: { item: CatalogItem }) {
           <li className="flex items-start gap-2">
             <FileText className="mt-0.5 size-3.5 shrink-0 text-primary" />
             <span>
-              <span className="font-medium text-foreground">Bring with you: </span>
-              {prep.documentsRequired.join(", ")}
+              <span className="font-medium text-foreground">
+                {t("preparation.bring")}{" "}
+              </span>
+              {prep.documentsRequired.map(localized).join(", ")}
             </span>
           </li>
         )}
@@ -112,17 +176,16 @@ function PreparationDetails({ item }: { item: CatalogItem }) {
           <li className="flex items-start gap-2">
             <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-destructive" />
             <span>
-              <span className="font-medium text-foreground">Who can book this: </span>
+              <span className="font-medium text-foreground">
+                {t("preparation.whoCanBook")}{" "}
+              </span>
               {restrictions.join(" · ")}
             </span>
           </li>
         )}
       </ul>
 
-      <p className="text-xs text-muted-foreground">
-        You&apos;ll be asked to confirm you&apos;ve read this before the booking is
-        finalised.
-      </p>
+      <p className="text-xs text-muted-foreground">{t("preparation.confirmNote")}</p>
     </div>
   );
 }
@@ -145,10 +208,17 @@ export function ServiceCatalog({
   /** "test" or "scan" — used in copy. */
   noun: "test" | "scan";
 }) {
+  const t = useTranslations("profile");
+  const { formatDuration, locale } = useFormat();
+  const { named, localized } = useDomain();
+  const categoryName = useCategoryName();
+
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("");
   const [sort, setSort] = useState("name");
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  const Noun = noun === "test" ? "Test" : "Scan";
 
   const active = useMemo(() => items.filter((i) => i.isActive), [items]);
 
@@ -163,7 +233,7 @@ export function ServiceCatalog({
     const filtered = active.filter((item) => {
       if (category && item.category !== category) return false;
       if (!term) return true;
-      return `${item.name} ${item.nameAr} ${item.category} ${item.description}`
+      return `${item.name} ${item.nameAr} ${item.category} ${localized(item.description)}`
         .toLowerCase()
         .includes(term);
     });
@@ -171,57 +241,59 @@ export function ServiceCatalog({
     return [...filtered].sort((a, b) => {
       if (sort === "price_asc") return a.price - b.price;
       if (sort === "price_desc") return b.price - a.price;
-      return a.name.localeCompare(b.name);
+      return named(a).localeCompare(named(b), locale);
     });
-  }, [active, category, q, sort]);
+  }, [active, category, q, sort, named, localized, locale]);
 
   return (
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
         <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={q}
             onChange={(event) => setQ(event.target.value)}
-            placeholder={`Search ${noun}s by name or category…`}
-            aria-label={`Search ${noun}s`}
-            className="h-11 rounded-xl pl-9"
+            placeholder={t(`catalog.searchPlaceholder${Noun}`)}
+            aria-label={t(`catalog.searchLabel${Noun}`)}
+            className="h-11 rounded-xl ps-9"
           />
         </div>
 
         <AppSelect
           value={category}
           onValueChange={setCategory}
-          emptyOption="All categories"
-          placeholder="All categories"
-          aria-label="Category"
+          emptyOption={t("catalog.allCategories")}
+          placeholder={t("catalog.allCategories")}
+          aria-label={t("catalog.categoryLabel")}
           className="sm:w-52"
-          options={categories.map((c) => ({ value: c, label: c }))}
+          options={categories.map((c) => ({ value: c, label: categoryName(c) }))}
         />
 
         <AppSelect
           value={sort}
           onValueChange={(value) => setSort(value || "name")}
-          placeholder="Sort"
-          aria-label={`Sort ${noun}s`}
+          placeholder={t("catalog.sort")}
+          aria-label={t(`catalog.sortLabel${Noun}`)}
           className="sm:w-44"
           options={[
-            { value: "name", label: "Name (A–Z)" },
-            { value: "price_asc", label: "Price: low to high" },
-            { value: "price_desc", label: "Price: high to low" },
+            { value: "name", label: t("catalog.sortName") },
+            { value: "price_asc", label: t("catalog.sortPriceAsc") },
+            { value: "price_desc", label: t("catalog.sortPriceDesc") },
           ]}
         />
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Showing <span className="font-medium text-foreground">{visible.length}</span>{" "}
-        of {active.length} {noun}s
+        {t(noun === "test" ? "catalog.showingTests" : "catalog.showingScans", {
+          visible: visible.length,
+          total: active.length,
+        })}
       </p>
 
       {visible.length === 0 ? (
         <EmptyState
-          title={`No ${noun}s match your search`}
-          description="Try a different keyword, or clear the category filter."
+          title={t(`catalog.emptyTitle${Noun}`)}
+          description={t("catalog.emptyDescription")}
           action={
             <Button
               variant="outline"
@@ -231,7 +303,7 @@ export function ServiceCatalog({
                 setCategory("");
               }}
             >
-              Clear filters
+              {t("catalog.clearFilters")}
             </Button>
           }
         />
@@ -247,31 +319,32 @@ export function ServiceCatalog({
                   <CardContent className="flex h-full flex-col gap-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <h4 className="font-medium leading-tight">{item.name}</h4>
+                        <h4 className="font-medium leading-tight">{named(item)}</h4>
+                        {/* The other language's name, as a quiet subtitle. */}
                         <p
-                          dir="rtl"
+                          dir={locale === "ar" ? "ltr" : "rtl"}
                           className="mt-0.5 truncate text-xs text-muted-foreground"
                         >
-                          {item.nameAr}
+                          {locale === "ar" ? item.name : item.nameAr}
                         </p>
                       </div>
                       <BranchPrice service={item} branches={branches} />
                     </div>
 
                     <p className="line-clamp-2 text-sm text-muted-foreground">
-                      {item.description}
+                      {localized(item.description)}
                     </p>
 
                     <div className="flex flex-wrap items-center gap-1.5">
                       <Badge variant="outline" className="font-normal">
-                        {item.category}
+                        {categoryName(item.category)}
                       </Badge>
 
                       {item.kind === "test" ? (
                         <>
                           <Badge variant="secondary" className="gap-1 font-normal">
                             <Clock className="size-3" />
-                            Results in {item.resultTimeHours}h
+                            {t("catalog.resultsIn", { hours: item.resultTimeHours })}
                           </Badge>
                           {item.preparation.fastingRequired && (
                             <Badge
@@ -279,10 +352,11 @@ export function ServiceCatalog({
                               className="gap-1 bg-warning/15 font-normal text-warning-foreground"
                             >
                               <Droplet className="size-3" />
-                              Fasting
                               {item.preparation.fastingHours
-                                ? ` ${item.preparation.fastingHours}h`
-                                : ""}
+                                ? t("catalog.fastingHours", {
+                                    hours: item.preparation.fastingHours,
+                                  })
+                                : t("catalog.fasting")}
                             </Badge>
                           )}
                         </>
@@ -298,7 +372,7 @@ export function ServiceCatalog({
                               className="gap-1 bg-warning/15 font-normal text-warning-foreground"
                             >
                               <Zap className="size-3" />
-                              Contrast
+                              {t("catalog.contrast")}
                             </Badge>
                           )}
                         </>
@@ -312,8 +386,8 @@ export function ServiceCatalog({
                         >
                           <TriangleAlert className="size-3" />
                           {hasPreparation(item)
-                            ? "Preparation required"
-                            : "Eligibility rules"}
+                            ? t("catalog.preparationRequired")
+                            : t("catalog.eligibilityRules")}
                         </Badge>
                       )}
                     </div>
@@ -326,7 +400,7 @@ export function ServiceCatalog({
                           aria-expanded={isOpen}
                           className="flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
                         >
-                          {isOpen ? "Hide" : "Read"} preparation &amp; eligibility
+                          {isOpen ? t("catalog.hidePrep") : t("catalog.readPrep")}
                           <ChevronDown
                             className={cn(
                               "size-3.5 transition-transform",
@@ -349,7 +423,7 @@ export function ServiceCatalog({
                         className="rounded-lg"
                       >
                         <Sparkles className="size-3.5" />
-                        Book
+                        {t("catalog.book")}
                       </Button>
                     </div>
                   </CardContent>

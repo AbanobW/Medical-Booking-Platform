@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Clock, Heart, MapPin, Stethoscope } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -16,10 +17,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAsync } from "@/hooks/use-async";
 import { getNextSlots } from "@/lib/api/providers";
 import { toggleFavorite } from "@/lib/api/engagement";
-import { getAreaName, getGovernorateName, getSpecialtyName } from "@/lib/data/egypt";
+import { getSpecialtyName } from "@/lib/data/egypt";
 import { todayISO } from "@/lib/data/seed";
-import { formatTime, initialsOf, relativeDay } from "@/lib/format";
-import { formatEGP } from "@/lib/site";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import { cn } from "@/lib/utils";
 import type { Provider } from "@/lib/types";
 
@@ -28,10 +28,28 @@ function isToday(date: string): boolean {
   return date === todayISO();
 }
 
-/** The label under a provider's name: specialty for doctors, type otherwise. */
+/**
+ * The label under a provider's name: specialty for doctors, type otherwise.
+ *
+ * English-only — kept for non-React callers (sorting, exports, tests). Inside a
+ * component use `useProviderSubtitle()`, which is locale-aware.
+ */
 export function providerSubtitle(provider: Provider): string {
   if (provider.type === "doctor") return getSpecialtyName(provider.specialtyId);
   return provider.type === "lab" ? "Medical Laboratory" : "Radiology Center";
+}
+
+/** The locale-aware version of `providerSubtitle`, for use inside components. */
+export function useProviderSubtitle(): (provider: Provider) => string {
+  const t = useTranslations("common");
+  const { getSpecialtyName: specialtyName } = useDomain();
+
+  return (provider: Provider) => {
+    if (provider.type === "doctor") return specialtyName(provider.specialtyId);
+    return provider.type === "lab"
+      ? t("providerCard.labSubtitle")
+      : t("providerCard.radiologySubtitle");
+  };
 }
 
 export function providerHref(provider: Provider): string {
@@ -61,10 +79,15 @@ export function ProviderCard({
   className,
 }: ProviderCardProps) {
   const { user } = useAuth();
+  const t = useTranslations("common");
+  const { formatTime, relativeDay, formatEGP, initialsOf } = useFormat();
+  const { named, getAreaName, getGovernorateName } = useDomain();
+  const subtitleOf = useProviderSubtitle();
   const [favorite, setFavorite] = useState(isFavorite);
   const [isSaving, setIsSaving] = useState(false);
 
   const href = providerHref(provider);
+  const name = named(provider);
 
   const { data: slots, isLoading: slotsLoading } = useAsync(
     () => (showSlots ? getNextSlots(provider.id, 3) : Promise.resolve([])),
@@ -76,7 +99,7 @@ export function ProviderCard({
     event.stopPropagation();
 
     if (!user) {
-      toast.error("Sign in to save providers to your favorites.");
+      toast.error(t("providerCard.favoriteSignIn"));
       return;
     }
 
@@ -90,11 +113,13 @@ export function ProviderCard({
       setFavorite(result.isFavorite);
       onFavoriteChange?.(provider.id, result.isFavorite);
       toast.success(
-        result.isFavorite ? "Added to favorites" : "Removed from favorites",
+        result.isFavorite
+          ? t("providerCard.favoriteAdded")
+          : t("providerCard.favoriteRemoved"),
       );
     } catch {
       setFavorite(!next);
-      toast.error("Couldn't update your favorites. Please try again.");
+      toast.error(t("providerCard.favoriteFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -109,11 +134,11 @@ export function ProviderCard({
               <Avatar className="size-20 rounded-2xl ring-1 ring-border">
                 <AvatarImage
                   src={provider.photo}
-                  alt={provider.name}
+                  alt={name}
                   className="rounded-2xl object-cover"
                 />
                 <AvatarFallback className="rounded-2xl text-lg font-semibold">
-                  {initialsOf(provider.name)}
+                  {initialsOf(name)}
                 </AvatarFallback>
               </Avatar>
             </Link>
@@ -122,11 +147,11 @@ export function ProviderCard({
               <div className="flex items-start justify-between gap-2">
                 <Link href={href} className="min-w-0">
                   <h3 className="truncate font-semibold leading-tight transition-colors group-hover:text-primary">
-                    {provider.name}
+                    {name}
                   </h3>
                   <p className="mt-0.5 flex items-center gap-1 truncate text-sm text-muted-foreground">
                     <Stethoscope className="size-3.5 shrink-0" />
-                    {providerSubtitle(provider)}
+                    {subtitleOf(provider)}
                   </p>
                 </Link>
 
@@ -135,7 +160,9 @@ export function ProviderCard({
                   onClick={onToggleFavorite}
                   disabled={isSaving}
                   aria-label={
-                    favorite ? "Remove from favorites" : "Add to favorites"
+                    favorite
+                      ? t("providerCard.removeFavorite")
+                      : t("providerCard.addFavorite")
                   }
                   aria-pressed={favorite}
                   className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50"
@@ -181,8 +208,8 @@ export function ProviderCard({
                   <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                     <Clock className="size-3" />
                     {isToday(slots[0].date)
-                      ? "Likely available today"
-                      : "Likely available"}
+                      ? t("providerCard.likelyAvailableToday")
+                      : t("providerCard.likelyAvailable")}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {slots.map((slot) => (
@@ -191,15 +218,16 @@ export function ProviderCard({
                         variant="secondary"
                         className="bg-accent font-normal text-accent-foreground"
                       >
-                        {relativeDay(slot.date)} · {formatTime(slot.time)}
+                        <span className="ltr-nums">
+                          {relativeDay(slot.date)} · {formatTime(slot.time)}
+                        </span>
                       </Badge>
                     ))}
                   </div>
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Likely nothing open in the next 2 weeks — check the profile to be
-                  sure.
+                  {t("providerCard.noOpenSlots")}
                 </p>
               )}
             </div>
@@ -208,7 +236,9 @@ export function ProviderCard({
           <div className="mt-auto flex items-end justify-between gap-3 border-t pt-4">
             <div>
               <p className="text-xs text-muted-foreground">
-                {provider.type === "doctor" ? "Consultation fee" : "Starting from"}
+                {provider.type === "doctor"
+                  ? t("providerCard.consultationFee")
+                  : t("providerCard.startingFrom")}
               </p>
               <p className="text-lg font-bold text-primary">
                 {formatEGP(provider.price)}
@@ -219,7 +249,7 @@ export function ProviderCard({
               render={<Link href={`/booking/${provider.slug}`} />}
               className="h-10 rounded-xl px-4"
             >
-              Book Now
+              {t("actions.bookNow")}
             </Button>
           </div>
         </CardContent>
@@ -236,7 +266,13 @@ export function ProviderCardCompact({
   provider: Provider;
   action?: React.ReactNode;
 }) {
+  const t = useTranslations("common");
+  const { formatEGP, initialsOf } = useFormat();
+  const { named } = useDomain();
+  const subtitleOf = useProviderSubtitle();
+
   const href = providerHref(provider);
+  const name = named(provider);
 
   return (
     <Card className="transition-shadow hover:shadow-card">
@@ -245,23 +281,21 @@ export function ProviderCardCompact({
           <Avatar className="size-14 rounded-xl ring-1 ring-border">
             <AvatarImage
               src={provider.photo}
-              alt={provider.name}
+              alt={name}
               className="rounded-xl object-cover"
             />
             <AvatarFallback className="rounded-xl">
-              {initialsOf(provider.name)}
+              {initialsOf(name)}
             </AvatarFallback>
           </Avatar>
         </Link>
 
         <div className="min-w-0 flex-1">
           <Link href={href}>
-            <h4 className="truncate font-medium hover:text-primary">
-              {provider.name}
-            </h4>
+            <h4 className="truncate font-medium hover:text-primary">{name}</h4>
           </Link>
           <p className="truncate text-sm text-muted-foreground">
-            {providerSubtitle(provider)}
+            {subtitleOf(provider)}
           </p>
           <RatingBadge
             rating={provider.rating}
@@ -281,7 +315,7 @@ export function ProviderCardCompact({
               variant="outline"
               className="rounded-lg"
             >
-              Book
+              {t("providerCard.book")}
             </Button>
           )}
         </div>

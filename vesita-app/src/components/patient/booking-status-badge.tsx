@@ -14,18 +14,16 @@ import {
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { useLabels } from "@/lib/i18n/use-labels";
 import { cn } from "@/lib/utils";
-import {
-  BOOKING_STATUS_LABELS,
-  type BookingStatus,
-  type PaymentStatus,
-} from "@/lib/types";
+import type { BookingStatus, PaymentStatus } from "@/lib/types";
 
 /**
  * The nine booking states (§7), each with an icon and a tone.
  *
- * Labels come from `BOOKING_STATUS_LABELS` so the patient-facing wording stays
- * in one place — "Cancelled by you" means the patient here, not the provider.
+ * The wording comes from `useLabels().bookingStatus` — the *patient-facing*
+ * vocabulary, where "cancelled by you" means the patient cancelled, not the
+ * provider.
  */
 const STATUS: Record<BookingStatus, { icon: LucideIcon; className: string }> = {
   held: {
@@ -73,12 +71,13 @@ export function BookingStatusBadge({
   status: BookingStatus;
   className?: string;
 }) {
+  const L = useLabels();
   const { icon: Icon, className: tone } = STATUS[status];
 
   return (
     <Badge variant="secondary" className={cn("gap-1 font-medium", tone, className)}>
       <Icon />
-      {BOOKING_STATUS_LABELS[status]}
+      {L.bookingStatus(status)}
     </Badge>
   );
 }
@@ -89,19 +88,15 @@ const PAYMENT_TONES: Record<PaymentStatus, string> = {
   refunded: "bg-info/10 text-info",
 };
 
-const PAYMENT_LABELS: Record<PaymentStatus, string> = {
-  paid: "Paid",
-  unpaid: "Unpaid",
-  refunded: "Refunded",
-};
-
 export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
+  const L = useLabels();
+
   return (
     <Badge
       variant="secondary"
       className={cn("font-normal", PAYMENT_TONES[status])}
     >
-      {PAYMENT_LABELS[status]}
+      {L.paymentStatus(status)}
     </Badge>
   );
 }

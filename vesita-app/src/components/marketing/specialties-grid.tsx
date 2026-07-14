@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, Stethoscope } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { SectionHeading } from "@/components/marketing/section-heading";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -11,9 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAsync } from "@/hooks/use-async";
 import { getPopularSpecialties } from "@/lib/api/providers";
+import { useDomain } from "@/lib/i18n/use-format";
 
 /** The specialty tiles under the hero — the second-most-used entry point. */
 export function SpecialtiesGrid() {
+  const t = useTranslations("home.specialties");
+  const { getSpecialtyName } = useDomain();
   const { data, error, isLoading, refetch } = useAsync(
     () => getPopularSpecialties(12),
     [],
@@ -23,17 +27,17 @@ export function SpecialtiesGrid() {
     <section className="py-14 sm:py-16">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <SectionHeading
-          eyebrow="Browse by specialty"
-          title="Popular specialties"
-          description="Pick a specialty and see every verified doctor near you, with real prices and open slots."
+          eyebrow={t("eyebrow")}
+          title={t("title")}
+          description={t("description")}
           action={
             <Button
               render={<Link href="/search?type=doctor" />}
               variant="outline"
               className="h-10 rounded-xl px-4"
             >
-              All doctors
-              <ArrowRight className="size-4" />
+              {t("allDoctors")}
+              <ArrowRight className="size-4 rtl:rotate-180" />
             </Button>
           }
         />
@@ -45,16 +49,12 @@ export function SpecialtiesGrid() {
             ))}
           </div>
         ) : error ? (
-          <ErrorState
-            title="Couldn't load specialties"
-            onRetry={refetch}
-            className="py-12"
-          />
+          <ErrorState title={t("errorTitle")} onRetry={refetch} className="py-12" />
         ) : !data || data.length === 0 ? (
           <EmptyState
             icon={Stethoscope}
-            title="No specialties yet"
-            description="Specialties appear here as doctors join the platform."
+            title={t("emptyTitle")}
+            description={t("emptyDescription")}
           />
         ) : (
           <Reveal className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
@@ -68,11 +68,10 @@ export function SpecialtiesGrid() {
                     <DynamicIcon name={specialty.icon} className="size-6" />
                   </span>
                   <span className="text-sm font-semibold leading-tight">
-                    {specialty.name}
+                    {getSpecialtyName(specialty.id)}
                   </span>
                   <span className="text-xs text-muted-foreground tabular-nums">
-                    {specialty.doctorCount}{" "}
-                    {specialty.doctorCount === 1 ? "doctor" : "doctors"}
+                    {t("doctorCount", { count: specialty.doctorCount })}
                   </span>
                 </Link>
               </RevealItem>

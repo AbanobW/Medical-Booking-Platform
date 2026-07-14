@@ -2,6 +2,7 @@
 
 import { CalendarClock, CalendarX2 } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 
 import { ScheduleTable } from "@/components/marketing/schedule-table";
@@ -15,7 +16,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAsync } from "@/hooks/use-async";
 import { getAvailability } from "@/lib/api/providers";
 import { todayISO } from "@/lib/data/seed";
-import { formatTime, relativeDay } from "@/lib/format";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useFormat } from "@/lib/i18n/use-format";
 import type { Provider, TimeSlot } from "@/lib/types";
 
 /**
@@ -32,6 +34,10 @@ export function AvailabilityPanel({
   provider: Provider;
   className?: string;
 }) {
+  const t = useTranslations("profile");
+  const { formatTime, relativeDay } = useFormat();
+  const describeError = useApiError();
+
   const branches = useMemo(
     () => provider.branches.filter((b) => b.isActive),
     [provider.branches],
@@ -71,10 +77,10 @@ export function AvailabilityPanel({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <CalendarClock className="size-4 text-primary" />
-            Live availability
+            {t("availability.title")}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Real places at this branch, right now.
+            {t("availability.subtitle")}
           </p>
         </CardHeader>
 
@@ -82,14 +88,14 @@ export function AvailabilityPanel({
           {branches.length > 1 && (
             <div className="space-y-1.5">
               <Label htmlFor="availability-branch" className="text-xs text-muted-foreground">
-                Branch
+                {t("availability.branch")}
               </Label>
               <AppSelect
                 id="availability-branch"
                 value={branch?.id ?? ""}
                 onValueChange={setBranchId}
-                placeholder="Select a branch"
-                aria-label="Branch"
+                placeholder={t("availability.selectBranch")}
+                aria-label={t("availability.branch")}
                 options={branches.map((b) => ({ value: b.id, label: b.name }))}
               />
             </div>
@@ -97,7 +103,7 @@ export function AvailabilityPanel({
 
           {!branch ? (
             <p className="text-sm text-muted-foreground">
-              This provider has no active branch taking bookings at the moment.
+              {t("availability.noBranch")}
             </p>
           ) : isLoading ? (
             <div className="space-y-2">
@@ -110,16 +116,15 @@ export function AvailabilityPanel({
             </div>
           ) : error ? (
             <ErrorState
-              title="Couldn't load availability"
-              description={error.message}
+              title={t("availability.errorTitle")}
+              description={describeError(error)}
               onRetry={refetch}
             />
           ) : openDays.length === 0 ? (
             <div className="flex items-start gap-3 rounded-xl bg-muted p-3">
               <CalendarX2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                No open places at {branch.name} in the next two weeks. Try another
-                branch, or call them directly.
+                {t("availability.noneInTwoWeeks", { branch: branch.name })}
               </p>
             </div>
           ) : (
@@ -130,7 +135,7 @@ export function AvailabilityPanel({
               */}
               {!todayIsOpen && next && (
                 <p className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">
-                  No places left today. The next is{" "}
+                  {t("availability.noneTodayPrefix")}{" "}
                   <span className="font-medium text-foreground">
                     {relativeDay(next.date)}
                   </span>
@@ -144,7 +149,7 @@ export function AvailabilityPanel({
                     {relativeDay(day.date)}
                     {day.date === today && (
                       <Badge variant="secondary" className="font-normal">
-                        Today
+                        {t("availability.today")}
                       </Badge>
                     )}
                   </p>
@@ -156,19 +161,26 @@ export function AvailabilityPanel({
                         className="font-normal tabular-nums"
                         title={
                           slot.isFull
-                            ? "Busy session — you may wait longer"
-                            : `${slot.remaining} of ${slot.capacity} places left`
+                            ? t("availability.busyTitle")
+                            : t("availability.remainingTitle", {
+                                remaining: slot.remaining,
+                                capacity: slot.capacity,
+                              })
                         }
                       >
-                        {formatTime(slot.time)}
+                        <span className="ltr-nums">{formatTime(slot.time)}</span>
                         {slot.isFull && (
-                          <span className="ml-1 text-warning">busy</span>
+                          <span className="ms-1 text-warning">
+                            {t("availability.busy")}
+                          </span>
                         )}
                       </Badge>
                     ))}
                     {day.slots.length > 6 && (
                       <Badge variant="secondary" className="font-normal">
-                        +{day.slots.length - 6} more
+                        {t("availability.moreSlots", {
+                          count: day.slots.length - 6,
+                        })}
                       </Badge>
                     )}
                   </div>
@@ -183,10 +195,10 @@ export function AvailabilityPanel({
                 }
                 className="h-10 w-full rounded-xl"
               >
-                Pick a time
+                {t("availability.pickTime")}
               </Button>
               <p className="text-center text-xs text-muted-foreground">
-                Your place is only held once the booking is confirmed.
+                {t("availability.holdNote")}
               </p>
             </div>
           )}

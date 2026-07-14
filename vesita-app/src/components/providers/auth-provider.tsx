@@ -7,10 +7,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
-import * as authApi from "@/lib/api/auth";
+import * as session from "@/lib/api/session";
+import { onUnauthorized } from "@/lib/api/tokens";
 import type { Role, User } from "@/lib/types";
 
 interface AuthContextValue {
@@ -21,7 +23,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<User>;
   loginAs: (role: Role) => Promise<User>;
   loginWithGoogle: () => Promise<User>;
-  register: (input: authApi.RegisterInput) => Promise<User>;
+  register: (input: session.RegisterInput) => Promise<User>;
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<User>) => Promise<User>;
   /** Replaces the in-memory user without a round-trip. */
@@ -35,39 +37,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  // Restore the session on mount. Reading localStorage must happen after
-  // hydration, so the server and first client render always agree.
+  // Restore the session on mount. Reading storage must happen after hydration so
+  // the server and first client render always agree. In live mode this is a real
+  // round-trip (we hold a token, not a user), so it can resolve after unmount —
+  // hence the `cancelled` guard.
   useEffect(() => {
-    setUserState(authApi.getStoredSession());
-    setIsLoading(false);
+    let cancelled = false;
+
+    void session.restoreSession().then((restored) => {
+      if (cancelled) return;
+      setUserState(restored);
+      setIsLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  // The server rejected our token mid-session (expired, revoked, or — until the
+  // refresh endpoint is fixed — simply 24h old). Tear the session down here too,
+  // or the app keeps rendering a dashboard whose every request 401s.
+  //
+  // Guarded on `userRef`: a 401 while nobody is signed in (a stale token found at
+  // boot) must not bounce a browsing visitor to the sign-in page.
+  const userRef = useRef<User | null>(null);
+  userRef.current = user;
+
+  useEffect(() => {
+    return onUnauthorized(() => {
+      if (!userRef.current) return;
+      setUserState(null);
+      router.replace("/login");
+    });
+  }, [router]);
+
   const login = useCallback(async (email: string, password: string) => {
-    const next = await authApi.login(email, password);
+    const next = await session.login(email, password);
     setUserState(next);
     return next;
   }, []);
 
   const loginAs = useCallback(async (role: Role) => {
-    const next = await authApi.loginAs(role);
+    const next = await session.loginAs(role);
     setUserState(next);
     return next;
   }, []);
 
   const loginWithGoogle = useCallback(async () => {
-    const next = await authApi.loginWithGoogle();
+    const next = await session.loginWithGoogle();
     setUserState(next);
     return next;
   }, []);
 
-  const register = useCallback(async (input: authApi.RegisterInput) => {
-    const next = await authApi.register(input);
+  const register = useCallback(async (input: session.RegisterInput) => {
+    const next = await session.register(input);
     setUserState(next);
     return next;
   }, []);
 
   const logout = useCallback(async () => {
-    await authApi.logout();
+    await session.logout();
     setUserState(null);
     router.push("/");
   }, [router]);
@@ -75,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateProfile = useCallback(
     async (patch: Partial<User>) => {
       if (!user) throw new Error("Not signed in.");
-      const next = await authApi.updateProfile(user.id, patch);
+      const next = await session.updateProfile(user.id, patch);
       setUserState(next);
       return next;
     },

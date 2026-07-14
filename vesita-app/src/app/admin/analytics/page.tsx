@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import {
   Banknote,
   CalendarCheck,
@@ -39,16 +40,63 @@ import {
   getCancellationAnalytics,
   getRevenueAnalytics,
 } from "@/lib/api/stats";
-import { formatEGP, formatEGPCompact, formatNumber } from "@/lib/site";
+import { GOVERNORATES, SPECIALTIES } from "@/lib/data/egypt";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
+import type { CategoryCount, TimeSeriesPoint } from "@/lib/types";
+
+/**
+ * The stats service hands back English category labels (one dataset, many
+ * consumers). Charts are the only place they surface, so they are mapped back
+ * onto the dataset's bilingual names at render — the numbers never move.
+ */
+function useChartLabels() {
+  const t = useTranslations("admin.charts");
+  const { getSpecialtyName, getGovernorateName } = useDomain();
+
+  const months = (series: TimeSeriesPoint[]) =>
+    series.map((point) => ({
+      ...point,
+      label: t.has(`month.${point.label}`)
+        ? t(`month.${point.label}`)
+        : point.label,
+    }));
+
+  const specialties = (data: CategoryCount[]) =>
+    data.map((row) => {
+      const specialty = SPECIALTIES.find((s) => s.name === row.name);
+      return specialty ? { ...row, name: getSpecialtyName(specialty.id) } : row;
+    });
+
+  const governorates = (data: CategoryCount[]) =>
+    data.map((row) => {
+      const governorate = GOVERNORATES.find((g) => g.name === row.name);
+      return governorate
+        ? { ...row, name: getGovernorateName(governorate.id) }
+        : row;
+    });
+
+  /** `byType` / `byPaymentMethod` / `byReason` — a lookup, with the raw name as the fallback. */
+  const lookup = (data: CategoryCount[], group: string) =>
+    data.map((row) =>
+      t.has(`${group}.${row.name}`)
+        ? { ...row, name: t(`${group}.${row.name}`) }
+        : row,
+    );
+
+  return { months, specialties, governorates, lookup };
+}
 
 export default function AdminAnalyticsPage() {
+  const t = useTranslations("admin");
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Analytics</h2>
-        <p className="text-sm text-muted-foreground">
-          Who is booked most, why bookings fall through, and where the money goes.
-        </p>
+        <h2 className="text-xl font-semibold tracking-tight">
+          {t("analytics.title")}
+        </h2>
+        <p className="text-sm text-muted-foreground">{t("analytics.subtitle")}</p>
       </div>
 
       <Tabs defaultValue="platform" className="gap-6">
@@ -56,27 +104,27 @@ export default function AdminAnalyticsPage() {
           <TabsList className="h-10">
             <TabsTrigger value="platform">
               <LayoutDashboard aria-hidden />
-              Platform
+              {t("analytics.tabs.platform")}
             </TabsTrigger>
             <TabsTrigger value="doctors">
               <Stethoscope aria-hidden />
-              Doctors
+              {t("analytics.tabs.doctors")}
             </TabsTrigger>
             <TabsTrigger value="labs">
               <Microscope aria-hidden />
-              Labs
+              {t("analytics.tabs.labs")}
             </TabsTrigger>
             <TabsTrigger value="radiology">
               <Radiation aria-hidden />
-              Radiology
+              {t("analytics.tabs.radiology")}
             </TabsTrigger>
             <TabsTrigger value="cancellations">
               <CalendarX aria-hidden />
-              Cancellations
+              {t("analytics.tabs.cancellations")}
             </TabsTrigger>
             <TabsTrigger value="revenue">
               <Wallet aria-hidden />
-              Revenue
+              {t("analytics.tabs.revenue")}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -88,8 +136,8 @@ export default function AdminAnalyticsPage() {
         <TabsContent value="doctors">
           <ProviderLeaderboard
             type="doctor"
-            title="Top booked doctors"
-            description="The ten doctors with the most bookings"
+            title={t("analytics.leaderboard.doctors.title")}
+            description={t("analytics.leaderboard.doctors.description")}
             colorIndex={0}
           />
         </TabsContent>
@@ -97,8 +145,8 @@ export default function AdminAnalyticsPage() {
         <TabsContent value="labs">
           <ProviderLeaderboard
             type="lab"
-            title="Most active labs"
-            description="The ten labs with the most bookings"
+            title={t("analytics.leaderboard.labs.title")}
+            description={t("analytics.leaderboard.labs.description")}
             colorIndex={1}
           />
         </TabsContent>
@@ -106,8 +154,8 @@ export default function AdminAnalyticsPage() {
         <TabsContent value="radiology">
           <ProviderLeaderboard
             type="radiology"
-            title="Most active radiology centers"
-            description="The ten radiology centers with the most bookings"
+            title={t("analytics.leaderboard.radiology.title")}
+            description={t("analytics.leaderboard.radiology.description")}
             colorIndex={2}
           />
         </TabsContent>
@@ -131,6 +179,11 @@ export default function AdminAnalyticsPage() {
  * this one.
  */
 function PlatformSection() {
+  const t = useTranslations("admin");
+  const describeError = useApiError();
+  const { formatEGP, formatEGPCompact, formatNumber } = useFormat();
+  const { months, specialties, governorates } = useChartLabels();
+
   const { data, error, isLoading, refetch } = useAsync(() => getAdminStats());
 
   if (isLoading) {
@@ -149,8 +202,8 @@ function PlatformSection() {
   if (error) {
     return (
       <ErrorState
-        title="Couldn't load platform analytics"
-        description={error.message}
+        title={t("analytics.platform.errorTitle")}
+        description={describeError(error)}
         onRetry={refetch}
       />
     );
@@ -160,8 +213,8 @@ function PlatformSection() {
     return (
       <EmptyState
         icon={CalendarCheck}
-        title="No platform activity yet"
-        description="Bookings, revenue and conversion appear here once patients start booking."
+        title={t("analytics.platform.emptyTitle")}
+        description={t("analytics.platform.emptyDescription")}
       />
     );
   }
@@ -171,14 +224,14 @@ function PlatformSection() {
       <Reveal>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <StatisticsCard
-            label="Total bookings"
+            label={t("stats.totalBookings")}
             value={formatNumber(data.totalBookings)}
             change={data.bookingsChange}
             icon={CalendarCheck}
             tone="primary"
           />
           <StatisticsCard
-            label="Revenue"
+            label={t("stats.revenue")}
             value={formatEGPCompact(data.totalRevenue)}
             change={data.revenueChange}
             icon={Wallet}
@@ -186,64 +239,64 @@ function PlatformSection() {
             hint={formatEGP(data.totalRevenue)}
           />
           <StatisticsCard
-            label="Conversion rate"
-            value={`${data.conversionRate}%`}
+            label={t("stats.conversionRate")}
+            value={`${formatNumber(data.conversionRate)}%`}
             change={data.conversionChange}
             icon={Target}
             tone="info"
-            hint="profile views that become bookings"
+            hint={t("stats.conversionHint")}
           />
           <StatisticsCard
-            label="Cancellation rate"
-            value={`${data.cancellationRate}%`}
+            label={t("stats.cancellationRate")}
+            value={`${formatNumber(data.cancellationRate)}%`}
             change={data.cancellationRateChange}
             invertChange
             icon={CalendarX}
             tone="warning"
-            hint="share of bookings cancelled"
+            hint={t("stats.cancellationHint")}
           />
           <StatisticsCard
-            label="No-show rate"
-            value={`${data.noShowRate}%`}
+            label={t("stats.noShowRate")}
+            value={`${formatNumber(data.noShowRate)}%`}
             icon={UserX}
             tone="destructive"
-            hint="confirmed bookings never attended"
+            hint={t("stats.noShowHint")}
           />
         </div>
       </Reveal>
 
       <TrendChart
-        data={data.bookingTrends}
-        title="Booking trends"
-        description="Monthly booking volume across every provider type, last 12 months"
+        data={months(data.bookingTrends)}
+        title={t("charts.trends.title")}
+        description={t("charts.trends.description")}
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
         {data.topSpecialties.length > 0 ? (
           <CategoryBarChart
-            data={data.topSpecialties}
-            title="Top specialties"
-            description="Bookings by doctor specialty"
+            data={specialties(data.topSpecialties)}
+            title={t("charts.topSpecialties.title")}
+            description={t("charts.topSpecialties.description")}
             colorIndex={0}
           />
         ) : (
           <EmptyState
-            title="No specialty data"
-            description="Specialty rankings need doctor bookings."
+            title={t("charts.topSpecialties.emptyTitle")}
+            description={t("charts.topSpecialties.emptyDescription")}
           />
         )}
 
         {data.topGovernorates.length > 0 ? (
           <CategoryBarChart
-            data={data.topGovernorates}
-            title="Top locations"
-            description="Bookings by provider governorate"
+            data={governorates(data.topGovernorates)}
+            title={t("charts.topLocations.title")}
+            description={t("charts.topLocations.description")}
             colorIndex={1}
           />
         ) : (
           <EmptyState
-            title="No location data"
-            description="Location rankings need bookings with a located provider."
+            title={t("charts.topLocations.emptyTitle")}
+            description={t("charts.topLocations.emptyDescription")}
           />
         )}
       </div>
@@ -252,6 +305,11 @@ function PlatformSection() {
 }
 
 function CancellationSection() {
+  const t = useTranslations("admin");
+  const describeError = useApiError();
+  const { formatNumber } = useFormat();
+  const { months, lookup } = useChartLabels();
+
   const { data, error, isLoading, refetch } = useAsync(() =>
     getCancellationAnalytics(),
   );
@@ -272,8 +330,8 @@ function CancellationSection() {
   if (error) {
     return (
       <ErrorState
-        title="Couldn't load cancellation analytics"
-        description={error.message}
+        title={t("analytics.cancellations.errorTitle")}
+        description={describeError(error)}
         onRetry={refetch}
       />
     );
@@ -283,8 +341,8 @@ function CancellationSection() {
     return (
       <EmptyState
         icon={CalendarX}
-        title="No cancellations"
-        description="Nothing has been cancelled on the platform yet — a good problem to have."
+        title={t("analytics.cancellations.emptyTitle")}
+        description={t("analytics.cancellations.emptyDescription")}
       />
     );
   }
@@ -294,46 +352,51 @@ function CancellationSection() {
       <Reveal>
         <div className="grid gap-4 sm:grid-cols-2">
           <StatisticsCard
-            label="Total cancellations"
+            label={t("stats.totalCancellations")}
             value={formatNumber(data.totalCancellations)}
             icon={CalendarX}
             tone="destructive"
-            hint="all time, across every provider"
+            hint={t("stats.totalCancellationsHint")}
           />
           <StatisticsCard
-            label="Cancellation rate"
-            value={`${data.cancellationRate}%`}
+            label={t("stats.cancellationRate")}
+            value={`${formatNumber(data.cancellationRate)}%`}
             icon={Percent}
             tone="warning"
-            hint="share of all bookings cancelled"
+            hint={t("stats.cancellationHintAll")}
           />
         </div>
       </Reveal>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <CategoryBarChart
-          data={data.byReason}
-          title="Why patients cancel"
-          description="Cancellations by stated reason"
+          data={lookup(data.byReason, "cancelReason")}
+          title={t("charts.cancelReasons.title")}
+          description={t("charts.cancelReasons.description")}
           colorIndex={3}
         />
         <DonutChart
-          data={data.byType}
-          title="Cancellations by provider type"
-          description="Where cancellations land"
+          data={lookup(data.byType, "providerTypePlural")}
+          title={t("charts.cancelByType.title")}
+          description={t("charts.cancelByType.description")}
         />
       </div>
 
       <BookingsChart
-        data={data.monthly}
-        title="Bookings vs cancellations"
-        description="Monthly booking volume against cancellations, last 12 months"
+        data={months(data.monthly)}
+        title={t("charts.bookingsVsCancellations.title")}
+        description={t("charts.bookingsVsCancellations.description")}
       />
     </div>
   );
 }
 
 function RevenueSection() {
+  const t = useTranslations("admin");
+  const describeError = useApiError();
+  const { formatEGP, formatEGPCompact } = useFormat();
+  const { months, lookup } = useChartLabels();
+
   const { data, error, isLoading, refetch } = useAsync(() => getRevenueAnalytics());
 
   if (isLoading) {
@@ -352,8 +415,8 @@ function RevenueSection() {
   if (error) {
     return (
       <ErrorState
-        title="Couldn't load revenue analytics"
-        description={error.message}
+        title={t("analytics.revenue.errorTitle")}
+        description={describeError(error)}
         onRetry={refetch}
       />
     );
@@ -363,8 +426,8 @@ function RevenueSection() {
     return (
       <EmptyState
         icon={Wallet}
-        title="No revenue yet"
-        description="Revenue is realised when a booking is completed."
+        title={t("analytics.revenue.emptyTitle")}
+        description={t("analytics.revenue.emptyDescription")}
       />
     );
   }
@@ -374,53 +437,53 @@ function RevenueSection() {
       <Reveal>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatisticsCard
-            label="Total revenue"
+            label={t("stats.totalRevenue")}
             value={formatEGPCompact(data.totalRevenue)}
             icon={Wallet}
             tone="primary"
             hint={formatEGP(data.totalRevenue)}
           />
           <StatisticsCard
-            label="Platform commission"
+            label={t("stats.platformCommission")}
             value={formatEGPCompact(data.platformCommission)}
             icon={Coins}
             tone="success"
             hint={formatEGP(data.platformCommission)}
           />
           <StatisticsCard
-            label="Net to providers"
+            label={t("stats.netToProviders")}
             value={formatEGPCompact(data.netToProviders)}
             icon={Landmark}
             tone="info"
             hint={formatEGP(data.netToProviders)}
           />
           <StatisticsCard
-            label="Avg. booking value"
+            label={t("stats.averageBookingValue")}
             value={formatEGP(data.averageBookingValue)}
             icon={Banknote}
             tone="warning"
-            hint="per completed booking"
+            hint={t("stats.averageBookingValueHint")}
           />
         </div>
       </Reveal>
 
       <RevenueChart
-        data={data.monthly}
-        title="Revenue"
-        description="Realised revenue from completed bookings, last 12 months"
+        data={months(data.monthly)}
+        title={t("charts.revenue.title")}
+        description={t("charts.revenue.description")}
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <DonutChart
-          data={data.byType}
-          title="Revenue by provider type"
-          description="Where the money is earned"
+          data={lookup(data.byType, "providerTypePlural")}
+          title={t("charts.revenueByType.title")}
+          description={t("charts.revenueByType.description")}
           format={(value) => formatEGP(value)}
         />
         <DonutChart
-          data={data.byPaymentMethod}
-          title="Revenue by payment method"
-          description="How patients pay"
+          data={lookup(data.byPaymentMethod, "paymentMethod")}
+          title={t("charts.revenueByPayment.title")}
+          description={t("charts.revenueByPayment.description")}
           format={(value) => formatEGP(value)}
         />
       </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import {
   Area,
   AreaChart,
@@ -19,7 +20,7 @@ import {
 } from "recharts";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatEGP, formatEGPCompact, formatNumber } from "@/lib/site";
+import { useFormat } from "@/lib/i18n/use-format";
 import { cn } from "@/lib/utils";
 import type { CategoryCount, TimeSeriesPoint } from "@/lib/types";
 
@@ -74,6 +75,8 @@ function ChartTooltip({
   label?: string | number;
   formatter?: (value: number, key: string) => string;
 }) {
+  const { formatNumber } = useFormat();
+
   if (!active || !payload?.length) return null;
 
   return (
@@ -90,7 +93,7 @@ function ChartTooltip({
               aria-hidden
             />
             <span className="text-muted-foreground">{entry.name}</span>
-            <span className="ml-auto font-semibold tabular-nums">
+            <span className="ms-auto font-semibold tabular-nums ltr-nums">
               {formatter && typeof entry.value === "number"
                 ? formatter(entry.value, String(entry.dataKey ?? ""))
                 : formatNumber(Number(entry.value ?? 0))}
@@ -130,6 +133,11 @@ function ChartFrame({
         </div>
         {action}
       </CardHeader>
+      {/*
+        Physical `pl-0`, not logical `ps-0`, on purpose: Recharts is not
+        RTL-aware and always draws the y-axis on the physical left. Mirroring
+        this padding would clip the axis labels in Arabic.
+      */}
       <CardContent className="pl-0">{children}</CardContent>
     </Card>
   );
@@ -141,17 +149,25 @@ function ChartFrame({
 
 export function RevenueChart({
   data,
-  title = "Revenue",
-  description = "Realised revenue from completed bookings, last 12 months",
+  title,
+  description,
   className,
 }: {
   data: TimeSeriesPoint[];
+  /** Defaults to the shared "Revenue" copy. */
   title?: string;
   description?: string;
   className?: string;
 }) {
+  const t = useTranslations("common");
+  const { formatEGP, formatEGPCompact } = useFormat();
+
   return (
-    <ChartFrame title={title} description={description} className={className}>
+    <ChartFrame
+      title={title ?? t("charts.revenue.title")}
+      description={description ?? t("charts.revenue.description")}
+      className={className}
+    >
       <ResponsiveContainer width="100%" height={280}>
         <AreaChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
           <defs>
@@ -172,7 +188,7 @@ export function RevenueChart({
           <Area
             type="monotone"
             dataKey="revenue"
-            name="Revenue"
+            name={t("charts.revenue.series")}
             stroke="var(--chart-1)"
             strokeWidth={2}
             fill="url(#revenueFill)"
@@ -190,17 +206,24 @@ export function RevenueChart({
 
 export function BookingsChart({
   data,
-  title = "Bookings",
-  description = "Completed and confirmed bookings against cancellations",
+  title,
+  description,
   className,
 }: {
   data: TimeSeriesPoint[];
+  /** Defaults to the shared "Bookings" copy. */
   title?: string;
   description?: string;
   className?: string;
 }) {
+  const t = useTranslations("common");
+
   return (
-    <ChartFrame title={title} description={description} className={className}>
+    <ChartFrame
+      title={title ?? t("charts.bookings.title")}
+      description={description ?? t("charts.bookings.description")}
+      className={className}
+    >
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 0 }} barGap={2}>
           <CartesianGrid {...GRID_PROPS} />
@@ -214,14 +237,14 @@ export function BookingsChart({
 
           <Bar
             dataKey="bookings"
-            name="Bookings"
+            name={t("charts.bookings.series")}
             fill="var(--chart-1)"
             radius={[4, 4, 0, 0]}
             maxBarSize={28}
           />
           <Bar
             dataKey="cancellations"
-            name="Cancellations"
+            name={t("charts.bookings.cancellations")}
             fill="var(--chart-4)"
             radius={[4, 4, 0, 0]}
             maxBarSize={28}
@@ -235,17 +258,24 @@ export function BookingsChart({
 /** Booking trend over time — single line series. */
 export function TrendChart({
   data,
-  title = "Booking trends",
-  description = "Monthly booking volume across the platform",
+  title,
+  description,
   className,
 }: {
   data: TimeSeriesPoint[];
+  /** Defaults to the shared "Booking trends" copy. */
   title?: string;
   description?: string;
   className?: string;
 }) {
+  const t = useTranslations("common");
+
   return (
-    <ChartFrame title={title} description={description} className={className}>
+    <ChartFrame
+      title={title ?? t("charts.trend.title")}
+      description={description ?? t("charts.trend.description")}
+      className={className}
+    >
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
           <CartesianGrid {...GRID_PROPS} />
@@ -259,7 +289,7 @@ export function TrendChart({
           <Line
             type="monotone"
             dataKey="bookings"
-            name="Bookings"
+            name={t("charts.bookings.series")}
             stroke="var(--chart-1)"
             strokeWidth={2}
             dot={false}
@@ -280,7 +310,7 @@ export function CategoryBarChart({
   title,
   description,
   /** Formats the value in the tooltip and the direct label. */
-  format = (v: number) => formatNumber(v),
+  format,
   colorIndex = 0,
   className,
 }: {
@@ -291,7 +321,9 @@ export function CategoryBarChart({
   colorIndex?: number;
   className?: string;
 }) {
+  const { formatNumber } = useFormat();
   const color = SERIES[colorIndex % SERIES.length];
+  const formatValue = format ?? ((v: number) => formatNumber(v));
 
   return (
     <ChartFrame title={title} description={description} className={className}>
@@ -316,7 +348,7 @@ export function CategoryBarChart({
           />
           <Tooltip
             cursor={{ fill: "var(--muted)", opacity: 0.4 }}
-            content={<ChartTooltip formatter={(v) => format(v)} />}
+            content={<ChartTooltip formatter={(v) => formatValue(v)} />}
           />
 
           <Bar
@@ -329,7 +361,7 @@ export function CategoryBarChart({
             // ramp steps under 3:1 contrast.
             label={{
               position: "right",
-              formatter: (value: unknown) => format(Number(value ?? 0)),
+              formatter: (value: unknown) => formatValue(Number(value ?? 0)),
               fill: "var(--muted-foreground)",
               fontSize: 11,
             }}
@@ -348,7 +380,7 @@ export function DonutChart({
   data,
   title,
   description,
-  format = (v: number) => formatNumber(v),
+  format,
   className,
 }: {
   data: CategoryCount[];
@@ -357,6 +389,8 @@ export function DonutChart({
   format?: (value: number) => string;
   className?: string;
 }) {
+  const { formatNumber } = useFormat();
+  const formatValue = format ?? ((v: number) => formatNumber(v));
   const total = data.reduce((sum, d) => sum + d.value, 0);
 
   return (
@@ -367,7 +401,7 @@ export function DonutChart({
             content={
               <ChartTooltip
                 formatter={(v) =>
-                  `${format(v)} (${total ? ((v / total) * 100).toFixed(1) : 0}%)`
+                  `${formatValue(v)} (${total ? ((v / total) * 100).toFixed(1) : 0}%)`
                 }
               />
             }

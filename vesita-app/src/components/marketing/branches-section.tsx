@@ -1,25 +1,18 @@
 "use client";
 
 import { Clock, ListChecks, MapPin, Phone } from "lucide-react";
+import { useTranslations } from "next-intl";
 
+import { WEEKDAY_KEYS } from "@/components/marketing/schedule-table";
 import { MapPlaceholder } from "@/components/shared/map-placeholder";
 import { EmptyState } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { getAreaName, getGovernorateName } from "@/lib/data/egypt";
 import { TODAY } from "@/lib/data/seed";
-import { formatTime } from "@/lib/format";
-import { WEEKDAY_NAMES, type Branch, type Weekday } from "@/lib/types";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
+import { type Branch, type Weekday } from "@/lib/types";
 
 const ORDER: Weekday[] = [6, 0, 1, 2, 3, 4, 5]; // Saturday-first, as in Egypt.
-
-/** A compact "Sat–Thu 10:00 AM – 6:00 PM" style summary of a branch's week. */
-function openDaysOf(branch: Branch): string[] {
-  return ORDER.filter(
-    (weekday) =>
-      branch.schedule.find((d) => d.weekday === weekday)?.isWorkingDay ?? false,
-  ).map((weekday) => WEEKDAY_NAMES[weekday].slice(0, 3));
-}
 
 /**
  * Every branch, with the things that actually differ between them (§2):
@@ -28,19 +21,35 @@ function openDaysOf(branch: Branch): string[] {
  */
 export function BranchesSection({
   branches,
-  emptyDescription = "This provider operates from its main location only.",
+  emptyDescription,
 }: {
   branches: Branch[];
   emptyDescription?: string;
 }) {
+  const t = useTranslations("profile");
+  const tDomain = useTranslations("domain");
+  const { formatTime, locale } = useFormat();
+  const { getAreaName, getGovernorateName } = useDomain();
+
   const today = TODAY.getUTCDay() as Weekday;
+
+  /** A compact "Sat · Sun · Mon" style summary of a branch's week. */
+  const openDaysOf = (branch: Branch): string[] =>
+    ORDER.filter(
+      (weekday) =>
+        branch.schedule.find((d) => d.weekday === weekday)?.isWorkingDay ?? false,
+    ).map((weekday) => {
+      const name = tDomain(`weekday.${WEEKDAY_KEYS[weekday]}`);
+      // Arabic weekday names are already short; English abbreviates to three.
+      return locale === "ar" ? name : name.slice(0, 3);
+    });
 
   if (branches.length === 0) {
     return (
       <EmptyState
         icon={MapPin}
-        title="No branches listed"
-        description={emptyDescription}
+        title={t("branches.emptyTitle")}
+        description={emptyDescription ?? t("branches.emptyGeneric")}
       />
     );
   }
@@ -62,19 +71,23 @@ export function BranchesSection({
                     <h4 className="font-semibold">{branch.name}</h4>
                     {!branch.isActive ? (
                       <Badge variant="secondary" className="font-normal">
-                        Temporarily closed
+                        {t("branches.temporarilyClosed")}
                       </Badge>
                     ) : todaySchedule ? (
                       <Badge
                         variant="secondary"
                         className="bg-success/10 font-normal text-success tabular-nums"
                       >
-                        Open today · {formatTime(todaySchedule.startTime)} –{" "}
-                        {formatTime(todaySchedule.endTime)}
+                        <span className="ltr-nums">
+                          {t("branches.openToday", {
+                            from: formatTime(todaySchedule.startTime),
+                            to: formatTime(todaySchedule.endTime),
+                          })}
+                        </span>
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="font-normal">
-                        Closed today
+                        {t("branches.closedToday")}
                       </Badge>
                     )}
                   </div>
@@ -95,7 +108,9 @@ export function BranchesSection({
                     className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2 transition-colors hover:bg-accent"
                   >
                     <Phone className="size-3.5 shrink-0 text-primary" />
-                    <span className="truncate tabular-nums">{branch.phone}</span>
+                    <span className="truncate tabular-nums ltr-nums">
+                      {branch.phone}
+                    </span>
                   </a>
 
                   <p className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2">
@@ -106,24 +121,25 @@ export function BranchesSection({
                   <p className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2">
                     <ListChecks className="size-3.5 shrink-0 text-primary" />
                     <span className="truncate">
-                      {branch.serviceIds.length}{" "}
-                      {branch.serviceIds.length === 1 ? "service" : "services"}{" "}
-                      offered here
+                      {t("branches.servicesOffered", {
+                        count: branch.serviceIds.length,
+                      })}
                     </span>
                   </p>
 
                   <p className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2">
                     <Clock className="size-3.5 shrink-0 text-primary" />
                     <span className="truncate">
-                      {days.length > 0 ? days.join(" · ") : "No working days"}
+                      {days.length > 0
+                        ? days.join(" · ")
+                        : t("branches.noWorkingDays")}
                     </span>
                   </p>
                 </div>
 
                 {Object.keys(branch.priceOverrides).length > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    Some services are priced differently at this branch — the price
-                    you see when you pick this branch is the price you pay.
+                    {t("branches.priceOverrides")}
                   </p>
                 )}
 

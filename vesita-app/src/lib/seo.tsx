@@ -1,8 +1,17 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
-import { getAreaName, getGovernorateName, getSpecialtyName } from "@/lib/data/egypt";
+import { getLocale } from "@/i18n/locale";
+import type { Locale } from "@/i18n/config";
 import { DB } from "@/lib/data/seed";
-import { formatEGP } from "@/lib/site";
+import {
+  getAreaName,
+  getGovernorateName,
+  getSpecialtyName,
+  localized,
+  named,
+} from "@/lib/i18n/domain";
+import { formatEGP } from "@/lib/i18n/format";
 import type { Provider, ProviderRole } from "@/lib/types";
 
 /**
@@ -26,26 +35,52 @@ export function findProviderForRoute(
   return provider;
 }
 
-/** Per-provider title/description/OG tags — the actual SEO payload. */
-export function providerMetadata(provider: Provider): Metadata {
-  const where = `${getAreaName(provider.areaId)}, ${getGovernorateName(provider.governorateId)}`;
+/**
+ * Per-provider title/description/OG tags — the actual SEO payload.
+ *
+ * Async because the locale lives in a cookie: an Arabic visitor must get an
+ * Arabic title and description, not an English one with an Arabic body.
+ */
+export async function providerMetadata(provider: Provider): Promise<Metadata> {
+  const locale = await getLocale();
+  const t = await getTranslations("profile.seo");
+
+  const where = `${getAreaName(provider.areaId, locale)}, ${getGovernorateName(provider.governorateId, locale)}`;
+  const name = named(provider, locale);
+  const rating = provider.rating.toFixed(1);
 
   const title =
     provider.type === "doctor"
-      ? `${provider.name} — ${getSpecialtyName(provider.specialtyId)} in ${where}`
-      : `${provider.name} — ${where}`;
+      ? t("doctorTitle", {
+          name,
+          specialty: getSpecialtyName(provider.specialtyId, locale),
+          where,
+        })
+      : t("providerTitle", { name, where });
 
   const description =
     provider.type === "doctor"
-      ? `Book ${provider.name}, ${getSpecialtyName(provider.specialtyId)} in ${where}. ` +
-        `${provider.yearsOfExperience} years of experience · ${provider.rating.toFixed(1)}★ from ` +
-        `${provider.reviewCount} reviews · Consultation from ${formatEGP(provider.price)}.`
-      : `Book ${provider.name} in ${where}. ${provider.rating.toFixed(1)}★ from ` +
-        `${provider.reviewCount} reviews · ${
-          provider.type === "lab"
-            ? `${provider.tests.length} tests`
-            : `${provider.scans.length} scans`
-        } from ${formatEGP(provider.price)}.`;
+      ? t("doctorDescription", {
+          name,
+          specialty: getSpecialtyName(provider.specialtyId, locale),
+          where,
+          years: provider.yearsOfExperience,
+          rating,
+          reviews: provider.reviewCount,
+          price: formatEGP(provider.price, locale),
+        })
+      : t("providerDescription", {
+          name,
+          where,
+          rating,
+          reviews: provider.reviewCount,
+          count:
+            provider.type === "lab"
+              ? provider.tests.length
+              : provider.scans.length,
+          kind: provider.type,
+          price: formatEGP(provider.price, locale),
+        });
 
   const segment =
     provider.type === "doctor"
@@ -62,7 +97,9 @@ export function providerMetadata(provider: Provider): Metadata {
       type: "profile",
       title,
       description,
-      images: [{ url: provider.coverImage, width: 1200, height: 400, alt: provider.name }],
+      images: [
+        { url: provider.coverImage, width: 1200, height: 400, alt: name },
+      ],
     },
     twitter: { card: "summary_large_image", title, description },
   };
@@ -71,8 +108,11 @@ export function providerMetadata(provider: Provider): Metadata {
 /**
  * schema.org JSON-LD. This is what actually earns the rich result — rating
  * stars and price in the SERP — so it's worth emitting properly.
+ *
+ * Emitted in the visitor's language: `name` and `description` are what a search
+ * engine shows, so an Arabic page must not advertise an English name.
  */
-export function providerJsonLd(provider: Provider) {
+export function providerJsonLd(provider: Provider, locale: Locale) {
   const type =
     provider.type === "doctor"
       ? "Physician"
@@ -83,15 +123,15 @@ export function providerJsonLd(provider: Provider) {
   return {
     "@context": "https://schema.org",
     "@type": type,
-    name: provider.name,
-    description: provider.bio,
+    name: named(provider, locale),
+    description: localized(provider.bio, locale),
     image: provider.photo,
     telephone: provider.phone,
     address: {
       "@type": "PostalAddress",
       streetAddress: provider.address,
-      addressLocality: getAreaName(provider.areaId),
-      addressRegion: getGovernorateName(provider.governorateId),
+      addressLocality: getAreaName(provider.areaId, locale),
+      addressRegion: getGovernorateName(provider.governorateId, locale),
       addressCountry: "EG",
     },
     geo: {
@@ -100,7 +140,7 @@ export function providerJsonLd(provider: Provider) {
       longitude: provider.location.lng,
     },
     ...(provider.type === "doctor" && {
-      medicalSpecialty: getSpecialtyName(provider.specialtyId),
+      medicalSpecialty: getSpecialtyName(provider.specialtyId, locale),
     }),
     aggregateRating: {
       "@type": "AggregateRating",
@@ -109,7 +149,7 @@ export function providerJsonLd(provider: Provider) {
       bestRating: 5,
       worstRating: 1,
     },
-    priceRange: formatEGP(provider.price),
+    priceRange: formatEGP(provider.price, locale),
   };
 }
 

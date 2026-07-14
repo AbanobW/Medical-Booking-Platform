@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import {
   Ban,
   CircleCheck,
@@ -14,22 +15,24 @@ import {
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { useLabels } from "@/lib/i18n/use-labels";
 import { cn } from "@/lib/utils";
-import {
-  ROLE_LABELS,
-  type CampaignStatus,
-  type ProviderRole,
-  type ProviderStatus,
-  type Role,
-  type Suspension,
-  type UserStatus,
+import type {
+  CampaignStatus,
+  ProviderRole,
+  ProviderStatus,
+  Role,
+  Suspension,
+  UserStatus,
 } from "@/lib/types";
 
 /**
  * Status vocabulary for the admin console.
  *
  * Colour is never the only signal — every badge pairs a hue with an icon and a
- * word, so the states stay legible for colour-vision-deficient users.
+ * word, so the states stay legible for colour-vision-deficient users. The word
+ * itself comes from the message catalogue, so the vocabulary reads the same in
+ * both languages.
  */
 
 type Tone = "success" | "warning" | "destructive" | "muted" | "info";
@@ -64,30 +67,31 @@ function ToneBadge({
   );
 }
 
-const USER_STATUS: Record<UserStatus, { tone: Tone; icon: LucideIcon; label: string }> = {
-  active: { tone: "success", icon: CircleCheck, label: "Active" },
-  pending: { tone: "warning", icon: Hourglass, label: "Pending" },
-  suspended: { tone: "destructive", icon: Ban, label: "Suspended" },
+const USER_STATUS: Record<UserStatus, { tone: Tone; icon: LucideIcon }> = {
+  active: { tone: "success", icon: CircleCheck },
+  pending: { tone: "warning", icon: Hourglass },
+  suspended: { tone: "destructive", icon: Ban },
 };
 
 export function UserStatusBadge({ status }: { status: UserStatus }) {
-  const { tone, icon, label } = USER_STATUS[status];
-  return <ToneBadge tone={tone} icon={icon} label={label} />;
+  const L = useLabels();
+  const { tone, icon } = USER_STATUS[status];
+  return <ToneBadge tone={tone} icon={icon} label={L.userStatus(status)} />;
 }
 
-const PROVIDER_STATUS: Record<
-  ProviderStatus,
-  { tone: Tone; icon: LucideIcon; label: string }
-> = {
-  approved: { tone: "success", icon: CircleCheck, label: "Approved" },
-  pending: { tone: "warning", icon: Hourglass, label: "Pending" },
-  rejected: { tone: "muted", icon: CircleX, label: "Rejected" },
-  suspended: { tone: "destructive", icon: Ban, label: "Suspended" },
+const PROVIDER_STATUS: Record<ProviderStatus, { tone: Tone; icon: LucideIcon }> = {
+  approved: { tone: "success", icon: CircleCheck },
+  pending: { tone: "warning", icon: Hourglass },
+  rejected: { tone: "muted", icon: CircleX },
+  suspended: { tone: "destructive", icon: Ban },
 };
 
 export function ProviderStatusBadge({ status }: { status: ProviderStatus }) {
-  const { tone, icon, label } = PROVIDER_STATUS[status];
-  return <ToneBadge tone={tone} icon={icon} label={label} />;
+  const t = useTranslations("admin");
+  const { tone, icon } = PROVIDER_STATUS[status];
+  return (
+    <ToneBadge tone={tone} icon={icon} label={t(`badges.providerStatus.${status}`)} />
+  );
 }
 
 /**
@@ -95,54 +99,58 @@ export function ProviderStatusBadge({ status }: { status: ProviderStatus }) {
  * happened to the patients who had already booked, so the badge says which.
  */
 export function SuspensionBadge({ suspension }: { suspension: Suspension }) {
+  const t = useTranslations("admin");
+
   return (
     <ToneBadge
       tone={suspension.type === "hard" ? "destructive" : "warning"}
       icon={suspension.type === "hard" ? Ban : PauseCircle}
-      label={suspension.type === "hard" ? "Hard" : "Soft"}
+      label={t(`badges.suspension.${suspension.type}`)}
     />
   );
 }
 
-export const PROVIDER_TYPE_META: Record<
-  ProviderRole,
-  { icon: LucideIcon; label: string }
-> = {
-  doctor: { icon: Stethoscope, label: "Doctor" },
-  lab: { icon: Microscope, label: "Lab" },
-  radiology: { icon: Radiation, label: "Radiology" },
+/** The icon each provider type wears. The word comes from `useLabels()`. */
+export const PROVIDER_TYPE_META: Record<ProviderRole, { icon: LucideIcon }> = {
+  doctor: { icon: Stethoscope },
+  lab: { icon: Microscope },
+  radiology: { icon: Radiation },
 };
 
 export function ProviderTypeBadge({ type }: { type: ProviderRole }) {
-  const { icon: Icon, label } = PROVIDER_TYPE_META[type];
+  const L = useLabels();
+  const { icon: Icon } = PROVIDER_TYPE_META[type];
+
   return (
     <Badge variant="outline" className="gap-1">
       <Icon aria-hidden />
-      {label}
+      {L.providerType(type)}
     </Badge>
   );
 }
 
 export function RoleBadge({ role }: { role: Role }) {
+  const L = useLabels();
+
   return (
     <Badge variant={role === "admin" ? "default" : "outline"} className="gap-1">
-      {ROLE_LABELS[role]}
+      {L.role(role)}
     </Badge>
   );
 }
 
-const CAMPAIGN_STATUS: Record<
-  CampaignStatus,
-  { tone: Tone; icon: LucideIcon; label: string }
-> = {
-  active: { tone: "success", icon: CircleCheck, label: "Active" },
-  scheduled: { tone: "info", icon: Hourglass, label: "Scheduled" },
-  ended: { tone: "muted", icon: CircleSlash, label: "Ended" },
+const CAMPAIGN_STATUS: Record<CampaignStatus, { tone: Tone; icon: LucideIcon }> = {
+  active: { tone: "success", icon: CircleCheck },
+  scheduled: { tone: "info", icon: Hourglass },
+  ended: { tone: "muted", icon: CircleSlash },
 };
 
 export function CampaignStatusBadge({ status }: { status: CampaignStatus }) {
-  const { tone, icon, label } = CAMPAIGN_STATUS[status];
-  return <ToneBadge tone={tone} icon={icon} label={label} />;
+  const t = useTranslations("admin");
+  const { tone, icon } = CAMPAIGN_STATUS[status];
+  return (
+    <ToneBadge tone={tone} icon={icon} label={t(`badges.campaignStatus.${status}`)} />
+  );
 }
 
 /** Coupons carry two independent signals: the switch, and the expiry date. */
@@ -155,20 +163,35 @@ export function CouponStateBadge({
   expiresAt: string;
   now: string;
 }) {
+  const t = useTranslations("admin");
+
   if (expiresAt < now) {
-    return <ToneBadge tone="muted" icon={CircleSlash} label="Expired" />;
+    return (
+      <ToneBadge
+        tone="muted"
+        icon={CircleSlash}
+        label={t("badges.couponState.expired")}
+      />
+    );
   }
+
   return isActive ? (
-    <ToneBadge tone="success" icon={CircleCheck} label="Active" />
+    <ToneBadge
+      tone="success"
+      icon={CircleCheck}
+      label={t("badges.couponState.active")}
+    />
   ) : (
-    <ToneBadge tone="warning" icon={Ban} label="Paused" />
+    <ToneBadge tone="warning" icon={Ban} label={t("badges.couponState.paused")} />
   );
 }
 
 /** Renders `appliesTo` — an empty array means "every service type". */
 export function AppliesToBadges({ appliesTo }: { appliesTo: ProviderRole[] }) {
+  const t = useTranslations("admin");
+
   if (appliesTo.length === 0) {
-    return <Badge variant="secondary">All services</Badge>;
+    return <Badge variant="secondary">{t("badges.allServices")}</Badge>;
   }
 
   return (

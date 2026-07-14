@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import {
@@ -24,8 +25,8 @@ export function ConfirmDialog({
   trigger,
   title,
   description,
-  confirmLabel = "Confirm",
-  cancelLabel = "Keep it",
+  confirmLabel,
+  cancelLabel,
   isPending = false,
   onConfirm,
 }: {
@@ -37,7 +38,12 @@ export function ConfirmDialog({
   isPending?: boolean;
   onConfirm: () => void | Promise<void>;
 }) {
+  const t = useTranslations("provider");
+  const tCommon = useTranslations("common");
   const [open, setOpen] = useState(false);
+
+  const confirmText = confirmLabel ?? tCommon("actions.confirm");
+  const cancelText = cancelLabel ?? t("confirmDialog.keep");
 
   return (
     <AlertDialog open={open} onOpenChange={(next: boolean) => setOpen(next)}>
@@ -50,7 +56,7 @@ export function ConfirmDialog({
         </AlertDialogHeader>
 
         <AlertDialogFooter>
-          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel>{cancelText}</AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
             disabled={isPending}
@@ -59,7 +65,7 @@ export function ConfirmDialog({
               setOpen(false);
             }}
           >
-            {confirmLabel}
+            {confirmText}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

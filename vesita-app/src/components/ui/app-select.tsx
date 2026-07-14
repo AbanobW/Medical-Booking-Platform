@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import {
   Select,
   SelectContent,
@@ -40,13 +42,14 @@ export function AppSelect({
   value,
   onValueChange,
   options,
-  placeholder = "Select…",
+  placeholder,
   emptyOption,
   disabled,
   className,
   id,
   "aria-label": ariaLabel,
 }: AppSelectProps) {
+  const t = useTranslations("common");
   const ALL = "__all__";
 
   // Base UI treats `null` as "no selection"; we model that as the empty string.
@@ -69,9 +72,12 @@ export function AppSelect({
       <SelectTrigger
         id={id}
         aria-label={ariaLabel}
-        className={cn("h-11 w-full rounded-xl", className)}
+        className={cn(
+          "w-full rounded-xl pe-3 ps-3.5 data-[size=default]:h-11",
+          className,
+        )}
       >
-        <SelectValue placeholder={placeholder} />
+        <SelectValue placeholder={placeholder ?? t("ui.selectPlaceholder")} />
       </SelectTrigger>
       <SelectContent>
         {items.map((option) => (

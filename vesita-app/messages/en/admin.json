@@ -1,0 +1,499 @@
+{
+  "dashboard": {
+    "title": "Platform overview",
+    "subtitle": "Everything happening across Vesita, at a glance.",
+    "viewAnalytics": "View full analytics",
+    "errorTitle": "Couldn't load the dashboard",
+    "emptyTitle": "No platform data yet",
+    "emptyDescription": "Statistics will appear here once the platform has users and bookings.",
+    "noBookingsTitle": "No bookings yet",
+    "noBookingsDescription": "The trend chart appears once bookings start coming in."
+  },
+  "analytics": {
+    "title": "Analytics",
+    "subtitle": "Who is booked most, why bookings fall through, and where the money goes.",
+    "tabs": {
+      "platform": "Platform",
+      "doctors": "Doctors",
+      "labs": "Labs",
+      "radiology": "Radiology",
+      "cancellations": "Cancellations",
+      "revenue": "Revenue"
+    },
+    "leaderboard": {
+      "doctors": {
+        "title": "Top booked doctors",
+        "description": "The ten doctors with the most bookings"
+      },
+      "labs": {
+        "title": "Most active labs",
+        "description": "The ten labs with the most bookings"
+      },
+      "radiology": {
+        "title": "Most active radiology centers",
+        "description": "The ten radiology centers with the most bookings"
+      }
+    },
+    "platform": {
+      "errorTitle": "Couldn't load platform analytics",
+      "emptyTitle": "No platform activity yet",
+      "emptyDescription": "Bookings, revenue and conversion appear here once patients start booking."
+    },
+    "cancellations": {
+      "errorTitle": "Couldn't load cancellation analytics",
+      "emptyTitle": "No cancellations",
+      "emptyDescription": "Nothing has been cancelled on the platform yet — a good problem to have."
+    },
+    "revenue": {
+      "errorTitle": "Couldn't load revenue analytics",
+      "emptyTitle": "No revenue yet",
+      "emptyDescription": "Revenue is realised when a booking is completed."
+    }
+  },
+  "stats": {
+    "patients": "Patients",
+    "patientsHint": "new sign-ups vs last month",
+    "providers": "Providers",
+    "providersHint": "new providers vs last month",
+    "bookings": "Bookings",
+    "totalBookings": "Total bookings",
+    "revenue": "Revenue",
+    "totalRevenue": "Total revenue",
+    "conversionRate": "Conversion rate",
+    "conversionHint": "profile views that become bookings",
+    "cancellationRate": "Cancellation rate",
+    "cancellationHint": "share of bookings cancelled",
+    "cancellationHintAll": "share of all bookings cancelled",
+    "noShowRate": "No-show rate",
+    "noShowHint": "confirmed bookings never attended",
+    "totalCancellations": "Total cancellations",
+    "totalCancellationsHint": "all time, across every provider",
+    "platformCommission": "Platform commission",
+    "netToProviders": "Net to providers",
+    "averageBookingValue": "Avg. booking value",
+    "averageBookingValueHint": "per completed booking"
+  },
+  "charts": {
+    "trends": {
+      "title": "Booking trends",
+      "description": "Monthly booking volume across every provider type, last 12 months"
+    },
+    "topSpecialties": {
+      "title": "Top specialties",
+      "description": "Bookings by doctor specialty",
+      "emptyTitle": "No specialty data",
+      "emptyDescription": "Specialty rankings need doctor bookings."
+    },
+    "topGovernorates": {
+      "title": "Top governorates",
+      "description": "Bookings by provider location",
+      "emptyTitle": "No location data",
+      "emptyDescription": "Governorate rankings need bookings with a located provider."
+    },
+    "topLocations": {
+      "title": "Top locations",
+      "description": "Bookings by provider governorate",
+      "emptyTitle": "No location data",
+      "emptyDescription": "Location rankings need bookings with a located provider."
+    },
+    "cancelReasons": {
+      "title": "Why patients cancel",
+      "description": "Cancellations by stated reason"
+    },
+    "cancelByType": {
+      "title": "Cancellations by provider type",
+      "description": "Where cancellations land"
+    },
+    "bookingsVsCancellations": {
+      "title": "Bookings vs cancellations",
+      "description": "Monthly booking volume against cancellations, last 12 months"
+    },
+    "revenue": {
+      "title": "Revenue",
+      "description": "Realised revenue from completed bookings, last 12 months"
+    },
+    "revenueByType": {
+      "title": "Revenue by provider type",
+      "description": "Where the money is earned"
+    },
+    "revenueByPayment": {
+      "title": "Revenue by payment method",
+      "description": "How patients pay"
+    },
+    "month": {
+      "Jan": "Jan",
+      "Feb": "Feb",
+      "Mar": "Mar",
+      "Apr": "Apr",
+      "May": "May",
+      "Jun": "Jun",
+      "Jul": "Jul",
+      "Aug": "Aug",
+      "Sep": "Sep",
+      "Oct": "Oct",
+      "Nov": "Nov",
+      "Dec": "Dec"
+    },
+    "cancelReason": {
+      "Schedule conflict": "Schedule conflict",
+      "Found an earlier appointment": "Found an earlier appointment",
+      "Feeling better, no longer needed": "Feeling better, no longer needed",
+      "Provider rescheduled": "Provider rescheduled",
+      "Travel plans changed": "Travel plans changed",
+      "Financial reasons": "Financial reasons",
+      "Not specified": "Not specified"
+    },
+    "providerTypePlural": {
+      "Doctors": "Doctors",
+      "Labs": "Labs",
+      "Radiology": "Radiology"
+    },
+    "paymentMethod": {
+      "Cash": "Cash",
+      "Card": "Card",
+      "Vodafone Cash": "Vodafone Cash",
+      "InstaPay": "InstaPay"
+    }
+  },
+  "leaderboard": {
+    "errorTitle": "Couldn't load the leaderboard",
+    "emptyTitle": "No bookings yet",
+    "emptyDescription": "This ranking appears once these providers start taking bookings.",
+    "tableEmptyTitle": "No providers",
+    "tableEmptyDescription": "Nothing to rank yet.",
+    "columns": {
+      "rank": "#",
+      "provider": "Provider",
+      "rating": "Rating",
+      "bookings": "Bookings",
+      "revenue": "Revenue",
+      "cancellationRate": "Cancellation rate"
+    }
+  },
+  "users": {
+    "title": "Users",
+    "subtitle": "Patients, providers and administrators",
+    "count": "{count, plural, =0 {No accounts match the current filters} one {# account matching the current filters} other {# accounts matching the current filters}}",
+    "searchPlaceholder": "Search name, email or phone…",
+    "errorTitle": "Couldn't load users",
+    "emptyTitle": "No users found",
+    "emptyDescription": "Try a different search term, role or status.",
+    "filters": {
+      "allRoles": "All roles",
+      "allStatuses": "All statuses",
+      "roleAria": "Filter by role",
+      "statusAria": "Filter by status"
+    },
+    "columns": {
+      "user": "User",
+      "email": "Email",
+      "phone": "Phone",
+      "role": "Role",
+      "status": "Status",
+      "joined": "Joined",
+      "lastActive": "Last active"
+    },
+    "actions": {
+      "activate": "Activate",
+      "suspend": "Suspend"
+    },
+    "toast": {
+      "suspended": "{name} has been suspended.",
+      "activated": "{name} is active again."
+    },
+    "confirm": {
+      "title": "Suspend {name}?",
+      "fallbackName": "this user",
+      "description": "They will be signed out and blocked from booking. If this account owns a provider profile, that listing is pulled from search too. You can reactivate them at any time.",
+      "confirmLabel": "Suspend account"
+    }
+  },
+  "providers": {
+    "title": "Providers",
+    "subtitle": "Doctors, labs and radiology centers",
+    "count": "{count, plural, =0 {No providers match the current filters} one {# provider matching the current filters} other {# providers matching the current filters}}",
+    "searchPlaceholder": "Search provider, address or phone…",
+    "errorTitle": "Couldn't load providers",
+    "emptyTitle": "No providers found",
+    "emptyDescription": "Try a different search term, type, status or governorate.",
+    "pending": {
+      "banner": "{count, plural, one {# provider awaiting approval} other {# providers awaiting approval}}",
+      "description": "New listings stay hidden from search until you review them.",
+      "review": "Review pending"
+    },
+    "filters": {
+      "allTypes": "All types",
+      "allStatuses": "All statuses",
+      "allGovernorates": "All governorates",
+      "typeAria": "Filter by type",
+      "statusAria": "Filter by status",
+      "governorateAria": "Filter by governorate"
+    },
+    "typeOptions": {
+      "doctor": "Doctors",
+      "lab": "Labs",
+      "radiology": "Radiology centers"
+    },
+    "columns": {
+      "provider": "Provider",
+      "type": "Type",
+      "governorate": "Governorate",
+      "rating": "Rating",
+      "bookings": "Bookings",
+      "status": "Status",
+      "joined": "Joined"
+    },
+    "actions": {
+      "approve": "Approve",
+      "reject": "Reject",
+      "reinstate": "Reinstate",
+      "suspend": "Suspend"
+    },
+    "refunded": "{count, plural, =0 {no bookings refunded} one {# booking refunded} other {# bookings refunded}}",
+    "toast": {
+      "approved": "{name} approved.",
+      "rejected": "{name} rejected.",
+      "suspended": "{name} suspended.",
+      "pending": "{name} set to pending.",
+      "hardSuspended": "{name} hard-suspended. {count, plural, =0 {No upcoming bookings to cancel} one {# upcoming booking cancelled and refunded} other {# upcoming bookings cancelled and refunded}} — the affected patients have been notified.",
+      "softSuspended": "{name} soft-suspended. Hidden from search and taking no new bookings; existing bookings are honored.",
+      "reinstated": "{name} reinstated and back in search."
+    },
+    "rejectConfirm": {
+      "title": "Reject {name}?",
+      "fallbackName": "this provider",
+      "description": "The application is declined and the listing stays hidden. You can approve them later if they reapply.",
+      "confirmLabel": "Reject provider"
+    }
+  },
+  "suspend": {
+    "title": "Suspend {name}?",
+    "fallbackName": "this provider",
+    "description": "Choose the form of suspension. The two differ in exactly one way that matters: what happens to the patients who have already booked.",
+    "soft": {
+      "title": "Soft suspension",
+      "impact": "Hidden from search and blocked from taking new bookings. Bookings that already exist are honored — patients who booked keep their appointment."
+    },
+    "hard": {
+      "title": "Hard suspension",
+      "impact": "Everything a soft suspension does, and every upcoming booking is cancelled, refunded in full, and the affected patients are notified so they can rebook elsewhere. Use for credential problems or fraud."
+    },
+    "hardWarning": "This cancels and refunds every upcoming booking with this provider. It cannot be undone by reinstating them.",
+    "reasonLabel": "Reason (required)",
+    "reasonPlaceholder": "e.g. Medical syndicate registration could not be verified.",
+    "reasonError": "Give a reason of at least 10 characters.",
+    "reasonHint": "Recorded against the suspension, and used in what the affected patients are told.",
+    "confirmSoft": "Suspend provider",
+    "confirmHard": "Suspend, cancel & refund"
+  },
+  "badges": {
+    "providerStatus": {
+      "approved": "Approved",
+      "pending": "Pending",
+      "rejected": "Rejected",
+      "suspended": "Suspended"
+    },
+    "campaignStatus": {
+      "active": "Active",
+      "scheduled": "Scheduled",
+      "ended": "Ended"
+    },
+    "couponState": {
+      "active": "Active",
+      "paused": "Paused",
+      "expired": "Expired"
+    },
+    "suspension": {
+      "soft": "Soft",
+      "hard": "Hard"
+    },
+    "allServices": "All services"
+  },
+  "coupons": {
+    "title": "Coupons",
+    "subtitle": "Discount codes patients can redeem at checkout",
+    "count": "{count, plural, one {# coupon} other {# coupons}} · {active} live right now",
+    "activeBadge": "{count} active",
+    "new": "New coupon",
+    "searchPlaceholder": "Search by code or description…",
+    "errorTitle": "Couldn't load coupons",
+    "emptyTitle": "No coupons yet",
+    "emptyDescription": "Create a discount code to run your first promotion.",
+    "tableEmptyTitle": "No matching coupons",
+    "tableEmptyDescription": "Try a different code or description.",
+    "columns": {
+      "code": "Code",
+      "discount": "Discount",
+      "minOrder": "Min. order",
+      "appliesTo": "Applies to",
+      "usage": "Usage",
+      "expires": "Expires",
+      "state": "State"
+    },
+    "maxDiscount": "Max {amount}",
+    "noCap": "No cap",
+    "usage": {
+      "used": "{used} / {limit} used",
+      "aria": "Coupon usage"
+    },
+    "editAria": "Edit {code}",
+    "deleteAria": "Delete {code}",
+    "deleted": "Coupon {code} deleted.",
+    "deleteConfirm": {
+      "title": "Delete {code}?",
+      "fallbackName": "this coupon",
+      "description": "The code stops working immediately. Bookings that already used it keep their discount. This cannot be undone.",
+      "confirmLabel": "Delete coupon"
+    }
+  },
+  "couponDialog": {
+    "titleNew": "New coupon",
+    "titleEdit": "Edit coupon",
+    "description": "Discount codes patients can apply at checkout.",
+    "fields": {
+      "code": "Code",
+      "expiresAt": "Expires on",
+      "description": "Description",
+      "discountType": "Discount type",
+      "discountPercent": "Discount (%)",
+      "discountFixed": "Discount (EGP)",
+      "minOrder": "Min. order (EGP)",
+      "maxDiscount": "Max. discount (EGP)",
+      "usageLimit": "Usage limit",
+      "appliesTo": "Applies to",
+      "active": "Active"
+    },
+    "placeholders": {
+      "code": "SUMMER25",
+      "description": "25% off your first lab test this summer.",
+      "maxDiscount": "No cap"
+    },
+    "discountTypes": {
+      "percentage": "Percentage (%)",
+      "fixed": "Fixed amount (EGP)"
+    },
+    "maxDiscountHint": "Percentage coupons only.",
+    "appliesToHint": "Leave every box unchecked to apply the coupon to all services.",
+    "activeHint": "Inactive coupons are rejected at checkout.",
+    "submitNew": "Create coupon",
+    "toastCreated": "Coupon {code} created.",
+    "toastUpdated": "Coupon {code} updated.",
+    "validation": {
+      "codeMin": "Use at least 3 characters.",
+      "codeMax": "Keep it under 24 characters.",
+      "codePattern": "Letters, numbers, dashes and underscores only.",
+      "description": "Describe what this coupon is for.",
+      "number": "Enter a number.",
+      "positive": "Must be greater than zero.",
+      "notNegative": "Cannot be negative.",
+      "whole": "Whole numbers only.",
+      "minOne": "Allow at least one redemption.",
+      "expiry": "Pick an expiry date.",
+      "percentMax": "A percentage discount cannot exceed 100."
+    }
+  },
+  "campaignDialog": {
+    "titleNew": "New cashback campaign",
+    "titleEdit": "Edit campaign",
+    "description": "Wallet credit returned to patients after a completed booking.",
+    "fields": {
+      "name": "Campaign name",
+      "description": "Description",
+      "percentage": "Cashback (%)",
+      "maxCashback": "Max. cashback (EGP)",
+      "startsAt": "Starts",
+      "endsAt": "Ends",
+      "appliesTo": "Applies to"
+    },
+    "placeholders": {
+      "name": "Ramadan lab cashback",
+      "description": "Get 10% back as wallet credit on every lab test."
+    },
+    "maxCashbackHint": "Per booking.",
+    "appliesToHint": "Leave every box unchecked to apply the campaign to all services.",
+    "submitNew": "Launch campaign",
+    "toastCreated": "{name} launched.",
+    "toastUpdated": "{name} updated.",
+    "validation": {
+      "name": "Give the campaign a name.",
+      "description": "Describe what patients get.",
+      "number": "Enter a number.",
+      "positive": "Must be greater than zero.",
+      "max100": "Cashback cannot exceed 100%.",
+      "capPositive": "Set a cap greater than zero.",
+      "start": "Pick a start date.",
+      "end": "Pick an end date.",
+      "endAfterStart": "The end date must fall after the start date."
+    }
+  },
+  "cashback": {
+    "title": "Cashback campaigns",
+    "subtitle": "Wallet credit returned to patients after a completed booking.",
+    "new": "New campaign",
+    "errorTitle": "Couldn't load campaigns",
+    "emptyTitle": "No cashback campaigns",
+    "emptyDescription": "Launch a campaign to give patients wallet credit back on their bookings.",
+    "stats": {
+      "active": "Active campaigns",
+      "activeHint": "running right now",
+      "issued": "Cashback issued",
+      "issuedHint": "across every campaign",
+      "redemptions": "Redemptions",
+      "redemptionsHint": "patients who spent their credit"
+    },
+    "card": {
+      "cashback": "Cashback",
+      "cap": "Cap / booking",
+      "issued": "Issued",
+      "redeemed": "Redeemed"
+    },
+    "editAria": "Edit {name}",
+    "deleteAria": "Delete {name}",
+    "deleted": "{name} deleted.",
+    "deleteConfirm": {
+      "title": "Delete {name}?",
+      "fallbackName": "this campaign",
+      "description": "The campaign stops issuing cashback immediately. Credit already issued to patients stays in their wallets. This cannot be undone.",
+      "confirmLabel": "Delete campaign"
+    }
+  },
+  "commission": {
+    "title": "Commission rates",
+    "description": "The share Vesita takes from each completed booking, by provider type. Last updated {date}.",
+    "rateLabel": "{type} commission",
+    "rateAria": "{type} commission percentage",
+    "platformFee": "Platform fee (EGP)",
+    "platformFeeHint": "A flat fee added to every booking.",
+    "vat": "VAT (%)",
+    "vatHint": "Charged on the commission and the platform fee.",
+    "save": "Save settings",
+    "saved": "Commission settings saved.",
+    "errorTitle": "Couldn't load commission settings",
+    "emptyTitle": "No commission settings",
+    "emptyDescription": "The platform has no commission configuration to edit.",
+    "example": {
+      "title": "Worked example",
+      "description": "On an {amount} consultation, the platform earns <b>{earns}</b> and the doctor receives <b>{receives}</b>.",
+      "consultation": "Consultation price",
+      "commission": "Commission ({rate}%)",
+      "platformFee": "Platform fee",
+      "vat": "VAT ({rate}%)",
+      "patientPays": "Patient pays",
+      "doctorReceives": "Doctor receives",
+      "platformEarns": "Platform earns",
+      "note": "VAT is collected on the platform's fee and commission, and remitted to the tax authority — it is not platform earnings."
+    },
+    "across": {
+      "title": "Across provider types",
+      "description": "What the platform takes from an {amount} booking of each type.",
+      "rate": "{rate}% commission",
+      "keeps": "provider keeps {amount}"
+    },
+    "validation": {
+      "number": "Enter a number.",
+      "notNegative": "Cannot be negative.",
+      "max100": "Cannot exceed 100%.",
+      "feeTooHigh": "That is unrealistically high."
+    }
+  }
+}

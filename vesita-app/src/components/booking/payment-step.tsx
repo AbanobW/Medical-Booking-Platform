@@ -13,6 +13,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
 import { OrderSummary } from "@/components/booking/order-summary";
@@ -20,36 +21,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { bookingFeeFor, validateCoupon } from "@/lib/api/bookings";
-import { BUSINESS, formatEGP } from "@/lib/site";
-import {
-  PAYMENT_METHOD_LABELS,
-  type Booking,
-  type PaymentMethod,
-  type Provider,
-} from "@/lib/types";
+import { useApiError, useCouponMessage } from "@/lib/i18n/use-api-error";
+import { useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
+import { BUSINESS } from "@/lib/site";
+import type { Booking, PaymentMethod, Provider } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const METHODS: { value: PaymentMethod; icon: LucideIcon; hint: string }[] = [
-  {
-    value: "cash",
-    icon: Banknote,
-    hint: "No online fee. Your booking is confirmed straight away.",
-  },
-  {
-    value: "card",
-    icon: CreditCard,
-    hint: "Visa, Mastercard or Meeza — the booking fee is charged now.",
-  },
-  {
-    value: "vodafone_cash",
-    icon: Smartphone,
-    hint: "Confirm the booking fee on your Vodafone wallet.",
-  },
-  {
-    value: "instapay",
-    icon: Smartphone,
-    hint: "Pay the booking fee by instant bank transfer.",
-  },
+const METHODS: { value: PaymentMethod; icon: LucideIcon }[] = [
+  { value: "cash", icon: Banknote },
+  { value: "card", icon: CreditCard },
+  { value: "vodafone_cash", icon: Smartphone },
+  { value: "instapay", icon: Smartphone },
 ];
 
 export interface AppliedCoupon {
@@ -93,6 +76,7 @@ function useCountdown(expiresAt: string | undefined, onExpire: () => void) {
 
   return {
     remainingMs: remaining,
+    // A clock reads left-to-right in both languages — Latin digits, `ltr-nums`.
     label: `${minutes}:${String(seconds).padStart(2, "0")}`,
     percent: expiresAt
       ? Math.max(
@@ -146,6 +130,12 @@ export function PaymentStep({
   onExpire: () => void;
   onCancelHold: () => void;
 }) {
+  const t = useTranslations("booking");
+  const { formatEGP } = useFormat();
+  const L = useLabels();
+  const describeError = useApiError();
+  const describeCouponResult = useCouponMessage();
+
   const [code, setCode] = useState("");
   const [isChecking, setIsChecking] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
@@ -170,20 +160,23 @@ export function PaymentStep({
 
       if (result.valid) {
         onCouponChange({ code: trimmed.toUpperCase(), discount: result.discount });
-        setMessage({ ok: true, text: result.message });
+        setMessage({
+          ok: true,
+          text: t("payment.coupon.applied", {
+            discount: formatEGP(result.discount),
+          }),
+        });
       } else {
         onCouponChange(null);
-        setMessage({ ok: false, text: result.message });
+        // A refusal is not thrown, so `describeError` never sees it. The API
+        // tags the outcome with the same `errors.coupon.*` code an exception
+        // would carry, so it translates the same way — falling back to the
+        // English sentence if the code has no message yet.
+        setMessage({ ok: false, text: describeCouponResult(result) });
       }
     } catch (error) {
       onCouponChange(null);
-      setMessage({
-        ok: false,
-        text:
-          error instanceof Error
-            ? error.message
-            : "We couldn't check that coupon. Try again.",
-      });
+      setMessage({ ok: false, text: describeError(error) });
     } finally {
       setIsChecking(false);
     }
@@ -222,12 +215,13 @@ export function PaymentStep({
                   </span>
                   <div>
                     <p className="font-semibold">
-                      Your place is held for{" "}
-                      <span className="tabular-nums">{countdown.label}</span>
+                      {t("payment.holdTitle")}{" "}
+                      <span className="tabular-nums ltr-nums">
+                        {countdown.label}
+                      </span>
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Pay the {formatEGP(fee)} booking fee within the window and the
-                      place is yours. Let it lapse and it goes back to the queue.
+                      {t("payment.holdBody", { fee: formatEGP(fee) })}
                     </p>
                   </div>
                 </div>
@@ -236,7 +230,7 @@ export function PaymentStep({
               <div
                 className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-muted"
                 role="progressbar"
-                aria-label="Time left to pay"
+                aria-label={t("payment.holdProgressAria")}
                 aria-valuenow={Math.round(countdown.percent)}
                 aria-valuemin={0}
                 aria-valuemax={100}
@@ -254,12 +248,14 @@ export function PaymentStep({
             <div className="rounded-2xl border bg-card p-5 shadow-soft">
               <h2 className="flex items-center gap-2 text-lg font-semibold">
                 <Lock className="size-4 text-primary" />
-                Pay the booking fee
+                {t("payment.payTitle")}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {PAYMENT_METHOD_LABELS[held.paymentMethod]} ·{" "}
-                {formatEGP(held.bookingFee)}. The {formatEGP(held.total)} visit fee
-                is paid in cash at the clinic.
+                {t("payment.paySubtitle", {
+                  method: L.paymentMethod(held.paymentMethod),
+                  fee: formatEGP(held.bookingFee),
+                  total: formatEGP(held.total),
+                })}
               </p>
 
               <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -274,7 +270,7 @@ export function PaymentStep({
                   ) : (
                     <Lock className="size-4" />
                   )}
-                  Pay {formatEGP(held.bookingFee)} now
+                  {t("payment.payNow", { fee: formatEGP(held.bookingFee) })}
                 </Button>
 
                 <Button
@@ -284,7 +280,7 @@ export function PaymentStep({
                   disabled={isPaying}
                   className="h-11 rounded-xl px-4"
                 >
-                  Release and pick another time
+                  {t("payment.release")}
                 </Button>
               </div>
 
@@ -295,7 +291,7 @@ export function PaymentStep({
                 className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground underline underline-offset-4 transition-colors hover:text-destructive disabled:opacity-50"
               >
                 <TriangleAlert className="size-3.5" />
-                Simulate a failed payment
+                {t("payment.simulateFailure")}
               </button>
             </div>
           </section>
@@ -303,19 +299,22 @@ export function PaymentStep({
           <>
             <section className="space-y-4">
               <div>
-                <h2 className="text-lg font-semibold">Payment method</h2>
+                <h2 className="text-lg font-semibold">
+                  {t("payment.methodTitle")}
+                </h2>
                 <p className="text-sm text-muted-foreground">
-                  The {formatEGP(BUSINESS.bookingFee)} booking fee is what confirms
-                  your place. The visit itself is paid in cash at the clinic.
+                  {t("payment.methodSubtitle", {
+                    fee: formatEGP(BUSINESS.bookingFee),
+                  })}
                 </p>
               </div>
 
               <div
                 role="radiogroup"
-                aria-label="Payment method"
+                aria-label={t("payment.methodTitle")}
                 className="grid gap-3 sm:grid-cols-2"
               >
-                {METHODS.map(({ value, icon: Icon, hint }) => {
+                {METHODS.map(({ value, icon: Icon }) => {
                   const isSelected = value === method;
                   const methodFee = bookingFeeFor(value);
 
@@ -327,7 +326,7 @@ export function PaymentStep({
                       aria-checked={isSelected}
                       onClick={() => onMethodChange(value)}
                       className={cn(
-                        "flex items-start gap-3 rounded-2xl border p-4 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                        "flex items-start gap-3 rounded-2xl border p-4 text-start transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                         isSelected
                           ? "border-primary bg-primary/5 shadow-glow"
                           : "border-border bg-card hover:border-primary/50 hover:shadow-soft",
@@ -347,7 +346,7 @@ export function PaymentStep({
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-2 font-medium">
                           <span className="truncate">
-                            {PAYMENT_METHOD_LABELS[value]}
+                            {L.paymentMethod(value)}
                           </span>
                           {isSelected && (
                             <Check
@@ -357,12 +356,14 @@ export function PaymentStep({
                           )}
                         </span>
                         <span className="mt-0.5 block text-sm text-muted-foreground">
-                          {hint}
+                          {t(`payment.methodHint.${value}`)}
                         </span>
                         <span className="mt-1 block text-xs font-medium">
                           {methodFee > 0
-                            ? `Booking fee ${formatEGP(methodFee)} online`
-                            : "No online fee"}
+                            ? t("payment.feeOnline", {
+                                fee: formatEGP(methodFee),
+                              })
+                            : t("payment.noFeeOnline")}
                         </span>
                       </span>
                     </button>
@@ -373,9 +374,11 @@ export function PaymentStep({
 
             <section className="space-y-3">
               <div>
-                <h2 className="text-lg font-semibold">Coupon code</h2>
+                <h2 className="text-lg font-semibold">
+                  {t("payment.coupon.title")}
+                </h2>
                 <p className="text-sm text-muted-foreground">
-                  Applies to the visit fee you settle at the clinic.
+                  {t("payment.coupon.subtitle")}
                 </p>
               </div>
 
@@ -386,11 +389,14 @@ export function PaymentStep({
                       <Tag className="size-4" />
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate font-mono text-sm font-semibold">
+                      <p className="truncate font-mono text-sm font-semibold ltr-nums">
                         {coupon.code}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {message?.text ?? "Coupon applied."}
+                        {message?.text ??
+                          t("payment.coupon.applied", {
+                            discount: formatEGP(coupon.discount),
+                          })}
                       </p>
                     </div>
                   </div>
@@ -400,7 +406,7 @@ export function PaymentStep({
                     variant="ghost"
                     size="icon-sm"
                     onClick={removeCoupon}
-                    aria-label="Remove coupon"
+                    aria-label={t("payment.coupon.remove")}
                   >
                     <X className="size-4" />
                   </Button>
@@ -417,8 +423,9 @@ export function PaymentStep({
                           void applyCoupon();
                         }
                       }}
-                      placeholder="e.g. VESITA20"
-                      aria-label="Coupon code"
+                      placeholder={t("payment.coupon.placeholder")}
+                      aria-label={t("payment.coupon.aria")}
+                      dir="ltr"
                       className="h-11 rounded-xl font-mono uppercase"
                     />
                     <Button
@@ -433,7 +440,7 @@ export function PaymentStep({
                       ) : (
                         <Tag className="size-4" />
                       )}
-                      Apply
+                      {t("payment.coupon.apply")}
                     </Button>
                   </div>
 
@@ -449,10 +456,10 @@ export function PaymentStep({
             <section className="space-y-3">
               <div>
                 <h2 className="text-lg font-semibold">
-                  Symptoms or notes (optional)
+                  {t("payment.notes.title")}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Shared only with the provider you&apos;re booking.
+                  {t("payment.notes.subtitle")}
                 </p>
               </div>
 
@@ -460,8 +467,8 @@ export function PaymentStep({
                 rows={4}
                 value={notes}
                 onChange={(e) => onNotesChange(e.target.value.slice(0, 500))}
-                placeholder="Briefly describe the reason for the visit…"
-                aria-label="Symptoms or notes"
+                placeholder={t("payment.notes.placeholder")}
+                aria-label={t("payment.notes.aria")}
                 className="rounded-xl"
               />
             </section>

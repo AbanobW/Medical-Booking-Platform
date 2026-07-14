@@ -45,7 +45,12 @@ export function demoUserFor(role: Role): User {
     .sort((a, b) => b.count - a.count);
 
   if (candidates.length === 0) {
-    throw new ApiError(`No demo account available for role "${role}".`, 404);
+    throw new ApiError(
+      `No demo account available for role "${role}".`,
+      404,
+      "auth.noDemoAccount",
+      { role },
+    );
   }
   return candidates[0].user;
 }
@@ -92,10 +97,18 @@ export function login(email: string, password: string): Promise<User> {
     );
 
     if (!user) {
-      throw new ApiError("No account found with that email address.", 404);
+      throw new ApiError(
+        "No account found with that email address.",
+        404,
+        "auth.accountNotFound",
+      );
     }
     if (user.status === "suspended") {
-      throw new ApiError("This account has been suspended. Contact support.", 403);
+      throw new ApiError(
+        "This account has been suspended. Contact support.",
+        403,
+        "auth.accountSuspended",
+      );
     }
 
     storeSession(user);
@@ -138,7 +151,11 @@ export function register(input: RegisterInput): Promise<User> {
       (u) => u.email.toLowerCase() === input.email.trim().toLowerCase(),
     );
     if (taken) {
-      throw new ApiError("An account with that email already exists.", 409);
+      throw new ApiError(
+        "An account with that email already exists.",
+        409,
+        "auth.emailTaken",
+      );
     }
 
     const id = makeId("usr");
@@ -163,8 +180,14 @@ export function register(input: RegisterInput): Promise<User> {
       userId: id,
       kind: "system",
       channel: "browser",
-      title: `Welcome to Vesita, ${input.name.split(" ")[0]}!`,
-      body: "Your account is ready. Search for a doctor, lab or scan to make your first booking.",
+      title: {
+        en: `Welcome to Vesita, ${input.name.split(" ")[0]}!`,
+        ar: `أهلًا بك في Vesita يا ${input.name.split(" ")[0]}!`,
+      },
+      body: {
+        en: "Your account is ready. Search for a doctor, lab or scan to make your first booking.",
+        ar: "حسابك جاهز. ابحث عن طبيب أو معمل أو مركز أشعة لتقوم بأول حجز لك.",
+      },
       isRead: false,
       createdAt: new Date().toISOString(),
       actionUrl: "/search",
@@ -179,7 +202,11 @@ export function register(input: RegisterInput): Promise<User> {
 export function verifyOtp(code: string): Promise<{ verified: true }> {
   return request(() => {
     if (code.trim() !== OTP_CODE) {
-      throw new ApiError("That code is incorrect. Please try again.", 401);
+      throw new ApiError(
+        "That code is incorrect. Please try again.",
+        401,
+        "auth.otpIncorrect",
+      );
     }
     return { verified: true as const };
   });
@@ -201,7 +228,7 @@ export function updateProfile(
 ): Promise<User> {
   return request(() => {
     const user = db().users.find((u) => u.id === id);
-    if (!user) throw new ApiError("User not found", 404);
+    if (!user) throw new ApiError("User not found", 404, "user.notFound");
 
     Object.assign(user, patch);
     storeSession(user);

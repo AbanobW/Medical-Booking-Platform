@@ -143,43 +143,43 @@ export function getAreaName(id: string): string {
 // Specialties
 // ---------------------------------------------------------------------------
 
-/** `[id, en, ar, lucideIcon, description]` — doctorCount is filled by the seed. */
-type RawSpecialty = [string, string, string, string, string];
+/** `[id, en, ar, lucideIcon, descriptionEn, descriptionAr]` — doctorCount is filled by the seed. */
+type RawSpecialty = [string, string, string, string, string, string];
 
 const RAW_SPECIALTIES: RawSpecialty[] = [
-  ["cardiology", "Cardiology", "قلب وأوعية دموية", "HeartPulse", "Heart, blood pressure and vascular conditions."],
-  ["dermatology", "Dermatology", "جلدية", "Sparkles", "Skin, hair, nails, laser and cosmetic care."],
-  ["dentistry", "Dentistry", "أسنان", "Smile", "Dental care, orthodontics and oral surgery."],
-  ["pediatrics", "Pediatrics", "أطفال وحديثي الولادة", "Baby", "Newborn, child and adolescent health."],
-  ["orthopedics", "Orthopedics", "عظام", "Bone", "Bones, joints, spine and sports injuries."],
-  ["gynecology", "Gynecology & Obstetrics", "نساء وتوليد", "Venus", "Women's health, fertility and pregnancy."],
-  ["neurology", "Neurology", "مخ وأعصاب", "Brain", "Brain, spine and nervous system disorders."],
-  ["psychiatry", "Psychiatry", "طب نفسي", "BrainCircuit", "Mental health, anxiety, depression and therapy."],
-  ["ophthalmology", "Ophthalmology", "رمد وعيون", "Eye", "Vision, retina, cataract and LASIK."],
-  ["ent", "ENT", "أنف وأذن وحنجرة", "Ear", "Ear, nose, throat, sinus and hearing."],
-  ["internal-medicine", "Internal Medicine", "باطنة", "Stethoscope", "General adult medicine and chronic disease."],
-  ["urology", "Urology", "مسالك بولية", "Droplet", "Kidney, bladder and male reproductive health."],
-  ["gastroenterology", "Gastroenterology", "جهاز هضمي ومناظير", "Pill", "Digestive system, liver and endoscopy."],
-  ["endocrinology", "Endocrinology & Diabetes", "غدد صماء وسكر", "Activity", "Diabetes, thyroid and hormonal disorders."],
-  ["pulmonology", "Pulmonology", "صدر وجهاز تنفسي", "Wind", "Chest, lungs, asthma and allergy."],
-  ["nutrition", "Nutrition", "تغذية علاجية", "Apple", "Weight management and clinical nutrition."],
-  ["physiotherapy", "Physiotherapy", "علاج طبيعي", "Dumbbell", "Rehabilitation, pain and mobility therapy."],
-  ["oncology", "Oncology", "أورام", "Ribbon", "Cancer screening, treatment and follow-up."],
-  ["rheumatology", "Rheumatology", "روماتيزم ومناعة", "Hand", "Arthritis, autoimmune and joint pain."],
-  ["nephrology", "Nephrology", "كلى", "Filter", "Kidney disease, dialysis and hypertension."],
-  ["vascular-surgery", "Vascular Surgery", "جراحة أوعية دموية", "Network", "Varicose veins and arterial disease."],
-  ["general-surgery", "General Surgery", "جراحة عامة", "Scissors", "Hernia, gallbladder and laparoscopic surgery."],
-  ["allergy", "Allergy & Immunology", "حساسية ومناعة", "Flower2", "Allergy testing and immune disorders."],
-  ["andrology", "Andrology", "ذكورة وعقم", "Mars", "Male fertility and sexual health."],
+  ["cardiology", "Cardiology", "قلب وأوعية دموية", "HeartPulse", "Heart, blood pressure and vascular conditions.", "أمراض القلب وضغط الدم والأوعية الدموية."],
+  ["dermatology", "Dermatology", "جلدية", "Sparkles", "Skin, hair, nails, laser and cosmetic care.", "الجلد والشعر والأظافر والليزر والتجميل."],
+  ["dentistry", "Dentistry", "أسنان", "Smile", "Dental care, orthodontics and oral surgery.", "علاج الأسنان والتقويم وجراحة الفم."],
+  ["pediatrics", "Pediatrics", "أطفال وحديثي الولادة", "Baby", "Newborn, child and adolescent health.", "صحة حديثي الولادة والأطفال والمراهقين."],
+  ["orthopedics", "Orthopedics", "عظام", "Bone", "Bones, joints, spine and sports injuries.", "العظام والمفاصل والعمود الفقري وإصابات الملاعب."],
+  ["gynecology", "Gynecology & Obstetrics", "نساء وتوليد", "Venus", "Women's health, fertility and pregnancy.", "صحة المرأة والخصوبة ومتابعة الحمل."],
+  ["neurology", "Neurology", "مخ وأعصاب", "Brain", "Brain, spine and nervous system disorders.", "أمراض المخ والعمود الفقري والجهاز العصبي."],
+  ["psychiatry", "Psychiatry", "طب نفسي", "BrainCircuit", "Mental health, anxiety, depression and therapy.", "الصحة النفسية والقلق والاكتئاب والعلاج النفسي."],
+  ["ophthalmology", "Ophthalmology", "رمد وعيون", "Eye", "Vision, retina, cataract and LASIK.", "الإبصار والشبكية والمياه البيضاء والليزك."],
+  ["ent", "ENT", "أنف وأذن وحنجرة", "Ear", "Ear, nose, throat, sinus and hearing.", "الأذن والأنف والحنجرة والجيوب الأنفية والسمع."],
+  ["internal-medicine", "Internal Medicine", "باطنة", "Stethoscope", "General adult medicine and chronic disease.", "الطب العام للبالغين والأمراض المزمنة."],
+  ["urology", "Urology", "مسالك بولية", "Droplet", "Kidney, bladder and male reproductive health.", "الكلى والمثانة وصحة الجهاز التناسلي للرجال."],
+  ["gastroenterology", "Gastroenterology", "جهاز هضمي ومناظير", "Pill", "Digestive system, liver and endoscopy.", "الجهاز الهضمي والكبد والمناظير."],
+  ["endocrinology", "Endocrinology & Diabetes", "غدد صماء وسكر", "Activity", "Diabetes, thyroid and hormonal disorders.", "السكري والغدة الدرقية واضطرابات الهرمونات."],
+  ["pulmonology", "Pulmonology", "صدر وجهاز تنفسي", "Wind", "Chest, lungs, asthma and allergy.", "الصدر والرئتين والربو والحساسية."],
+  ["nutrition", "Nutrition", "تغذية علاجية", "Apple", "Weight management and clinical nutrition.", "إنقاص الوزن والتغذية العلاجية."],
+  ["physiotherapy", "Physiotherapy", "علاج طبيعي", "Dumbbell", "Rehabilitation, pain and mobility therapy.", "إعادة التأهيل وعلاج الألم واستعادة الحركة."],
+  ["oncology", "Oncology", "أورام", "Ribbon", "Cancer screening, treatment and follow-up.", "الكشف المبكر عن الأورام وعلاجها ومتابعتها."],
+  ["rheumatology", "Rheumatology", "روماتيزم ومناعة", "Hand", "Arthritis, autoimmune and joint pain.", "الروماتيزم وأمراض المناعة وآلام المفاصل."],
+  ["nephrology", "Nephrology", "كلى", "Filter", "Kidney disease, dialysis and hypertension.", "أمراض الكلى والغسيل الكلوي وارتفاع الضغط."],
+  ["vascular-surgery", "Vascular Surgery", "جراحة أوعية دموية", "Network", "Varicose veins and arterial disease.", "دوالي الساقين وأمراض الشرايين."],
+  ["general-surgery", "General Surgery", "جراحة عامة", "Scissors", "Hernia, gallbladder and laparoscopic surgery.", "الفتق والمرارة وجراحات المناظير."],
+  ["allergy", "Allergy & Immunology", "حساسية ومناعة", "Flower2", "Allergy testing and immune disorders.", "اختبارات الحساسية وأمراض المناعة."],
+  ["andrology", "Andrology", "ذكورة وعقم", "Mars", "Male fertility and sexual health.", "خصوبة الرجال والصحة الجنسية."],
 ];
 
 export const SPECIALTIES: Specialty[] = RAW_SPECIALTIES.map(
-  ([id, name, nameAr, icon, description]) => ({
+  ([id, name, nameAr, icon, description, descriptionAr]) => ({
     id,
     name,
     nameAr,
     icon,
-    description,
+    description: { en: description, ar: descriptionAr },
     doctorCount: 0, // populated by the seed once doctors are generated
   }),
 );
@@ -316,8 +316,72 @@ export const RADIOLOGY_SCAN_CATALOG: RawScan[] = [
 
 /** Doctor consultation offerings, applied to every doctor. */
 export const CONSULTATION_TEMPLATES = [
-  { name: "In-Clinic Consultation", description: "Face-to-face examination at the clinic.", durationMinutes: 30, priceFactor: 1 },
-  { name: "Follow-Up Visit", description: "Discounted revisit within 14 days of your first consultation.", durationMinutes: 20, priceFactor: 0.5 },
-  { name: "Video Consultation", description: "Secure online video call from anywhere in Egypt.", durationMinutes: 25, priceFactor: 0.8 },
-  { name: "Home Visit", description: "The doctor comes to your home. Travel fee included.", durationMinutes: 45, priceFactor: 2.2 },
+  {
+    name: "In-Clinic Consultation",
+    nameAr: "كشف في العيادة",
+    description: "Face-to-face examination at the clinic.",
+    descriptionAr: "كشف مباشر داخل العيادة.",
+    durationMinutes: 30,
+    priceFactor: 1,
+  },
+  {
+    name: "Follow-Up Visit",
+    nameAr: "إعادة كشف",
+    description: "Discounted revisit within 14 days of your first consultation.",
+    descriptionAr: "إعادة كشف بسعر مخفّض خلال ١٤ يومًا من الكشف الأول.",
+    durationMinutes: 20,
+    priceFactor: 0.5,
+  },
+  {
+    name: "Video Consultation",
+    nameAr: "استشارة بالفيديو",
+    description: "Secure online video call from anywhere in Egypt.",
+    descriptionAr: "مكالمة فيديو آمنة من أي مكان في مصر.",
+    durationMinutes: 25,
+    priceFactor: 0.8,
+  },
+  {
+    name: "Home Visit",
+    nameAr: "زيارة منزلية",
+    description: "The doctor comes to your home. Travel fee included.",
+    descriptionAr: "الطبيب يزورك في منزلك، وسعر الانتقال مشمول.",
+    durationMinutes: 45,
+    priceFactor: 2.2,
+  },
 ] as const;
+
+/**
+ * Arabic for the service-catalogue grouping keys (`LabTest.category`,
+ * `RadiologyScan.category`). The English string stays the identifier — this maps
+ * it for display only. Mirrored into the `domain.serviceCategory` messages;
+ * keep the two in step.
+ */
+export const SERVICE_CATEGORIES_AR: Record<string, string> = {
+  Hematology: "أمراض الدم",
+  Diabetes: "السكري",
+  Cardiac: "القلب",
+  Chemistry: "الكيمياء الحيوية",
+  Hormones: "الهرمونات",
+  Vitamins: "الفيتامينات",
+  Microbiology: "الميكروبيولوجي",
+  Immunology: "المناعة",
+  Virology: "الفيروسات",
+  "Tumor Markers": "دلالات الأورام",
+  Andrology: "الذكورة",
+  "X-Ray": "أشعة عادية",
+  Ultrasound: "الموجات فوق الصوتية",
+  "CT Scan": "أشعة مقطعية",
+  MRI: "رنين مغناطيسي",
+  Mammography: "أشعة الثدي",
+  DEXA: "قياس كثافة العظام",
+  Doppler: "دوبلر",
+  Fluoroscopy: "أشعة تليفزيونية",
+};
+
+/** Arabic for the four doctor titles in `names.ts`. Display-only, as above. */
+export const DOCTOR_TITLES_AR: Record<string, string> = {
+  "Professor Doctor": "أستاذ دكتور",
+  Consultant: "استشاري",
+  Specialist: "أخصائي",
+  "Lecturer Doctor": "مدرس دكتور",
+};

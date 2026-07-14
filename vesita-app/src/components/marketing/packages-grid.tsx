@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { Check, PackageOpen } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { EmptyState } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatEGP } from "@/lib/site";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import type { LabTest, RadiologyScan, ServicePackage } from "@/lib/types";
 
 /** Discounted bundles of tests / scans, with the included items spelled out. */
@@ -21,16 +22,23 @@ export function PackagesGrid({
   catalog: (LabTest | RadiologyScan)[];
   slug: string;
 }) {
+  const t = useTranslations("profile");
+  const { formatEGP } = useFormat();
+  const { named, localized } = useDomain();
+
   const active = packages.filter((p) => p.isActive);
-  const nameOf = (id: string) =>
-    catalog.find((item) => item.id === id)?.name ?? "Included service";
+
+  const nameOf = (id: string) => {
+    const item = catalog.find((entry) => entry.id === id);
+    return item ? named(item) : t("packages.includedService");
+  };
 
   if (active.length === 0) {
     return (
       <EmptyState
         icon={PackageOpen}
-        title="No packages available"
-        description="This center doesn't currently bundle its services into packages."
+        title={t("packages.emptyTitle")}
+        description={t("packages.emptyDescription")}
       />
     );
   }
@@ -49,14 +57,14 @@ export function PackagesGrid({
               <CardContent className="flex h-full flex-col gap-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h4 className="font-semibold leading-tight">{pkg.name}</h4>
+                    <h4 className="font-semibold leading-tight">{named(pkg)}</h4>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {pkg.description}
+                      {localized(pkg.description)}
                     </p>
                   </div>
                   {percent > 0 && (
                     <Badge className="shrink-0 bg-success text-success-foreground tabular-nums">
-                      Save {percent}%
+                      {t("packages.save", { percent })}
                     </Badge>
                   )}
                 </div>
@@ -80,7 +88,7 @@ export function PackagesGrid({
                     </p>
                     {saving > 0 && (
                       <p className="text-xs font-medium text-success tabular-nums">
-                        You save {formatEGP(saving)}
+                        {t("packages.youSave", { amount: formatEGP(saving) })}
                       </p>
                     )}
                   </div>
@@ -89,7 +97,7 @@ export function PackagesGrid({
                     render={<Link href={`/booking/${slug}?serviceId=${pkg.id}`} />}
                     className="h-10 rounded-xl px-4"
                   >
-                    Book package
+                    {t("packages.book")}
                   </Button>
                 </div>
               </CardContent>

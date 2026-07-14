@@ -198,6 +198,27 @@
     @apply font-sans;
     scroll-behavior: smooth;
   }
+
+  /*
+   * Arabic. The default sans stack carries no Arabic glyphs, so under RTL we
+   * swap in Cairo (loaded in app/layout.tsx). Latin text inside an Arabic page —
+   * provider names, EGP amounts, phone numbers — is covered too, since Cairo
+   * ships both scripts.
+   */
+  html[dir="rtl"] {
+    --font-sans: var(--font-arabic), sans-serif;
+    font-family: var(--font-arabic), sans-serif;
+  }
+
+  /*
+   * Digits, currency and times stay left-to-right even inside Arabic prose.
+   * Without this, a string like "EGP 1,200" or "9:00 AM" gets reordered by the
+   * bidi algorithm and renders as nonsense.
+   */
+  [dir="rtl"] .ltr-nums {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
 }
 
 @layer utilities {

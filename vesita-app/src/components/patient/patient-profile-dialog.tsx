@@ -1,6 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useTranslations } from "next-intl";
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -36,9 +38,10 @@ import {
 } from "@/lib/api/profiles";
 import { CHRONIC_CONDITIONS } from "@/lib/data/clinical";
 import { TODAY } from "@/lib/data/seed";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useLabels } from "@/lib/i18n/use-labels";
 import {
   RELATIONSHIPS,
-  RELATIONSHIP_LABELS,
   type PatientProfile,
   type Relationship,
 } from "@/lib/types";
@@ -47,35 +50,38 @@ const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 const BLOOD_OPTIONS = BLOOD_TYPES.map((type) => ({ value: type, label: type }));
 
-const GENDER_OPTIONS = [
-  { value: "male", label: "Male" },
-  { value: "female", label: "Female" },
-];
-
-const profileSchema = z.object({
-  relationship: z.enum(["self", "child", "spouse", "parent"], {
-    message: "Choose who this profile is for.",
-  }),
-  fullName: z.string().trim().min(3, "Enter the patient's full name."),
-  gender: z.enum(["male", "female"], { message: "Select a gender." }),
-  dateOfBirth: z
-    .string()
-    .min(1, "Select a date of birth.")
-    .refine((value) => new Date(`${value}T00:00:00.000Z`) <= TODAY, {
-      message: "The date of birth must be in the past.",
+/** The validation messages are copy, so the schema is built per-render. */
+function buildSchema(t: (key: string) => string) {
+  return z.object({
+    relationship: z.enum(["self", "child", "spouse", "parent"], {
+      message: t("profileDialog.validation.relationship"),
     }),
-  phone: z
-    .string()
-    .trim()
-    .refine((value) => value === "" || /^01[0125]\d{8}$/.test(value), {
-      message: "Enter a valid Egyptian mobile number (11 digits), or leave it blank.",
+    fullName: z
+      .string()
+      .trim()
+      .min(3, t("profileDialog.validation.fullName")),
+    gender: z.enum(["male", "female"], {
+      message: t("profileDialog.validation.gender"),
     }),
-  bloodType: z.string(),
-  chronicConditions: z.array(z.string()),
-  isPregnant: z.boolean(),
-});
+    dateOfBirth: z
+      .string()
+      .min(1, t("profileDialog.validation.dateOfBirthRequired"))
+      .refine((value) => new Date(`${value}T00:00:00.000Z`) <= TODAY, {
+        message: t("profileDialog.validation.dateOfBirthPast"),
+      }),
+    phone: z
+      .string()
+      .trim()
+      .refine((value) => value === "" || /^01[0125]\d{8}$/.test(value), {
+        message: t("profileDialog.validation.phone"),
+      }),
+    bloodType: z.string(),
+    chronicConditions: z.array(z.string()),
+    isPregnant: z.boolean(),
+  });
+}
 
-type ProfileValues = z.infer<typeof profileSchema>;
+type ProfileValues = z.infer<ReturnType<typeof buildSchema>>;
 
 const BLANK: ProfileValues = {
   relationship: "child",
@@ -139,10 +145,16 @@ export function PatientProfileDialog({
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
+  const t = useTranslations("patient");
+  const L = useLabels();
+  const describeError = useApiError();
+
   const isEdit = profile !== undefined;
 
+  const schema = useMemo(() => buildSchema(t), [t]);
+
   const form = useForm<ProfileValues>({
-    resolver: zodResolver(profileSchema),
+    resolver: zodResolver(schema),
     values: profile ? toValues(profile) : BLANK,
   });
 
@@ -153,30 +165,35 @@ export function PatientProfileDialog({
   const gender = form.watch("gender");
   const conditions = form.watch("chronicConditions");
 
+  const genderOptions = [
+    { value: "male", label: L.gender("male") },
+    { value: "female", label: L.gender("female") },
+  ];
+
   // "Myself" is offered only when the account doesn't already have one, and is
   // locked while editing — an account has exactly one self profile.
   const relationshipOptions = RELATIONSHIPS.filter(
     (value) => value !== "self" || !hasSelf || profile?.relationship === "self",
-  ).map((value) => ({ value, label: RELATIONSHIP_LABELS[value] }));
+  ).map((value) => ({ value, label: L.relationship(value) }));
 
   async function onSubmit(values: ProfileValues) {
     try {
       if (profile) {
         await update.mutate(profile.id, accountId, toInput(values));
-        toast.success(`${values.fullName.trim()}'s profile was updated.`);
+        toast.success(
+          t("profileDialog.updated", { name: values.fullName.trim() }),
+        );
       } else {
         await create.mutate(accountId, toInput(values));
-        toast.success(`${values.fullName.trim()} was added to your account.`);
+        toast.success(
+          t("profileDialog.created", { name: values.fullName.trim() }),
+        );
       }
       onOpenChange(false);
       form.reset(BLANK);
       onSaved();
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Couldn't save this profile. Please try again.",
-      );
+      toast.error(describeError(error));
     }
   }
 
@@ -193,15 +210,11 @@ export function PatientProfileDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>
-            {isEdit ? `Edit ${profile.fullName}` : "Add a patient profile"}
+            {isEdit
+              ? t("profileDialog.editTitle", { name: profile.fullName })
+              : t("profileDialog.addTitle")}
           </DialogTitle>
-          <DialogDescription>
-            Bookings belong to a patient profile, not to your account — so each
-            person&apos;s medical and booking history stays with them. We ask for
-            gender, date of birth, pregnancy and chronic conditions because we screen
-            every test and scan against them before you book: it is what stops a
-            scan being booked for someone it isn&apos;t safe for.
-          </DialogDescription>
+          <DialogDescription>{t("profileDialog.description")}</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
@@ -216,7 +229,7 @@ export function PatientProfileDialog({
                 name="relationship"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Who is this for?</FormLabel>
+                    <FormLabel>{t("profileDialog.relationship")}</FormLabel>
                     <FormControl>
                       <AppSelect
                         value={field.value}
@@ -224,13 +237,13 @@ export function PatientProfileDialog({
                           field.onChange(value as Relationship)
                         }
                         options={relationshipOptions}
-                        placeholder="Select a relationship"
+                        placeholder={t("profileDialog.relationshipPlaceholder")}
                         disabled={isPending || profile?.relationship === "self"}
                       />
                     </FormControl>
                     {profile?.relationship === "self" && (
                       <FormDescription>
-                        This is your own profile and can&apos;t be reassigned.
+                        {t("profileDialog.relationshipSelfLocked")}
                       </FormDescription>
                     )}
                     <FormMessage />
@@ -243,11 +256,11 @@ export function PatientProfileDialog({
                 name="fullName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Full name</FormLabel>
+                    <FormLabel>{t("profileDialog.fullName")}</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
-                        placeholder="e.g. Nour Hassan"
+                        placeholder={t("profileDialog.fullNamePlaceholder")}
                         className="h-11 rounded-xl"
                         disabled={isPending}
                       />
@@ -262,7 +275,7 @@ export function PatientProfileDialog({
                 name="gender"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Gender</FormLabel>
+                    <FormLabel>{t("profileDialog.gender")}</FormLabel>
                     <FormControl>
                       <AppSelect
                         value={field.value}
@@ -274,13 +287,13 @@ export function PatientProfileDialog({
                             });
                           }
                         }}
-                        options={GENDER_OPTIONS}
-                        placeholder="Select gender"
+                        options={genderOptions}
+                        placeholder={t("profileDialog.genderPlaceholder")}
                         disabled={isPending}
                       />
                     </FormControl>
                     <FormDescription>
-                      Some tests and scans are restricted by gender.
+                      {t("profileDialog.genderHint")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -292,7 +305,7 @@ export function PatientProfileDialog({
                 name="dateOfBirth"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date of birth</FormLabel>
+                    <FormLabel>{t("profileDialog.dateOfBirth")}</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
@@ -302,7 +315,7 @@ export function PatientProfileDialog({
                       />
                     </FormControl>
                     <FormDescription>
-                      Age limits apply to several scans.
+                      {t("profileDialog.dateOfBirthHint")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -314,7 +327,7 @@ export function PatientProfileDialog({
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Mobile number (optional)</FormLabel>
+                    <FormLabel>{t("profileDialog.phone")}</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
@@ -335,14 +348,14 @@ export function PatientProfileDialog({
                 name="bloodType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Blood type (optional)</FormLabel>
+                    <FormLabel>{t("profileDialog.bloodType")}</FormLabel>
                     <FormControl>
                       <AppSelect
                         value={field.value}
                         onValueChange={field.onChange}
                         options={BLOOD_OPTIONS}
-                        emptyOption="Not known"
-                        placeholder="Select blood type"
+                        emptyOption={t("profileDialog.bloodTypeUnknown")}
+                        placeholder={t("profileDialog.bloodTypePlaceholder")}
                         disabled={isPending}
                       />
                     </FormControl>
@@ -358,12 +371,13 @@ export function PatientProfileDialog({
               name="chronicConditions"
               render={() => (
                 <FormItem>
-                  <FormLabel>Chronic conditions</FormLabel>
+                  <FormLabel>{t("profileDialog.conditions")}</FormLabel>
                   <FormDescription>
-                    Select everything that applies. A condition here can rule a scan
-                    out entirely — a pacemaker rules out an MRI, for instance.
+                    {t("profileDialog.conditionsHint")}
                   </FormDescription>
                   <div className="grid gap-2 rounded-xl border p-4 sm:grid-cols-2">
+                    {/* The condition string is the stored identifier — it is
+                        never translated at rest, only on the label (§3). */}
                     {CHRONIC_CONDITIONS.map((condition) => {
                       const id = `condition-${condition.replace(/\s+/g, "-")}`;
                       return (
@@ -380,7 +394,7 @@ export function PatientProfileDialog({
                             htmlFor={id}
                             className="text-sm font-normal text-muted-foreground"
                           >
-                            {condition}
+                            {L.condition(condition)}
                           </Label>
                         </div>
                       );
@@ -399,10 +413,9 @@ export function PatientProfileDialog({
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between gap-4 rounded-xl border p-4">
                     <div className="space-y-1">
-                      <FormLabel>Currently pregnant</FormLabel>
+                      <FormLabel>{t("profileDialog.pregnant")}</FormLabel>
                       <FormDescription>
-                        X-ray, CT and mammography are never performed during
-                        pregnancy. We block those bookings for you.
+                        {t("profileDialog.pregnantHint")}
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -425,7 +438,7 @@ export function PatientProfileDialog({
                 disabled={isPending}
                 className="h-10 rounded-xl px-4"
               >
-                Cancel
+                {t("profileDialog.cancel")}
               </Button>
               <Button
                 type="submit"
@@ -433,10 +446,10 @@ export function PatientProfileDialog({
                 className="h-10 rounded-xl px-4"
               >
                 {isPending
-                  ? "Saving…"
+                  ? t("profileDialog.saving")
                   : isEdit
-                    ? "Save changes"
-                    : "Add profile"}
+                    ? t("profileDialog.save")
+                    : t("profileDialog.add")}
               </Button>
             </DialogFooter>
           </form>

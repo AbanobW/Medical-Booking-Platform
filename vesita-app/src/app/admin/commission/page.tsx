@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Calculator, Loader2, Percent } from "lucide-react";
 import { toast } from "sonner";
@@ -31,30 +32,36 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { useAsync, useMutation } from "@/hooks/use-async";
 import { getCommission, updateCommission } from "@/lib/api/admin";
-import { formatDate } from "@/lib/format";
-import { formatEGP } from "@/lib/site";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
 import { PROVIDER_ROLES, type CommissionSettings, type ProviderRole } from "@/lib/types";
 
 /** The consultation price the worked example is calculated against. */
 const SAMPLE = 500;
 
-const pct = z
-  .number({ message: "Enter a number." })
-  .min(0, "Cannot be negative.")
-  .max(100, "Cannot exceed 100%.");
+type Translate = (key: string) => string;
 
-const schema = z.object({
-  doctor: pct,
-  lab: pct,
-  radiology: pct,
-  platformFee: z
-    .number({ message: "Enter a number." })
-    .min(0, "Cannot be negative.")
-    .max(1000, "That is unrealistically high."),
-  vatPercentage: pct,
-});
+/** Validation copy comes from the catalogue, so a rejected field speaks the user's language. */
+const commissionSchema = (t: Translate) => {
+  const pct = z
+    .number({ message: t("validation.number") })
+    .min(0, t("validation.notNegative"))
+    .max(100, t("validation.max100"));
 
-type CommissionFormValues = z.infer<typeof schema>;
+  return z.object({
+    doctor: pct,
+    lab: pct,
+    radiology: pct,
+    platformFee: z
+      .number({ message: t("validation.number") })
+      .min(0, t("validation.notNegative"))
+      .max(1000, t("validation.feeTooHigh")),
+    vatPercentage: pct,
+  });
+};
+
+type CommissionFormValues = z.infer<ReturnType<typeof commissionSchema>>;
 
 const readNumber = (value: string) => (value === "" ? Number.NaN : Number(value));
 
@@ -75,7 +82,15 @@ function breakdown(total: number, rate: number, platformFee: number, vat: number
 }
 
 export default function AdminCommissionPage() {
+  const t = useTranslations("admin.commission");
+  const tCommon = useTranslations("common");
+  const L = useLabels();
+  const describeError = useApiError();
+  const { formatDate, formatEGP, formatNumber } = useFormat();
+
   const { data, error, isLoading, refetch } = useAsync(() => getCommission());
+
+  const schema = useMemo(() => commissionSchema(t), [t]);
 
   const form = useForm<CommissionFormValues>({
     resolver: zodResolver(schema),
@@ -106,12 +121,10 @@ export default function AdminCommissionPage() {
   async function onSubmit(values: CommissionFormValues) {
     try {
       await mutate(values);
-      toast.success("Commission settings saved.");
+      toast.success(t("saved"));
       refetch();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not save the settings.",
-      );
+      toast.error(describeError(err));
     }
   }
 
@@ -131,8 +144,8 @@ export default function AdminCommissionPage() {
   if (error) {
     return (
       <ErrorState
-        title="Couldn't load commission settings"
-        description={error.message}
+        title={t("errorTitle")}
+        description={describeError(error)}
         onRetry={refetch}
       />
     );
@@ -141,8 +154,8 @@ export default function AdminCommissionPage() {
   if (!data) {
     return (
       <ErrorState
-        title="No commission settings"
-        description="The platform has no commission configuration to edit."
+        title={t("emptyTitle")}
+        description={t("emptyDescription")}
         onRetry={refetch}
       />
     );
@@ -161,16 +174,16 @@ export default function AdminCommissionPage() {
         <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Commission rates</CardTitle>
+              <CardTitle className="text-base">{t("title")}</CardTitle>
               <CardDescription>
-                The share Vesita takes from each completed booking, by provider
-                type. Last updated {formatDate(data.updatedAt)}.
+                {t("description", { date: formatDate(data.updatedAt) })}
               </CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-8">
               {PROVIDER_ROLES.map((role: ProviderRole) => {
-                const { icon: Icon, label } = PROVIDER_TYPE_META[role];
+                const { icon: Icon } = PROVIDER_TYPE_META[role];
+                const label = L.providerType(role);
 
                 return (
                   <FormField
@@ -185,7 +198,7 @@ export default function AdminCommissionPage() {
                               className="size-4 text-muted-foreground"
                               aria-hidden
                             />
-                            {label} commission
+                            {t("rateLabel", { type: label })}
                           </FormLabel>
 
                           <div className="flex items-center gap-2">
@@ -200,8 +213,8 @@ export default function AdminCommissionPage() {
                               }
                               onBlur={field.onBlur}
                               name={field.name}
-                              aria-label={`${label} commission percentage`}
-                              className="h-10 w-24 rounded-xl text-right tabular-nums"
+                              aria-label={t("rateAria", { type: label })}
+                              className="h-10 w-24 rounded-xl text-end tabular-nums"
                             />
                             <span className="text-sm text-muted-foreground">%</span>
                           </div>
@@ -234,7 +247,7 @@ export default function AdminCommissionPage() {
                   name="platformFee"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Platform fee (EGP)</FormLabel>
+                      <FormLabel>{t("platformFee")}</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -247,9 +260,7 @@ export default function AdminCommissionPage() {
                           className="h-11 rounded-xl tabular-nums"
                         />
                       </FormControl>
-                      <FormDescription>
-                        A flat fee added to every booking.
-                      </FormDescription>
+                      <FormDescription>{t("platformFeeHint")}</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -260,7 +271,7 @@ export default function AdminCommissionPage() {
                   name="vatPercentage"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>VAT (%)</FormLabel>
+                      <FormLabel>{t("vat")}</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
@@ -274,9 +285,7 @@ export default function AdminCommissionPage() {
                           className="h-11 rounded-xl tabular-nums"
                         />
                       </FormControl>
-                      <FormDescription>
-                        Charged on the commission and the platform fee.
-                      </FormDescription>
+                      <FormDescription>{t("vatHint")}</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -299,7 +308,7 @@ export default function AdminCommissionPage() {
                     })
                   }
                 >
-                  Reset
+                  {tCommon("actions.reset")}
                 </Button>
                 <Button
                   type="submit"
@@ -307,7 +316,7 @@ export default function AdminCommissionPage() {
                   disabled={isPending}
                 >
                   {isPending && <Loader2 className="size-4 animate-spin" />}
-                  Save settings
+                  {t("save")}
                 </Button>
               </div>
             </CardContent>
@@ -320,57 +329,59 @@ export default function AdminCommissionPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Calculator className="size-4 text-primary" aria-hidden />
-              Worked example
+              {t("example.title")}
             </CardTitle>
             <CardDescription>
-              On an {formatEGP(SAMPLE)} consultation, the platform earns{" "}
-              <span className="font-semibold text-foreground">
-                {formatEGP(Math.round(doctorExample.platformEarns))}
-              </span>{" "}
-              and the doctor receives{" "}
-              <span className="font-semibold text-foreground">
-                {formatEGP(Math.round(doctorExample.providerReceives))}
-              </span>
-              .
+              {t.rich("example.description", {
+                amount: formatEGP(SAMPLE),
+                earns: formatEGP(Math.round(doctorExample.platformEarns)),
+                receives: formatEGP(Math.round(doctorExample.providerReceives)),
+                b: (chunks) => (
+                  <span className="font-semibold text-foreground">{chunks}</span>
+                ),
+              })}
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-2 text-sm">
-            <Row label="Consultation price" value={formatEGP(SAMPLE)} />
+            <Row label={t("example.consultation")} value={formatEGP(SAMPLE)} />
             <Row
-              label={`Commission (${safe(live.doctor)}%)`}
+              label={t("example.commission", {
+                rate: formatNumber(safe(live.doctor)),
+              })}
               value={`− ${formatEGP(Math.round(doctorExample.commission))}`}
             />
             <Row
-              label="Platform fee"
+              label={t("example.platformFee")}
               value={`+ ${formatEGP(Math.round(doctorExample.platformFee))}`}
             />
             <Row
-              label={`VAT (${safe(live.vatPercentage)}%)`}
+              label={t("example.vat", {
+                rate: formatNumber(safe(live.vatPercentage)),
+              })}
               value={`+ ${formatEGP(Math.round(doctorExample.vatAmount))}`}
             />
 
             <div className="mt-3 space-y-2 border-t pt-3">
               <Row
-                label="Patient pays"
+                label={t("example.patientPays")}
                 value={formatEGP(Math.round(doctorExample.patientPays))}
                 strong
               />
               <Row
-                label="Doctor receives"
+                label={t("example.doctorReceives")}
                 value={formatEGP(Math.round(doctorExample.providerReceives))}
                 strong
               />
               <Row
-                label="Platform earns"
+                label={t("example.platformEarns")}
                 value={formatEGP(Math.round(doctorExample.platformEarns))}
                 strong
               />
             </div>
 
             <p className="pt-2 text-xs text-muted-foreground">
-              VAT is collected on the platform&apos;s fee and commission, and
-              remitted to the tax authority — it is not platform earnings.
+              {t("example.note")}
             </p>
           </CardContent>
         </Card>
@@ -379,11 +390,10 @@ export default function AdminCommissionPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Percent className="size-4 text-muted-foreground" aria-hidden />
-              Across provider types
+              {t("across.title")}
             </CardTitle>
             <CardDescription>
-              What the platform takes from an {formatEGP(SAMPLE)} booking of each
-              type.
+              {t("across.description", { amount: formatEGP(SAMPLE) })}
             </CardDescription>
           </CardHeader>
 
@@ -396,7 +406,6 @@ export default function AdminCommissionPage() {
                 safe(live.platformFee),
                 safe(live.vatPercentage),
               );
-              const { label } = PROVIDER_TYPE_META[role];
 
               return (
                 <div
@@ -404,18 +413,19 @@ export default function AdminCommissionPage() {
                   className="flex items-center justify-between gap-3 rounded-xl bg-muted/50 px-4 py-3"
                 >
                   <div>
-                    <p className="font-medium">{label}</p>
-                    <p className="text-xs text-muted-foreground tabular-nums">
-                      {rate}% commission
+                    <p className="font-medium">{L.providerType(role)}</p>
+                    <p className="ltr-nums text-xs text-muted-foreground tabular-nums">
+                      {t("across.rate", { rate: formatNumber(rate) })}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-end">
                     <p className="font-semibold tabular-nums">
                       {formatEGP(Math.round(result.platformEarns))}
                     </p>
                     <p className="text-xs text-muted-foreground tabular-nums">
-                      provider keeps{" "}
-                      {formatEGP(Math.round(result.providerReceives))}
+                      {t("across.keeps", {
+                        amount: formatEGP(Math.round(result.providerReceives)),
+                      })}
                     </p>
                   </div>
                 </div>

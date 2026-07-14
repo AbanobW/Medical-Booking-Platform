@@ -1,0 +1,243 @@
+{
+  "meta": {
+    "doctorNotFound": "الطبيب غير موجود",
+    "labNotFound": "المعمل غير موجود",
+    "radiologyNotFound": "مركز الأشعة غير موجود"
+  },
+  "error": {
+    "loadTitle": "تعذّر تحميل هذا الملف"
+  },
+  "notFound": {
+    "doctorTitle": "لم نعثر على هذا الطبيب",
+    "doctorDescription": "هذا الرابط يشير إلى ملف ليس لطبيب. ربما تم نقله.",
+    "browseDoctors": "تصفح الأطباء",
+    "labTitle": "لم نعثر على هذا المعمل",
+    "labDescription": "هذا الرابط يشير إلى ملف ليس لمعمل تحاليل. ربما تم نقله.",
+    "browseLabs": "تصفح المعامل",
+    "radiologyTitle": "لم نعثر على مركز الأشعة هذا",
+    "radiologyDescription": "هذا الرابط يشير إلى ملف ليس لمركز أشعة. ربما تم نقله.",
+    "browseRadiology": "تصفح مراكز الأشعة",
+    "genericTitle": "لم نعثر على هذا الملف",
+    "genericDescription": "قد يكون الرابط قديمًا، أو لم يعد مقدم الخدمة مُدرجًا على Vesita.",
+    "browseProviders": "تصفح مقدمي الخدمة",
+    "backHome": "العودة للرئيسية"
+  },
+  "hero": {
+    "reviews": "({count, plural, =0 {لا توجد تقييمات} one {تقييم واحد} two {تقييمان} few {# تقييمات} many {# تقييمًا} other {# تقييم}})",
+    "wait": "انتظار {duration} تقريبًا",
+    "bookings": "{count, plural, =0 {لا توجد حجوزات بعد على Vesita} one {حجز واحد على Vesita} two {حجزان على Vesita} few {# حجوزات على Vesita} many {# حجزًا على Vesita} other {# حجز على Vesita}}",
+    "call": "اتصال",
+    "share": "مشاركة هذا الملف",
+    "shareCopied": "تم نسخ رابط الملف.",
+    "shareFailed": "تعذّرت مشاركة هذا الملف.",
+    "subtitleLab": "معمل تحاليل طبية",
+    "subtitleRadiology": "مركز أشعة",
+    "priceConsultation": "سعر الكشف",
+    "priceTestsFrom": "التحاليل تبدأ من",
+    "priceScansFrom": "الأشعة تبدأ من",
+    "chipExperience": "{years, plural, one {سنة خبرة} two {سنتا خبرة} few {# سنوات خبرة} many {# سنة خبرة} other {# سنة خبرة}}",
+    "chipHomeCollection": "سحب عينات منزلي",
+    "verified": "موثّق",
+    "freeCancellation": "إلغاء مجاني حتى 24 ساعة قبل الموعد",
+    "stats": {
+      "rating": "التقييم",
+      "reviews": "التقييمات",
+      "experience": "سنوات الخبرة",
+      "bookings": "حجز على Vesita"
+    }
+  },
+  "tabs": {
+    "overview": "نظرة عامة",
+    "services": "الخدمات",
+    "clinic": "العيادة",
+    "branches": "الفروع ({count})",
+    "reviews": "التقييمات ({count})",
+    "tests": "التحاليل ({count})",
+    "scans": "الأشعة ({count})",
+    "packages": "الباقات ({count})"
+  },
+  "about": {
+    "title": "نبذة عن {name}",
+    "specialty": "التخصص",
+    "experience": "الخبرة",
+    "experienceValue": "{years, plural, one {سنة واحدة من الممارسة} two {سنتان من الممارسة} few {# سنوات من الممارسة} many {# سنة من الممارسة} other {# سنة من الممارسة}}",
+    "degrees": "المؤهلات",
+    "languages": "اللغات",
+    "focus": "مجالات التركيز",
+    "catalogue": "الخدمات المتاحة",
+    "catalogueTests": "{tests} تحليل · {packages} باقة",
+    "catalogueScans": "{scans} أشعة · {packages} باقة",
+    "homeCollection": "سحب العينات من المنزل",
+    "homeCollectionYes": "متاح — يأتي فني السحب إليك",
+    "homeCollectionNo": "غير متاح — يُرجى زيارة أحد الفروع",
+    "typicalScanTime": "المدة المعتادة للأشعة",
+    "variesByScan": "تختلف حسب نوع الأشعة",
+    "mainBranch": "الفرع الرئيسي",
+    "phone": "الهاتف",
+    "accreditations": "الاعتمادات",
+    "mainLocation": "الموقع الرئيسي",
+    "clinicTitle": "العيادة والموقع"
+  },
+  "consultations": {
+    "title": "أنواع الكشف",
+    "feesVary": "قد تختلف الأسعار بين العيادات — سترى السعر الدقيق للعيادة التي تختارها.",
+    "book": "احجز"
+  },
+  "sidebar": {
+    "consultationFee": "سعر الكشف",
+    "testsFrom": "التحاليل تبدأ من",
+    "scansFrom": "الأشعة تبدأ من",
+    "bookNow": "احجز الآن",
+    "freeCancellation": "إلغاء مجاني حتى {hours} ساعات قبل موعدك.",
+    "bringImaging": "أحضر معك أي أشعة سابقة أو خطاب تحويل.",
+    "homeCollectionNote": "سحب العينات من المنزل متاح — اختر الزيارة المنزلية أثناء الحجز."
+  },
+  "availability": {
+    "title": "الأماكن المتاحة الآن",
+    "subtitle": "أماكن حقيقية في هذا الفرع، في هذه اللحظة.",
+    "branch": "الفرع",
+    "selectBranch": "اختر فرعًا",
+    "noBranch": "لا يوجد لدى مقدم الخدمة فرع نشط يستقبل الحجوزات حاليًا.",
+    "errorTitle": "تعذّر تحميل المواعيد المتاحة",
+    "noneInTwoWeeks": "لا توجد أماكن متاحة في {branch} خلال الأسبوعين القادمين. جرّب فرعًا آخر أو تواصل معهم مباشرة.",
+    "noneTodayPrefix": "لا توجد أماكن متبقية اليوم. أقرب موعد",
+    "today": "اليوم",
+    "busy": "مزدحم",
+    "busyTitle": "جلسة مزدحمة — قد تنتظر وقتًا أطول",
+    "remainingTitle": "متبقٍ {remaining} من {capacity} مكانًا",
+    "moreSlots": "+{count} أخرى",
+    "pickTime": "اختر موعدًا",
+    "holdNote": "لا يُحجز مكانك إلا بعد تأكيد الحجز."
+  },
+  "schedule": {
+    "title": "مواعيد العمل الأسبوعية",
+    "today": "اليوم",
+    "closed": "مغلق",
+    "breaks": "{count, plural, one {استراحة} other {استراحات}}: {times}",
+    "places": "{count, plural, one {مكان واحد} two {مكانان} few {# أماكن} many {# مكانًا} other {# مكان}}"
+  },
+  "branches": {
+    "emptyTitle": "لا توجد فروع مُدرجة",
+    "emptyGeneric": "يعمل مقدم الخدمة من موقعه الرئيسي فقط.",
+    "emptyDoctor": "يعمل هذا الطبيب من عيادة واحدة فقط.",
+    "emptyLab": "يعمل هذا المعمل من موقعه الرئيسي فقط.",
+    "emptyRadiology": "يعمل هذا المركز من موقعه الرئيسي فقط.",
+    "temporarilyClosed": "مغلق مؤقتًا",
+    "openToday": "مفتوح اليوم · {from} – {to}",
+    "closedToday": "مغلق اليوم",
+    "servicesOffered": "{count, plural, one {خدمة واحدة متاحة هنا} two {خدمتان متاحتان هنا} few {# خدمات متاحة هنا} many {# خدمة متاحة هنا} other {# خدمة متاحة هنا}}",
+    "noWorkingDays": "لا توجد أيام عمل",
+    "priceOverrides": "بعض الخدمات لها أسعار مختلفة في هذا الفرع — السعر الظاهر عند اختيار الفرع هو ما ستدفعه."
+  },
+  "price": {
+    "from": "من {price}",
+    "variesByBranch": "يختلف حسب الفرع"
+  },
+  "insurance": {
+    "title": "التأمين المقبول",
+    "comingSoonLabel": "قريبًا.",
+    "comingSoon": "هذه هي شبكات التأمين التي يقبلها مقدم الخدمة في العيادة. الحجز بالتأمين غير متاح على Vesita بعد — حاليًا تُدفع الحجوزات مباشرة."
+  },
+  "packages": {
+    "emptyTitle": "لا توجد باقات متاحة",
+    "emptyDescription": "لا يجمع هذا المركز خدماته في باقات حاليًا.",
+    "includedService": "خدمة ضمن الباقة",
+    "save": "وفّر {percent}%",
+    "youSave": "توفّر {amount}",
+    "book": "احجز الباقة"
+  },
+  "catalog": {
+    "searchPlaceholderTest": "ابحث عن تحليل بالاسم أو التصنيف…",
+    "searchPlaceholderScan": "ابحث عن أشعة بالاسم أو التصنيف…",
+    "searchLabelTest": "بحث في التحاليل",
+    "searchLabelScan": "بحث في الأشعة",
+    "allCategories": "كل التصنيفات",
+    "categoryLabel": "التصنيف",
+    "sortLabelTest": "ترتيب التحاليل",
+    "sortLabelScan": "ترتيب الأشعة",
+    "sort": "الترتيب",
+    "sortName": "الاسم (أ–ي)",
+    "sortPriceAsc": "السعر: من الأقل للأعلى",
+    "sortPriceDesc": "السعر: من الأعلى للأقل",
+    "showingTests": "عرض {visible} من {total} تحليل",
+    "showingScans": "عرض {visible} من {total} أشعة",
+    "emptyTitleTest": "لا توجد تحاليل مطابقة لبحثك",
+    "emptyTitleScan": "لا توجد أشعة مطابقة لبحثك",
+    "emptyDescription": "جرّب كلمة أخرى، أو امسح تصفية التصنيف.",
+    "clearFilters": "مسح التصفية",
+    "resultsIn": "النتيجة خلال {hours} ساعة",
+    "fasting": "صيام",
+    "fastingHours": "صيام {hours} ساعات",
+    "contrast": "صبغة",
+    "preparationRequired": "يتطلب تحضيرًا",
+    "eligibilityRules": "شروط الحجز",
+    "readPrep": "اقرأ التحضير وشروط الحجز",
+    "hidePrep": "إخفاء التحضير وشروط الحجز",
+    "book": "احجز"
+  },
+  "preparation": {
+    "title": "قبل أن تحجز",
+    "fastingRequired": "الصيام مطلوب",
+    "fastingRequiredHours": "الصيام مطلوب — {hours} ساعات",
+    "waterAllowed": "الماء مسموح أثناء الصيام.",
+    "noWater": "ممنوع الماء أثناء الصيام.",
+    "noFasting": "لا حاجة للصيام — تناول طعامك وشرابك كالمعتاد.",
+    "medication": "الأدوية:",
+    "onArrival": "عند الوصول:",
+    "bring": "أحضر معك:",
+    "whoCanBook": "من يمكنه الحجز:",
+    "confirmNote": "سيُطلب منك تأكيد قراءة هذه التعليمات قبل إتمام الحجز."
+  },
+  "eligibility": {
+    "menOnly": "للرجال فقط",
+    "womenOnly": "للسيدات فقط",
+    "agesRange": "من {min} إلى {max} سنة",
+    "agesMin": "من {min} سنة فأكثر",
+    "agesMax": "حتى {max} سنة",
+    "notInPregnancy": "لا يُجرى أثناء الحمل",
+    "notSuitableWith": "غير مناسب مع {condition}"
+  },
+  "nearby": {
+    "titleProviders": "مقدمو خدمة قريبون",
+    "titleDoctors": "أطباء قريبون",
+    "titleLabs": "معامل قريبة",
+    "titleCenters": "مراكز قريبة",
+    "errorTitle": "تعذّر تحميل مقدمي الخدمة القريبين",
+    "emptyTitle": "لا يوجد شيء قريب",
+    "emptyDescription": "لم نجد مقدم خدمة آخر قريبًا من هذا الموقع."
+  },
+  "reviews": {
+    "errorTitle": "تعذّر تحميل التقييمات",
+    "errorDescription": "واجهتنا مشكلة أثناء جلب تقييمات هذا الملف.",
+    "emptyTitle": "لا توجد تقييمات بعد",
+    "emptyDescription": "كن أول من يشارك تجربته بعد الزيارة.",
+    "showMore": "عرض المزيد من التقييمات (بقي {count})"
+  },
+  "category": {
+    "Hematology": "أمراض الدم",
+    "Diabetes": "السكري",
+    "Cardiac": "القلب",
+    "Chemistry": "كيمياء حيوية",
+    "Hormones": "الهرمونات",
+    "Vitamins": "الفيتامينات",
+    "Microbiology": "الميكروبيولوجي",
+    "Immunology": "المناعة",
+    "Virology": "الفيروسات",
+    "Tumor Markers": "دلالات الأورام",
+    "Andrology": "الذكورة",
+    "X-Ray": "أشعة عادية",
+    "Ultrasound": "موجات صوتية (سونار)",
+    "Doppler": "دوبلر",
+    "CT Scan": "أشعة مقطعية",
+    "MRI": "رنين مغناطيسي",
+    "Mammography": "أشعة الثدي",
+    "DEXA": "قياس كثافة العظام",
+    "Fluoroscopy": "أشعة بالصبغة"
+  },
+  "seo": {
+    "doctorTitle": "{name} — {specialty} في {where}",
+    "providerTitle": "{name} — {where}",
+    "doctorDescription": "احجز مع {name}، {specialty} في {where}. خبرة {years} عامًا · {rating}★ من {reviews} تقييم · الكشف يبدأ من {price}.",
+    "providerDescription": "احجز في {name} بـ {where}. {rating}★ من {reviews} تقييم · {count} {kind, select, lab {تحليل} other {فحص}} تبدأ من {price}."
+  }
+}

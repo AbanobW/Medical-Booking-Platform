@@ -1,24 +1,50 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { INTL_LOCALES } from "@/i18n/config";
 import { addDays, TODAY, toISODate } from "@/lib/data/seed";
-import { formatTime, relativeDay } from "@/lib/format";
+import { useFormat } from "@/lib/i18n/use-format";
 import { cn } from "@/lib/utils";
 import type { SchedulingMode, TimeSlot } from "@/lib/types";
 
-const WEEKDAY_INITIALS = ["S", "M", "T", "W", "T", "F", "S"];
+/** Sunday-first, matching `Date#getUTCDay()`. */
+const WEEKDAY_KEYS = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const;
 
 /** Morning / afternoon / evening — how a doctor's session is actually named. */
-export function sessionLabel(time: string): string {
+type SessionKey = "morning" | "afternoon" | "evening";
+
+function sessionKey(time: string): SessionKey {
   const hour = Number(time.split(":")[0]);
-  if (hour < 12) return "Morning session";
-  if (hour < 17) return "Afternoon session";
-  return "Evening session";
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  return "evening";
+}
+
+/**
+ * English-only — kept for non-React callers. Inside a component, translate
+ * `sessionKey(time)` through `common.calendar.session.*` instead.
+ */
+export function sessionLabel(time: string): string {
+  const key = sessionKey(time);
+  return key === "morning"
+    ? "Morning session"
+    : key === "afternoon"
+      ? "Afternoon session"
+      : "Evening session";
 }
 
 /** A strict limit that is used up is unbookable. A comfort limit is merely busy. */
@@ -61,6 +87,9 @@ export function CalendarPicker({
   slotSubtitle?: (slot: TimeSlot) => string;
   className?: string;
 }) {
+  const t = useTranslations("common");
+  const { formatTime, relativeDay, formatNumber, locale } = useFormat();
+
   // Which 28-day window we're showing, as an offset in weeks from today.
   const [weekOffset, setWeekOffset] = useState(0);
 
@@ -90,10 +119,25 @@ export function CalendarPicker({
 
   const defaultSubtitle = (slot: TimeSlot): string =>
     slot.capacityType === "strict" && slot.isFull
-      ? "Fully booked"
-      : `${slot.remaining} of ${slot.capacity} places left`;
+      ? t("calendar.fullyBooked")
+      : t("calendar.placesLeft", {
+          remaining: formatNumber(slot.remaining),
+          capacity: formatNumber(slot.capacity),
+        });
 
   const subtitleOf = slotSubtitle ?? defaultSubtitle;
+
+  /** Narrow weekday letters, Sunday-first — `Intl` gives us both languages. */
+  const weekdayInitials = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat(INTL_LOCALES[locale], {
+      weekday: "narrow",
+      timeZone: "UTC",
+    });
+    // 2024-01-07 is a Sunday.
+    return WEEKDAY_KEYS.map((_, i) =>
+      formatter.format(new Date(Date.UTC(2024, 0, 7 + i))),
+    );
+  }, [locale]);
 
   if (isLoading) {
     return (
@@ -109,7 +153,7 @@ export function CalendarPicker({
       <div className="rounded-2xl border bg-card p-4 shadow-soft">
         <div className="mb-4 flex items-center justify-between">
           <p className="text-sm font-medium">
-            {days[0]?.date.toLocaleDateString("en-GB", {
+            {days[0]?.date.toLocaleDateString(INTL_LOCALES[locale], {
               month: "long",
               year: "numeric",
               timeZone: "UTC",
@@ -122,26 +166,26 @@ export function CalendarPicker({
               className="size-8 rounded-lg"
               onClick={() => setWeekOffset((w) => Math.max(0, w - 1))}
               disabled={weekOffset === 0}
-              aria-label="Previous dates"
+              aria-label={t("calendar.previousDates")}
             >
-              <ChevronLeft className="size-4" />
+              <ChevronLeft className="size-4 rtl:rotate-180" />
             </Button>
             <Button
               variant="outline"
               size="icon"
               className="size-8 rounded-lg"
               onClick={() => setWeekOffset((w) => w + 1)}
-              aria-label="Later dates"
+              aria-label={t("calendar.laterDates")}
             >
-              <ChevronRight className="size-4" />
+              <ChevronRight className="size-4 rtl:rotate-180" />
             </Button>
           </div>
         </div>
 
         <div className="mb-2 grid grid-cols-7 gap-1.5">
-          {WEEKDAY_INITIALS.map((initial, i) => (
+          {weekdayInitials.map((initial, i) => (
             <div
-              key={i}
+              key={WEEKDAY_KEYS[i]}
               className="text-center text-xs font-medium text-muted-foreground"
               aria-hidden
             >
@@ -164,7 +208,10 @@ export function CalendarPicker({
                 type="button"
                 disabled={day.isDisabled}
                 onClick={() => onSelectDate(day.iso)}
-                aria-label={`${relativeDay(day.iso)}, ${day.open} slots available`}
+                aria-label={t("calendar.dayAvailability", {
+                  day: relativeDay(day.iso),
+                  count: day.open,
+                })}
                 aria-pressed={isSelected}
                 className={cn(
                   "flex aspect-square flex-col items-center justify-center rounded-xl border text-sm transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
@@ -175,7 +222,9 @@ export function CalendarPicker({
                       : "border-border hover:border-primary hover:bg-accent",
                 )}
               >
-                <span className="font-medium tabular-nums">{day.dayOfMonth}</span>
+                <span className="font-medium tabular-nums">
+                  {formatNumber(day.dayOfMonth)}
+                </span>
                 {/* A dot is the availability cue; disabled days simply have none. */}
                 {!day.isDisabled && (
                   <span
@@ -195,15 +244,17 @@ export function CalendarPicker({
       {selectedDate && onSelectTime && (
         <div className="rounded-2xl border bg-card p-4 shadow-soft">
           <p className="mb-3 text-sm font-medium">
-            {mode === "session" ? "Sessions" : "Available times"} ·{" "}
-            {relativeDay(selectedDate)}
+            {mode === "session"
+              ? t("calendar.sessions")
+              : t("calendar.availableTimes")}{" "}
+            · {relativeDay(selectedDate)}
           </p>
 
           {slots.length === 0 || openSlots.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               {mode === "session"
-                ? "No session on this date. Please choose another day."
-                : "No open slots on this date. Please choose another day."}
+                ? t("calendar.noSessions")
+                : t("calendar.noSlots")}
             </p>
           ) : mode === "session" ? (
             <div className="space-y-2">
@@ -219,7 +270,7 @@ export function CalendarPicker({
                     onClick={() => onSelectTime(slot.time)}
                     aria-pressed={isSelected}
                     className={cn(
-                      "flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                      "flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-start transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                       isSelected
                         ? "border-primary bg-primary/5 shadow-glow"
                         : state === "full"
@@ -229,8 +280,10 @@ export function CalendarPicker({
                   >
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold">
-                        {sessionLabel(slot.time)} ·{" "}
-                        <span className="tabular-nums">{formatTime(slot.time)}</span>
+                        {t(`calendar.session.${sessionKey(slot.time)}`)} ·{" "}
+                        <span className="tabular-nums ltr-nums">
+                          {formatTime(slot.time)}
+                        </span>
                       </span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">
                         {subtitleOf(slot)}
@@ -242,7 +295,7 @@ export function CalendarPicker({
                         variant={state === "full" ? "outline" : "secondary"}
                         className="shrink-0"
                       >
-                        {state === "full" ? "Full" : "Busy"}
+                        {state === "full" ? t("calendar.full") : t("calendar.busy")}
                       </Badge>
                     )}
                   </button>
@@ -263,7 +316,7 @@ export function CalendarPicker({
                     onClick={() => onSelectTime(slot.time)}
                     aria-pressed={isSelected}
                     className={cn(
-                      "flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                      "flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-start transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                       isSelected
                         ? "border-primary bg-primary text-primary-foreground shadow-glow"
                         : state === "full"
@@ -272,12 +325,12 @@ export function CalendarPicker({
                     )}
                   >
                     <span className="flex w-full items-center justify-between gap-2">
-                      <span className="text-sm font-medium tabular-nums">
+                      <span className="text-sm font-medium tabular-nums ltr-nums">
                         {formatTime(slot.time)}
                       </span>
                       {state === "busy" && (
                         <span className="text-[0.65rem] font-medium uppercase tracking-wide text-warning">
-                          Busy
+                          {t("calendar.busy")}
                         </span>
                       )}
                     </span>

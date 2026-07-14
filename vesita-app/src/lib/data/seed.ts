@@ -1,9 +1,11 @@
 import {
   CONSULTATION_TEMPLATES,
+  DOCTOR_TITLES_AR,
   GOVERNORATES,
   INSURANCE_PLANS,
   LAB_TEST_CATALOG,
   RADIOLOGY_SCAN_CATALOG,
+  SERVICE_CATEGORIES_AR,
   SPECIALTIES,
   getSubSpecialtiesFor,
   slugify,
@@ -56,6 +58,7 @@ import {
   type Lab,
   type LabTest,
   type NotificationChannel,
+  type LocalizedText,
   type NotificationKind,
   type PatientProfile,
   type PaymentMethod,
@@ -119,9 +122,19 @@ function egyptPhone(rng: Rng): string {
   return `${prefix}${rest}`;
 }
 
-function personName(rng: Rng, gender: Gender): string {
-  const first = rng.pick(gender === "male" ? MALE_FIRST : FEMALE_FIRST);
-  return `${first} ${rng.pick(LAST_NAMES)}`;
+/**
+ * A person's name in both scripts.
+ *
+ * Still exactly two `rng.pick` draws — the pair comes out of one entry — so the
+ * generated dataset is unchanged from before the Arabic column was added.
+ */
+function personName(rng: Rng, gender: Gender): LocalizedText {
+  const [firstEn, firstAr] = rng.pick(
+    gender === "male" ? MALE_FIRST : FEMALE_FIRST,
+  );
+  const [lastEn, lastAr] = rng.pick(LAST_NAMES);
+
+  return { en: `${firstEn} ${lastEn}`, ar: `${firstAr} ${lastAr}` };
 }
 
 /** Jitters a governorate centroid so pins spread across a plausible city area. */
@@ -294,7 +307,8 @@ function generateDoctors(rng: Rng, count: number): Doctor[] {
         id: `${id}-cons-${idx + 1}`,
         kind: "consultation" as const,
         name: tpl.name,
-        description: tpl.description,
+        nameAr: tpl.nameAr,
+        description: { en: tpl.description, ar: tpl.descriptionAr },
         price: Math.round((basePrice * tpl.priceFactor) / 10) * 10,
         durationMinutes: tpl.durationMinutes,
         // Everyone offers in-clinic; the rest vary.
@@ -304,7 +318,7 @@ function generateDoctors(rng: Rng, count: number): Doctor[] {
 
     const reviewCount = rng.int(4, 320);
     const schedule = buildSchedule(rng, "session", "doctor");
-    const clinicName = `${name.split(" ")[0]} ${rng.pick(CLINIC_SUFFIXES)}`;
+    const clinicName = `${name.en.split(" ")[0]} ${rng.pick(CLINIC_SUFFIXES)}`;
 
     // A doctor may operate in a single clinic or across several, and is
     // bookable at each (§2).
@@ -317,18 +331,30 @@ function generateDoctors(rng: Rng, count: number): Doctor[] {
     );
     applyBranchPricing(rng, branches, consultationTypes);
 
+    // Hoisted out of the object literal only so both languages can share the
+    // same draw. It stays the next `rng` call in sequence, so the generated
+    // dataset is byte-for-byte what it was before — the seed is deterministic
+    // and server/client hydration depends on that.
+    const bioTitle = rng.pick(DOCTOR_TITLES);
+
     return {
       id,
       type: "doctor" as const,
-      slug: `${slugify(name)}-${id}`,
-      name: `Dr. ${name}`,
-      nameAr: `د. ${name}`,
-      photo: avatarUrl(id, name),
+      slug: `${slugify(name.en)}-${id}`,
+      name: `Dr. ${name.en}`,
+      nameAr: `د. ${name.ar}`,
+      photo: avatarUrl(id, name.en),
       coverImage: coverUrl(id),
-      bio:
-        `${rng.pick(DOCTOR_TITLES)} of ${specialty.name} with ${experience} years of clinical ` +
-        `experience in ${gov.name}. Specialised in ${specialty.description.toLowerCase().replace(/\.$/, "")}. ` +
-        `Committed to evidence-based care and clear communication with every patient.`,
+      bio: {
+        en:
+          `${bioTitle} of ${specialty.name} with ${experience} years of clinical ` +
+          `experience in ${gov.name}. Specialised in ${specialty.description.en.toLowerCase().replace(/\.$/, "")}. ` +
+          `Committed to evidence-based care and clear communication with every patient.`,
+        ar:
+          `${DOCTOR_TITLES_AR[bioTitle] ?? bioTitle} ${specialty.nameAr} بخبرة ${experience} عامًا ` +
+          `في ${gov.nameAr}. متخصص في ${specialty.description.ar.replace(/\.$/, "")}. ` +
+          `يلتزم بالرعاية القائمة على الأدلة والتواصل الواضح مع كل مريض.`,
+      },
       title: rng.pick(DOCTOR_TITLES),
       specialtyId: specialty.id,
       // Real subspecialties drawn from the doctor's own specialty, so the
@@ -378,22 +404,45 @@ function generateLabs(rng: Rng, count: number): Lab[] {
         name,
         nameAr,
         category,
-        description: `${name} performed on calibrated analysers with a ${hours}-hour turnaround.`,
+        description: {
+          en: `${name} performed on calibrated analysers with a ${hours}-hour turnaround.`,
+          ar: `${nameAr} على أجهزة تحليل مُعايرة، وتظهر النتيجة خلال ${hours} ساعة.`,
+        },
         // Each lab prices the catalogue a little differently.
         price: Math.round((base * rng.float(0.8, 1.35, 2)) / 5) * 5,
         resultTimeHours: hours,
         fastingRequired: fasting,
         // §3 — what the patient must do beforehand, and who may book at all.
-        preparation: preparationForTest(name, category, fasting),
+        preparation: preparationForTest(name, nameAr, category, fasting),
         eligibility: eligibilityForTest(name, category),
         isActive: rng.bool(0.92),
       }));
 
     const packages = buildPackages(rng, id, tests, [
-      ["Full Body Checkup", "A complete annual screen covering blood, sugar, lipids and organ function."],
-      ["Diabetes Care Panel", "Everything needed to monitor and control blood sugar."],
-      ["Women's Wellness Package", "Hormones, vitamins and anaemia screening tailored for women."],
-      ["Pre-Marriage Screening", "The standard pre-marital panel accepted across Egypt."],
+      [
+        "Full Body Checkup",
+        "الفحص الشامل",
+        "A complete annual screen covering blood, sugar, lipids and organ function.",
+        "فحص سنوي شامل يغطي الدم والسكر والدهون ووظائف الأعضاء.",
+      ],
+      [
+        "Diabetes Care Panel",
+        "باقة متابعة السكري",
+        "Everything needed to monitor and control blood sugar.",
+        "كل ما تحتاجه لمتابعة نسبة السكر في الدم والسيطرة عليها.",
+      ],
+      [
+        "Women's Wellness Package",
+        "باقة صحة المرأة",
+        "Hormones, vitamins and anaemia screening tailored for women.",
+        "فحص الهرمونات والفيتامينات والأنيميا مصمم خصيصًا للسيدات.",
+      ],
+      [
+        "Pre-Marriage Screening",
+        "فحص ما قبل الزواج",
+        "The standard pre-marital panel accepted across Egypt.",
+        "الفحص المعتمد لما قبل الزواج والمقبول في جميع أنحاء مصر.",
+      ],
     ]);
 
     const reviewCount = rng.int(10, 260);
@@ -419,10 +468,16 @@ function generateLabs(rng: Rng, count: number): Lab[] {
       nameAr: `معامل ${brand}`,
       photo: avatarUrl(id, brand),
       coverImage: coverUrl(id),
-      bio:
-        `${brand} Laboratories is an accredited medical laboratory network operating across ${gov.name} ` +
-        `and beyond. We run ${tests.length} tests on internationally calibrated analysers, with digital ` +
-        `results delivered to your phone and optional home sample collection.`,
+      bio: {
+        en:
+          `${brand} Laboratories is an accredited medical laboratory network operating across ${gov.name} ` +
+          `and beyond. We run ${tests.length} tests on internationally calibrated analysers, with digital ` +
+          `results delivered to your phone and optional home sample collection.`,
+        ar:
+          `معامل ${brand} شبكة معامل تحاليل طبية معتمدة تعمل في ${gov.nameAr} وخارجها. ` +
+          `نُجري ${tests.length} تحليلًا على أجهزة مُعايرة عالميًا، وتصلك النتائج رقميًا على هاتفك، ` +
+          `مع إمكانية سحب العينة من المنزل.`,
+      },
       accreditation: rng.sample(LAB_ACCREDITATIONS, rng.int(2, 3)),
       homeSampleCollection: rng.bool(0.75),
       tests,
@@ -462,22 +517,45 @@ function generateRadiology(rng: Rng, count: number): RadiologyCenter[] {
         name,
         nameAr,
         category,
-        description: `${name} on latest-generation ${category} equipment, reported by a consultant radiologist.`,
+        description: {
+          en: `${name} on latest-generation ${category} equipment, reported by a consultant radiologist.`,
+          ar: `${nameAr} على أحدث أجهزة ${SERVICE_CATEGORIES_AR[category] ?? category}، ويكتب التقرير استشاري أشعة.`,
+        },
         price: Math.round((base * rng.float(0.85, 1.3, 2)) / 10) * 10,
         durationMinutes: minutes,
         contrastRequired: contrast,
         // §3 — imaging carries the sharpest restrictions: radiation in
         // pregnancy, metal in MRI, contrast against kidney disease.
-        preparation: preparationForScan(name, category, contrast),
+        preparation: preparationForScan(name, nameAr, category, contrast),
         eligibility: eligibilityForScan(name, category, contrast),
         isActive: rng.bool(0.92),
       }));
 
     const packages = buildPackages(rng, id, scans, [
-      ["Cardiac Screening Bundle", "Echo plus carotid Doppler for a full cardiovascular picture."],
-      ["Spine & Joint Package", "MRI coverage for chronic back, neck and knee pain."],
-      ["Women's Imaging Package", "Mammography, pelvic ultrasound and bone density in one visit."],
-      ["Executive Imaging Checkup", "A head-to-toe imaging screen for annual executive checkups."],
+      [
+        "Cardiac Screening Bundle",
+        "باقة فحص القلب",
+        "Echo plus carotid Doppler for a full cardiovascular picture.",
+        "إيكو مع دوبلر على الشرايين السباتية لصورة كاملة للقلب والأوعية الدموية.",
+      ],
+      [
+        "Spine & Joint Package",
+        "باقة العمود الفقري والمفاصل",
+        "MRI coverage for chronic back, neck and knee pain.",
+        "رنين مغناطيسي لآلام الظهر والرقبة والركبة المزمنة.",
+      ],
+      [
+        "Women's Imaging Package",
+        "باقة أشعة المرأة",
+        "Mammography, pelvic ultrasound and bone density in one visit.",
+        "أشعة الثدي وسونار الحوض وقياس كثافة العظام في زيارة واحدة.",
+      ],
+      [
+        "Executive Imaging Checkup",
+        "الفحص التنفيذي بالأشعة",
+        "A head-to-toe imaging screen for annual executive checkups.",
+        "فحص شامل بالأشعة من الرأس للقدم لكشوفات المديرين السنوية.",
+      ],
     ]);
 
     const reviewCount = rng.int(8, 210);
@@ -503,10 +581,15 @@ function generateRadiology(rng: Rng, count: number): RadiologyCenter[] {
       nameAr: `مركز ${brand} للأشعة`,
       photo: avatarUrl(id, brand),
       coverImage: coverUrl(id),
-      bio:
-        `${brand} Radiology Center provides advanced diagnostic imaging across ${gov.name}. Our ` +
-        `consultant radiologists report every study, and images are shared digitally with you and ` +
-        `your treating doctor within hours.`,
+      bio: {
+        en:
+          `${brand} Radiology Center provides advanced diagnostic imaging across ${gov.name}. Our ` +
+          `consultant radiologists report every study, and images are shared digitally with you and ` +
+          `your treating doctor within hours.`,
+        ar:
+          `مركز ${brand} للأشعة يقدم خدمات التصوير التشخيصي المتقدم في ${gov.nameAr}. ` +
+          `يكتب استشاريو الأشعة لدينا تقرير كل فحص، وتُرسل الصور رقميًا إليك وإلى طبيبك المعالج خلال ساعات.`,
+      },
       accreditation: rng.sample(LAB_ACCREDITATIONS, rng.int(2, 3)),
       scans,
       packages,
@@ -530,16 +613,19 @@ function generateRadiology(rng: Rng, count: number): RadiologyCenter[] {
   });
 }
 
+/** `[en, ar, descriptionEn, descriptionAr]` */
+type PackageTemplate = [string, string, string, string];
+
 /** Bundles 3–5 services into discounted packages. */
 function buildPackages(
   rng: Rng,
   providerId: string,
   services: { id: string; price: number }[],
-  templates: [string, string][],
+  templates: PackageTemplate[],
 ): ServicePackage[] {
   const chosen = rng.sample(templates, rng.int(2, templates.length));
 
-  return chosen.map(([name, description], idx) => {
+  return chosen.map(([name, nameAr, description, descriptionAr], idx) => {
     const includes = rng.sample(services, rng.int(3, 5));
     const originalPrice = includes.reduce((sum, s) => sum + s.price, 0);
     const discount = rng.float(0.7, 0.88, 2);
@@ -547,7 +633,8 @@ function buildPackages(
       id: `${providerId}-pkg-${idx + 1}`,
       kind: "package" as const,
       name,
-      description,
+      nameAr,
+      description: { en: description, ar: descriptionAr },
       includes: includes.map((s) => s.id),
       price: Math.round((originalPrice * discount) / 10) * 10,
       originalPrice,
@@ -570,11 +657,11 @@ function generatePatients(rng: Rng, count: number): User[] {
 
     return {
       id,
-      name,
-      email: `${slugify(name)}@example.com`,
+      name: name.en,
+      email: `${slugify(name.en)}@example.com`,
       phone: egyptPhone(rng),
       role: "patient" as const,
-      avatar: avatarUrl(id, name),
+      avatar: avatarUrl(id, name.en),
       status: rng.weighted<User["status"]>(["active", "suspended"], [92, 8]),
       governorateId: gov.id,
       gender,
@@ -626,7 +713,7 @@ function generatePatientProfiles(rng: Rng, patients: User[]): PatientProfile[] {
         id: nextId(),
         accountId: account.id,
         relationship: "spouse",
-        fullName: personName(rng, spouseGender),
+        fullName: personName(rng, spouseGender).en,
         gender: spouseGender,
         dateOfBirth: toISODate(addDays(TODAY, -rng.int(24, 60) * 365)),
         bloodType: rng.pick(["A+", "B+", "O+", "AB+", "O-"]),
@@ -642,7 +729,7 @@ function generatePatientProfiles(rng: Rng, patients: User[]): PatientProfile[] {
         id: nextId(),
         accountId: account.id,
         relationship: "child",
-        fullName: personName(rng, childGender),
+        fullName: personName(rng, childGender).en,
         gender: childGender,
         dateOfBirth: toISODate(addDays(TODAY, -rng.int(1, 17) * 365)),
         bloodType: rng.pick(["A+", "B+", "O+", "AB+"]),
@@ -658,7 +745,7 @@ function generatePatientProfiles(rng: Rng, patients: User[]): PatientProfile[] {
         id: nextId(),
         accountId: account.id,
         relationship: "parent",
-        fullName: personName(rng, parentGender),
+        fullName: personName(rng, parentGender).en,
         gender: parentGender,
         dateOfBirth: toISODate(addDays(TODAY, -rng.int(58, 85) * 365)),
         bloodType: rng.pick(["A+", "B+", "O+", "AB+", "A-"]),
@@ -695,17 +782,18 @@ function providerAccounts(providers: Provider[]): User[] {
 // ---------------------------------------------------------------------------
 
 /** Returns the bookable services for a provider, as `[id, name, price]`. */
-function servicesOf(provider: Provider): [string, string, number][] {
+/** `[id, name, nameAr, price]` — both names, so a booking can denormalize each. */
+function servicesOf(provider: Provider): [string, string, string, number][] {
   if (provider.type === "doctor") {
     return provider.consultationTypes
       .filter((c) => c.isActive)
-      .map((c) => [c.id, c.name, c.price]);
+      .map((c) => [c.id, c.name, c.nameAr, c.price]);
   }
   const items =
     provider.type === "lab"
       ? provider.tests.filter((t) => t.isActive)
       : provider.scans.filter((s) => s.isActive);
-  return items.map((s) => [s.id, s.name, s.price]);
+  return items.map((s) => [s.id, s.name, s.nameAr, s.price]);
 }
 
 function specialtyLabelOf(provider: Provider): string {
@@ -752,7 +840,7 @@ function generateBookings(
     );
     // A branch may not offer every service — fall back to the provider list.
     const pool = services.length > 0 ? services : servicesOf(provider);
-    const [serviceId, serviceName, listPrice] = rng.pick(pool);
+    const [serviceId, serviceName, serviceNameAr, listPrice] = rng.pick(pool);
 
     // Branch-specific pricing (§2).
     const price = branch.priceOverrides[serviceId] ?? listPrice;
@@ -865,10 +953,12 @@ function generateBookings(
       providerId: provider.id,
       providerType: provider.type,
       providerName: provider.name,
+      providerNameAr: provider.nameAr,
       providerPhoto: provider.photo,
       providerSpecialty: specialtyLabelOf(provider),
       serviceId,
       serviceName,
+      serviceNameAr,
       branchId: branch.id,
       date: dateISO,
       time,
@@ -1000,13 +1090,60 @@ function generateFavorites(rng: Rng, patients: User[], providers: Provider[]): F
   return out;
 }
 
-const NOTIFICATION_TEMPLATES: Record<NotificationKind, [string, string]> = {
-  booking_confirmed: ["Booking confirmed", "Your appointment with {provider} on {date} at {time} is confirmed."],
-  booking_cancelled: ["Booking cancelled", "Your appointment with {provider} on {date} has been cancelled. Any payment will be refunded within 5 working days."],
-  booking_reminder: ["Appointment reminder", "Reminder: you have an appointment with {provider} tomorrow at {time}."],
-  review_request: ["How was your visit?", "Tell us about your visit to {provider} — your review helps other patients."],
-  promo: ["20% cashback this week", "Book any lab test with code HEALTH20 and get 20% back to your Vesita wallet."],
-  system: ["Profile verified", "Your Vesita account has been verified. You can now book with instant confirmation."],
+/**
+ * `{ title, body }` per kind, in both languages.
+ *
+ * The notification centre is patient-facing, so these cannot stay English. They
+ * are rendered from the stored text rather than from message keys because the
+ * body interpolates a provider, date and time that are only known at generation
+ * time — so both languages are baked in, as with bios and service descriptions.
+ */
+const NOTIFICATION_TEMPLATES: Record<
+  NotificationKind,
+  { title: LocalizedText; body: LocalizedText }
+> = {
+  booking_confirmed: {
+    title: { en: "Booking confirmed", ar: "تم تأكيد الحجز" },
+    body: {
+      en: "Your appointment with {provider} on {date} at {time} is confirmed.",
+      ar: "تم تأكيد موعدك مع {provider} يوم {date} الساعة {time}.",
+    },
+  },
+  booking_cancelled: {
+    title: { en: "Booking cancelled", ar: "تم إلغاء الحجز" },
+    body: {
+      en: "Your appointment with {provider} on {date} has been cancelled. Any payment will be refunded within 5 working days.",
+      ar: "تم إلغاء موعدك مع {provider} يوم {date}. سيتم رد أي مبلغ مدفوع خلال ٥ أيام عمل.",
+    },
+  },
+  booking_reminder: {
+    title: { en: "Appointment reminder", ar: "تذكير بالموعد" },
+    body: {
+      en: "Reminder: you have an appointment with {provider} tomorrow at {time}.",
+      ar: "تذكير: لديك موعد مع {provider} غدًا الساعة {time}.",
+    },
+  },
+  review_request: {
+    title: { en: "How was your visit?", ar: "كيف كانت زيارتك؟" },
+    body: {
+      en: "Tell us about your visit to {provider} — your review helps other patients.",
+      ar: "شاركنا رأيك في زيارتك لـ {provider} — تقييمك يساعد مرضى آخرين.",
+    },
+  },
+  promo: {
+    title: { en: "20% cashback this week", ar: "كاش باك ٢٠٪ هذا الأسبوع" },
+    body: {
+      en: "Book any lab test with code HEALTH20 and get 20% back to your Vesita wallet.",
+      ar: "احجز أي تحليل بكود HEALTH20 واسترد ٢٠٪ في محفظة Vesita.",
+    },
+  },
+  system: {
+    title: { en: "Profile verified", ar: "تم توثيق الحساب" },
+    body: {
+      en: "Your Vesita account has been verified. You can now book with instant confirmation.",
+      ar: "تم توثيق حسابك على Vesita. يمكنك الآن الحجز بتأكيد فوري.",
+    },
+  },
 };
 
 function generateNotifications(rng: Rng, users: User[], bookings: Booking[]): AppNotification[] {
@@ -1022,13 +1159,19 @@ function generateNotifications(rng: Rng, users: User[], bookings: Booking[]): Ap
         ["booking_confirmed", "booking_reminder", "review_request", "booking_cancelled", "promo", "system"],
         [26, 20, 16, 10, 20, 8],
       );
-      const [title, bodyTpl] = NOTIFICATION_TEMPLATES[kind];
+      const { title, body: bodyTpl } = NOTIFICATION_TEMPLATES[kind];
       const booking = userBookings.length ? rng.pick(userBookings) : undefined;
 
-      const body = bodyTpl
-        .replace("{provider}", booking?.providerName ?? "your provider")
-        .replace("{date}", booking?.date ?? "soon")
-        .replace("{time}", booking?.time ?? "10:00");
+      const fill = (tpl: string, provider: string, fallback: string) =>
+        tpl
+          .replace("{provider}", booking?.providerName ? provider : fallback)
+          .replace("{date}", booking?.date ?? "soon")
+          .replace("{time}", booking?.time ?? "10:00");
+
+      const body: LocalizedText = {
+        en: fill(bodyTpl.en, booking?.providerName ?? "", "your provider"),
+        ar: fill(bodyTpl.ar, booking?.providerNameAr ?? "", "مقدم الخدمة"),
+      };
 
       out.push({
         id: `ntf-${String(n++).padStart(4, "0")}`,

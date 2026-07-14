@@ -1,6 +1,8 @@
 "use client";
 
-import { formatEGP } from "@/lib/site";
+import { useTranslations } from "next-intl";
+
+import { useFormat } from "@/lib/i18n/use-format";
 import { branchPriceOf, type Branch, type Service } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -38,16 +40,18 @@ export function BranchPrice({
   branches: Branch[];
   className?: string;
 }) {
+  const t = useTranslations("profile");
+  const { formatEGP } = useFormat();
   const { min, varies } = branchPriceRange(service, branches);
 
   return (
-    <span className={cn("shrink-0 text-right", className)}>
+    <span className={cn("shrink-0 text-end", className)}>
       <span className="font-bold text-primary tabular-nums">
-        {varies ? `from ${formatEGP(min)}` : formatEGP(min)}
+        {varies ? t("price.from", { price: formatEGP(min) }) : formatEGP(min)}
       </span>
       {varies && (
         <span className="block text-xs font-normal text-muted-foreground">
-          varies by branch
+          {t("price.variesByBranch")}
         </span>
       )}
     </span>

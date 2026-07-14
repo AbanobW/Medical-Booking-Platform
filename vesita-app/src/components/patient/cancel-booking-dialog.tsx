@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useTranslations } from "next-intl";
+import { useState, type ReactNode } from "react";
 import { CalendarX, ShieldCheck, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
+import { useBookingNames } from "@/components/patient/booking-names";
 import { AppSelect } from "@/components/ui/app-select";
 import {
   AlertDialog,
@@ -20,10 +22,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutation } from "@/hooks/use-async";
 import { cancelBooking, isWithinFreeCancellation } from "@/lib/api/bookings";
-import { BUSINESS, formatEGP } from "@/lib/site";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useFormat } from "@/lib/i18n/use-format";
+import { BUSINESS } from "@/lib/site";
 import { isHold, type Booking } from "@/lib/types";
 
-/** The reasons the seed data already uses, so analytics stay consistent. */
+/**
+ * The reasons the seed data already uses, so analytics stay consistent.
+ *
+ * These strings are the stored *value* — the identifier the API and the reports
+ * key off. Only the label the patient reads is translated.
+ */
 const REASONS = [
   "Schedule conflict",
   "Found another provider",
@@ -33,8 +42,6 @@ const REASONS = [
   "Personal emergency",
   "Other",
 ];
-
-const OPTIONS = REASONS.map((reason) => ({ value: reason, label: reason }));
 
 export function CancelBookingDialog({
   booking,
@@ -47,6 +54,11 @@ export function CancelBookingDialog({
   onOpenChange: (open: boolean) => void;
   onCancelled: () => void;
 }) {
+  const t = useTranslations("patient");
+  const { formatDate, formatEGP, formatNumber } = useFormat();
+  const describeError = useApiError();
+  const names = useBookingNames(booking);
+
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
   const { mutate, isPending } = useMutation(cancelBooking);
@@ -55,33 +67,49 @@ export function CancelBookingDialog({
   const finalReason = isOther ? details.trim() : reason;
   const canSubmit = finalReason.length > 0 && !isPending;
 
+  const options = REASONS.map((value) => ({
+    value,
+    label: t(`cancel.reasons.${value}`),
+  }));
+
   // Tell the truth about the money *before* the patient decides (§8).
   const feePaid = booking.paymentStatus === "paid" && booking.bookingFee > 0;
   const free = isWithinFreeCancellation(booking);
   const stillHeld = isHold(booking.status);
+
+  const strong = (chunks: ReactNode) => (
+    <span className="font-medium text-foreground">{chunks}</span>
+  );
+  const lost = (chunks: ReactNode) => (
+    <span className="font-medium text-destructive">{chunks}</span>
+  );
+  const emphasis = (chunks: ReactNode) => (
+    <span className="font-medium">{chunks}</span>
+  );
 
   async function onConfirm() {
     if (!canSubmit) return;
 
     try {
       await mutate(booking.id, finalReason);
-      toast.success("Booking cancelled.", {
+      toast.success(t("cancel.toastTitle"), {
         description: feePaid
           ? free
-            ? `Your ${formatEGP(booking.bookingFee)} booking fee is being refunded.`
-            : `Reference ${booking.reference} · the booking fee was not refunded.`
-          : `Reference ${booking.reference} · ${booking.providerName}`,
+            ? t("cancel.toastRefunded", {
+                amount: formatEGP(booking.bookingFee),
+              })
+            : t("cancel.toastNotRefunded", { reference: booking.reference })
+          : t("cancel.toastPlain", {
+              reference: booking.reference,
+              provider: names.provider,
+            }),
       });
       onOpenChange(false);
       setReason("");
       setDetails("");
       onCancelled();
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Couldn't cancel this booking. Please try again.",
-      );
+      toast.error(describeError(error));
     }
   }
 
@@ -92,72 +120,65 @@ export function CancelBookingDialog({
           <AlertDialogMedia className="bg-destructive/10 text-destructive">
             <CalendarX />
           </AlertDialogMedia>
-          <AlertDialogTitle>Cancel this appointment?</AlertDialogTitle>
+          <AlertDialogTitle>{t("cancel.title")}</AlertDialogTitle>
           <AlertDialogDescription>
-            Your appointment with {booking.providerName} on{" "}
-            {booking.date} will be cancelled. It can&apos;t be undone — you would need
-            to book again.
+            {t("cancel.description", {
+              provider: names.provider,
+              date: formatDate(booking.date),
+            })}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
         {/* What happens to the money ---------------------------------------- */}
-        <div className="text-left">
+        <div className="text-start">
           {stillHeld ? (
             <p className="flex items-start gap-2 rounded-xl border bg-muted/40 p-3 text-sm text-muted-foreground">
               <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-              <span>
-                This place is only being held — nothing has been charged, so there is
-                nothing to refund.
-              </span>
+              <span>{t("cancel.held")}</span>
             </p>
           ) : !feePaid ? (
             <p className="flex items-start gap-2 rounded-xl border bg-muted/40 p-3 text-sm text-muted-foreground">
               <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-              <span>
-                You haven&apos;t paid an online booking fee for this appointment, so
-                cancelling costs you nothing.
-              </span>
+              <span>{t("cancel.notPaid")}</span>
             </p>
           ) : free ? (
             <p className="flex items-start gap-2 rounded-xl border border-success/20 bg-success/5 p-3 text-sm text-muted-foreground">
               <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" />
               <span>
-                You&apos;re cancelling more than {BUSINESS.freeCancellationHours} hours
-                ahead, so your{" "}
-                <span className="font-medium text-foreground">
-                  {formatEGP(booking.bookingFee)}
-                </span>{" "}
-                booking fee is refunded in full, back to the way you paid. Banks can
-                take up to {BUSINESS.refundWorkingDays} working days to show it.
+                {t.rich("cancel.free", {
+                  hours: formatNumber(BUSINESS.freeCancellationHours),
+                  amount: formatEGP(booking.bookingFee),
+                  days: formatNumber(BUSINESS.refundWorkingDays),
+                  b: strong,
+                })}
               </span>
             </p>
           ) : (
             <p className="flex items-start gap-2 rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-muted-foreground">
               <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
               <span>
-                You&apos;re cancelling less than {BUSINESS.freeCancellationHours} hours
-                before the appointment, so your{" "}
-                <span className="font-medium text-destructive">
-                  {formatEGP(booking.bookingFee)}
-                </span>{" "}
-                booking fee is <span className="font-medium">not refunded</span>. The
-                visit fee itself was never charged — you only pay that at the clinic.
+                {t.rich("cancel.late", {
+                  hours: formatNumber(BUSINESS.freeCancellationHours),
+                  amount: formatEGP(booking.bookingFee),
+                  b: lost,
+                  s: emphasis,
+                })}
               </span>
             </p>
           )}
         </div>
 
-        <div className="space-y-3 text-left">
+        <div className="space-y-3 text-start">
           <div className="space-y-2">
             <Label htmlFor={`cancel-reason-${booking.id}`}>
-              Why are you cancelling?
+              {t("cancel.reasonLabel")}
             </Label>
             <AppSelect
               id={`cancel-reason-${booking.id}`}
               value={reason}
               onValueChange={setReason}
-              options={OPTIONS}
-              placeholder="Choose a reason"
+              options={options}
+              placeholder={t("cancel.reasonPlaceholder")}
               disabled={isPending}
             />
           </div>
@@ -165,13 +186,13 @@ export function CancelBookingDialog({
           {isOther && (
             <div className="space-y-2">
               <Label htmlFor={`cancel-details-${booking.id}`}>
-                Tell us more
+                {t("cancel.detailsLabel")}
               </Label>
               <Textarea
                 id={`cancel-details-${booking.id}`}
                 value={details}
                 onChange={(event) => setDetails(event.target.value)}
-                placeholder="Add a short explanation…"
+                placeholder={t("cancel.detailsPlaceholder")}
                 disabled={isPending}
                 rows={3}
               />
@@ -181,14 +202,14 @@ export function CancelBookingDialog({
 
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isPending}>
-            Keep appointment
+            {t("cancel.keep")}
           </AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
             disabled={!canSubmit}
             onClick={onConfirm}
           >
-            {isPending ? "Cancelling…" : "Cancel booking"}
+            {isPending ? t("cancel.cancelling") : t("cancel.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

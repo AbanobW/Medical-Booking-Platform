@@ -1,6 +1,7 @@
 "use client";
 
 import { MessageSquare } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { RatingCard } from "@/components/shared/rating";
@@ -15,6 +16,7 @@ const PAGE = 5;
 
 /** Rating summary + the review list, with its own loading / error / empty states. */
 export function ReviewsSection({ provider }: { provider: Provider }) {
+  const t = useTranslations("profile");
   const [shown, setShown] = useState(PAGE);
 
   const { data, error, isLoading, refetch } = useAsync(
@@ -27,8 +29,8 @@ export function ReviewsSection({ provider }: { provider: Provider }) {
   if (error) {
     return (
       <ErrorState
-        title="Couldn't load reviews"
-        description="We hit a problem fetching the reviews for this profile."
+        title={t("reviews.errorTitle")}
+        description={t("reviews.errorDescription")}
         onRetry={refetch}
       />
     );
@@ -40,8 +42,8 @@ export function ReviewsSection({ provider }: { provider: Provider }) {
     return (
       <EmptyState
         icon={MessageSquare}
-        title="No reviews yet"
-        description="Be the first to share your experience after your visit."
+        title={t("reviews.emptyTitle")}
+        description={t("reviews.emptyDescription")}
       />
     );
   }
@@ -67,7 +69,7 @@ export function ReviewsSection({ provider }: { provider: Provider }) {
             onClick={() => setShown((n) => n + PAGE)}
             className="h-10 rounded-xl px-6"
           >
-            Show more reviews ({reviews.length - shown} left)
+            {t("reviews.showMore", { count: reviews.length - shown })}
           </Button>
         </div>
       )}

@@ -11,6 +11,24 @@
 // Roles & auth
 // ---------------------------------------------------------------------------
 
+/**
+ * A free-text field that exists in both languages.
+ *
+ * Names across the dataset are bilingual via a `nameAr` sibling. Prose —
+ * bios, service descriptions, preparation instructions — is bilingual via this
+ * shape instead, because those strings are composed from templates and there is
+ * no natural "…Ar" field to hang them on.
+ *
+ * Render with `localized()` / `useDomain().localized()`, never by reading `.en`
+ * directly. Admin-authored content created at runtime (coupon and campaign
+ * descriptions) stays a plain `string` — an admin types it once, in one
+ * language — and `localized()` passes those through unchanged.
+ */
+export interface LocalizedText {
+  en: string;
+  ar: string;
+}
+
 export type Role = "patient" | "doctor" | "lab" | "radiology" | "admin";
 
 /** The three role types that own a bookable provider profile. */
@@ -155,7 +173,7 @@ export interface Specialty {
   nameAr: string;
   /** Lucide icon name, resolved at render time. */
   icon: string;
-  description: string;
+  description: LocalizedText;
   doctorCount: number;
 }
 
@@ -197,7 +215,7 @@ export interface ProviderBase {
   nameAr: string;
   photo: string;
   coverImage: string;
-  bio: string;
+  bio: LocalizedText;
   rating: number;
   reviewCount: number;
   /** Entry price — consultation fee, or cheapest test/scan. */
@@ -317,10 +335,10 @@ export interface PreparationInstructions {
   /** Whether water is permitted during the fast. */
   waterAllowed: boolean;
   /** Medicines to pause or continue before the test. */
-  medicationRestrictions: string[];
+  medicationRestrictions: LocalizedText[];
   /** When to arrive, what to bring, prior results needed. */
-  arrivalInstructions: string;
-  documentsRequired: string[];
+  arrivalInstructions: LocalizedText;
+  documentsRequired: LocalizedText[];
 }
 
 export interface EligibilityRules {
@@ -359,7 +377,7 @@ export function hasPreparation(service: Service): boolean {
     prep.fastingRequired ||
     prep.medicationRestrictions.length > 0 ||
     prep.documentsRequired.length > 0 ||
-    prep.arrivalInstructions.length > 0
+    prep.arrivalInstructions.en.length > 0
   );
 }
 
@@ -385,7 +403,8 @@ export interface ConsultationType {
   id: string;
   kind: "consultation";
   name: string;
-  description: string;
+  nameAr: string;
+  description: LocalizedText;
   price: number;
   durationMinutes: number;
   isActive: boolean;
@@ -396,8 +415,12 @@ export interface LabTest {
   kind: "test";
   name: string;
   nameAr: string;
+  /**
+   * Grouping key for the service catalogue ("Hematology", "X-Ray"). This is an
+   * identifier, not copy — translate it at render with `useLabels().serviceCategory`.
+   */
   category: string;
-  description: string;
+  description: LocalizedText;
   price: number;
   /** Turnaround time before results are ready. */
   resultTimeHours: number;
@@ -412,8 +435,9 @@ export interface RadiologyScan {
   kind: "scan";
   name: string;
   nameAr: string;
+  /** Grouping key — see `LabTest.category`. */
   category: string;
-  description: string;
+  description: LocalizedText;
   price: number;
   durationMinutes: number;
   contrastRequired: boolean;
@@ -427,7 +451,8 @@ export interface ServicePackage {
   id: string;
   kind: "package";
   name: string;
-  description: string;
+  nameAr: string;
+  description: LocalizedText;
   /** IDs of the included LabTest / RadiologyScan items. */
   includes: string[];
   price: number;
@@ -684,12 +709,20 @@ export interface Booking {
   patientInfo: PatientInfo;
   providerId: string;
   providerType: ProviderRole;
-  /** Denormalized for list rendering — a real API would embed or expand these. */
+  /**
+   * Denormalized for list rendering — a real API would embed or expand these.
+   * Both languages are carried, because a booking card must render the
+   * provider's name in the reader's language and the booking is the only thing
+   * loaded at that point. Read them with `named()`, via `bookingProvider()` /
+   * `bookingService()` below.
+   */
   providerName: string;
+  providerNameAr: string;
   providerPhoto: string;
   providerSpecialty: string;
   serviceId: string;
   serviceName: string;
+  serviceNameAr: string;
   branchId?: string;
   date: string;
   time: string;
@@ -726,7 +759,7 @@ export interface Booking {
   refundAmount?: number;
   refundedAt?: string;
   /** Why no refund was due — shown to the patient so the outcome is never silent. */
-  refundNote?: string;
+  refundNote?: LocalizedText;
 
   // -- Outcome -------------------------------------------------------------
   completedAt?: string;
@@ -796,8 +829,10 @@ export interface AppNotification {
   userId: string;
   kind: NotificationKind;
   channel: NotificationChannel;
-  title: string;
-  body: string;
+  /** Bilingual — the body interpolates a provider/date/time known only at
+   * generation time, so it can't be rebuilt from a message key at render. */
+  title: LocalizedText;
+  body: LocalizedText;
   isRead: boolean;
   createdAt: string;
   actionUrl?: string;

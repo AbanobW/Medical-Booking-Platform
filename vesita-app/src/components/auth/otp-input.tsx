@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ export function OtpInput({
   hasError?: boolean;
   className?: string;
 }) {
+  const t = useTranslations("auth");
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
@@ -102,10 +104,13 @@ export function OtpInput({
   }
 
   return (
+    // The boxes stay left-to-right in both languages: a one-time code is a
+    // numeric sequence, and the arrow-key walk below assumes that order.
     <div
       className={cn("flex justify-between gap-2 sm:gap-3", className)}
       role="group"
-      aria-label="Verification code"
+      dir="ltr"
+      aria-label={t("verify.groupLabel")}
     >
       {digits.map((digit, index) => (
         <input
@@ -119,7 +124,7 @@ export function OtpInput({
           maxLength={LENGTH}
           value={digit.trim()}
           disabled={disabled}
-          aria-label={`Digit ${index + 1}`}
+          aria-label={t("verify.digitLabel", { index: index + 1 })}
           aria-invalid={hasError || undefined}
           onChange={(e) => handleChange(index, e.target.value)}
           onKeyDown={(e) => handleKeyDown(index, e)}

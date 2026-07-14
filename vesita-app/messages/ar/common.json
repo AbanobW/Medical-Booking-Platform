@@ -1,0 +1,224 @@
+{
+  "meta": {
+    "title": "{site} — احجز طبيبك ومعامل التحاليل ومراكز الأشعة في مصر",
+    "description": "ابحث وقارن واحجز مع أطباء ومعامل تحاليل ومراكز أشعة موثوقة في كل محافظات مصر. تأكيد فوري، أسعار واضحة، وكاش باك على كل زيارة."
+  },
+  "language": {
+    "change": "تغيير اللغة"
+  },
+  "theme": {
+    "change": "تغيير المظهر",
+    "light": "فاتح",
+    "dark": "داكن",
+    "system": "حسب النظام"
+  },
+  "actions": {
+    "save": "حفظ",
+    "saveChanges": "حفظ التغييرات",
+    "cancel": "إلغاء",
+    "confirm": "تأكيد",
+    "close": "إغلاق",
+    "back": "رجوع",
+    "next": "التالي",
+    "continue": "متابعة",
+    "submit": "إرسال",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "remove": "إزالة",
+    "add": "إضافة",
+    "create": "إنشاء",
+    "update": "تحديث",
+    "search": "بحث",
+    "filter": "تصفية",
+    "clear": "مسح",
+    "clearAll": "مسح الكل",
+    "apply": "تطبيق",
+    "reset": "إعادة تعيين",
+    "retry": "إعادة المحاولة",
+    "viewAll": "عرض الكل",
+    "viewDetails": "عرض التفاصيل",
+    "seeMore": "عرض المزيد",
+    "seeLess": "عرض أقل",
+    "copy": "نسخ",
+    "copied": "تم النسخ",
+    "download": "تنزيل",
+    "print": "طباعة",
+    "share": "مشاركة",
+    "signIn": "تسجيل الدخول",
+    "signOut": "تسجيل الخروج",
+    "signUp": "إنشاء حساب",
+    "bookNow": "احجز الآن",
+    "learnMore": "اعرف المزيد"
+  },
+  "states": {
+    "loading": "جارٍ التحميل…",
+    "saving": "جارٍ الحفظ…",
+    "empty": "لا يوجد شيء هنا بعد",
+    "error": "حدث خطأ ما",
+    "errorDescription": "تعذّر تحميل هذا المحتوى. برجاء المحاولة مرة أخرى.",
+    "noResults": "لا توجد نتائج",
+    "noResultsDescription": "جرّب تعديل عوامل التصفية أو كلمات البحث.",
+    "notFound": "الصفحة غير موجودة",
+    "notFoundDescription": "الصفحة التي تبحث عنها غير موجودة أو تم نقلها."
+  },
+  "labels": {
+    "name": "الاسم",
+    "fullName": "الاسم بالكامل",
+    "email": "البريد الإلكتروني",
+    "phone": "رقم الهاتف",
+    "password": "كلمة المرور",
+    "gender": "النوع",
+    "dateOfBirth": "تاريخ الميلاد",
+    "address": "العنوان",
+    "governorate": "المحافظة",
+    "area": "المنطقة",
+    "specialty": "التخصص",
+    "price": "السعر",
+    "rating": "التقييم",
+    "date": "التاريخ",
+    "time": "الوقت",
+    "status": "الحالة",
+    "total": "الإجمالي",
+    "notes": "ملاحظات",
+    "optional": "اختياري",
+    "required": "مطلوب",
+    "all": "الكل",
+    "yes": "نعم",
+    "no": "لا",
+    "from": "من",
+    "to": "إلى",
+    "of": "من",
+    "showing": "عرض {from}–{to} من {total}",
+    "page": "صفحة {page}",
+    "reviews": "{count, plural, =0 {لا توجد تقييمات} one {تقييم واحد} two {تقييمان} few {# تقييمات} many {# تقييمًا} other {# تقييم}}",
+    "results": "{count, plural, =0 {لا توجد نتائج} one {نتيجة واحدة} two {نتيجتان} few {# نتائج} many {# نتيجة} other {# نتيجة}}"
+  },
+  "validation": {
+    "required": "هذا الحقل مطلوب.",
+    "invalidEmail": "أدخل بريدًا إلكترونيًا صحيحًا.",
+    "invalidPhone": "أدخل رقم هاتف مصري صحيح.",
+    "passwordTooShort": "كلمة المرور يجب ألا تقل عن ٦ أحرف.",
+    "selectOption": "برجاء اختيار أحد الخيارات."
+  },
+  "pagination": {
+    "previous": "السابق",
+    "next": "التالي",
+    "rowsPerPage": "صفوف في الصفحة",
+    "pageOfPages": "{page} / {pages}"
+  },
+  "table": {
+    "search": "ابحث في الجدول",
+    "emptyTitle": "لا توجد نتائج",
+    "emptyDescription": "جرّب تعديل البحث أو عوامل التصفية.",
+    "sortBy": "ترتيب حسب {column}"
+  },
+  "providerCard": {
+    "labSubtitle": "معمل تحاليل",
+    "radiologySubtitle": "مركز أشعة",
+    "addFavorite": "إضافة إلى المفضلة",
+    "removeFavorite": "إزالة من المفضلة",
+    "favoriteAdded": "تمت الإضافة إلى المفضلة",
+    "favoriteRemoved": "تمت الإزالة من المفضلة",
+    "favoriteSignIn": "سجّل الدخول لحفظ مقدمي الخدمة في المفضلة.",
+    "favoriteFailed": "تعذّر تحديث المفضلة. برجاء المحاولة مرة أخرى.",
+    "likelyAvailableToday": "غالبًا متاح اليوم",
+    "likelyAvailable": "غالبًا متاح",
+    "noOpenSlots": "غالبًا لا توجد مواعيد متاحة خلال الأسبوعين القادمين — راجع الصفحة للتأكد.",
+    "consultationFee": "سعر الكشف",
+    "startingFrom": "يبدأ من",
+    "book": "احجز"
+  },
+  "rating": {
+    "stars": "{value} من 5 نجوم",
+    "rate": "قيّم بـ {star} من 5",
+    "reviewCount": "{count, plural, =0 {لا توجد تقييمات} one {تقييم واحد} two {تقييمان} few {# تقييمات} many {# تقييمًا} other {# تقييم}}",
+    "waitingTime": "وقت الانتظار",
+    "staff": "طاقم العمل",
+    "cleanliness": "النظافة",
+    "communication": "التواصل"
+  },
+  "review": {
+    "verifiedVisit": "زيارة موثّقة",
+    "providerResponse": "رد مقدم الخدمة",
+    "helpful": "مفيد ({count})"
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "bell": "الإشعارات",
+    "bellUnread": "الإشعارات، {count} غير مقروء",
+    "unread": "غير مقروء",
+    "markAsRead": "تعليم كمقروء",
+    "markAllRead": "تعليم الكل كمقروء",
+    "markedAllRead": "{count, plural, =0 {لا توجد إشعارات لتعليمها.} one {تم تعليم إشعار واحد كمقروء.} two {تم تعليم إشعارين كمقروءين.} few {تم تعليم # إشعارات كمقروءة.} many {تم تعليم # إشعارًا كمقروءة.} other {تم تعليم # إشعار كمقروءة.}}",
+    "delete": "حذف الإشعار",
+    "viewAll": "عرض كل الإشعارات",
+    "emptyTitle": "لا توجد إشعارات جديدة",
+    "emptyDescription": "ستظهر هنا تحديثات حجوزاتك أولًا بأول.",
+    "channel": {
+      "sms": "رسالة نصية",
+      "email": "بريد إلكتروني",
+      "whatsapp": "واتساب",
+      "browser": "المتصفح"
+    }
+  },
+  "calendar": {
+    "previousDates": "تواريخ سابقة",
+    "laterDates": "تواريخ لاحقة",
+    "dayAvailability": "{day}، {count, plural, =0 {لا توجد أماكن متاحة} one {مكان واحد متاح} two {مكانان متاحان} few {# أماكن متاحة} many {# مكانًا متاحًا} other {# مكان متاح}}",
+    "sessions": "الجلسات",
+    "availableTimes": "المواعيد المتاحة",
+    "noSessions": "لا توجد جلسة في هذا التاريخ. برجاء اختيار يوم آخر.",
+    "noSlots": "لا توجد مواعيد متاحة في هذا التاريخ. برجاء اختيار يوم آخر.",
+    "fullyBooked": "اكتمل الحجز",
+    "placesLeft": "متبقٍ {remaining} من {capacity} مكان",
+    "full": "مكتمل",
+    "busy": "مزدحم",
+    "session": {
+      "morning": "جلسة صباحية",
+      "afternoon": "جلسة بعد الظهر",
+      "evening": "جلسة مسائية"
+    }
+  },
+  "charts": {
+    "revenue": {
+      "title": "الإيرادات",
+      "description": "الإيرادات المحققة من الحجوزات المكتملة خلال آخر 12 شهرًا",
+      "series": "الإيرادات"
+    },
+    "bookings": {
+      "title": "الحجوزات",
+      "description": "الحجوزات المكتملة والمؤكدة مقابل عمليات الإلغاء",
+      "series": "الحجوزات",
+      "cancellations": "الإلغاءات"
+    },
+    "trend": {
+      "title": "اتجاه الحجوزات",
+      "description": "حجم الحجوزات الشهري على المنصة"
+    }
+  },
+  "map": {
+    "location": "الموقع",
+    "directions": "الاتجاهات",
+    "openInMaps": "فتح في خرائط جوجل"
+  },
+  "stats": {
+    "vsLastMonth": "مقارنة بالشهر الماضي"
+  },
+  "ui": {
+    "close": "إغلاق",
+    "more": "المزيد",
+    "breadcrumb": "مسار التنقل",
+    "pagination": "ترقيم الصفحات",
+    "previous": "السابق",
+    "next": "التالي",
+    "previousPage": "الانتقال إلى الصفحة السابقة",
+    "nextPage": "الانتقال إلى الصفحة التالية",
+    "morePages": "صفحات أخرى",
+    "toggleSidebar": "إظهار/إخفاء القائمة الجانبية",
+    "sidebarTitle": "القائمة الجانبية",
+    "sidebarDescription": "تعرض القائمة الجانبية على الهاتف.",
+    "commandTitle": "لوحة الأوامر",
+    "commandDescription": "ابحث عن أمر لتنفيذه…",
+    "selectPlaceholder": "اختر…"
+  }
+}

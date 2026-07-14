@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut, type LucideIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect } from "react";
 
 import { useAuth } from "@/components/providers/auth-provider";
+import { LanguageToggle } from "@/components/layout/language-toggle";
 import { Logo } from "@/components/layout/logo";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { NotificationCenter } from "@/components/shared/notification-center";
@@ -28,8 +30,10 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { initialsOf } from "@/lib/format";
-import { ROLE_LABELS, type Role } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { useFormat, useIsRtl } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
+import { type Role } from "@/lib/types";
 
 export interface NavSection {
   label?: string;
@@ -60,8 +64,26 @@ export function DashboardShell({
   const { user, isLoading, isAuthenticated, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const t = useTranslations("common");
+  const { initialsOf } = useFormat();
+  const L = useLabels();
+  const isRtl = useIsRtl();
 
   const isAllowed = user !== null && allow.includes(user.role);
+
+  /**
+   * The active item is the *longest* href that matches the current path — a
+   * plain prefix test would light up the index route (/patient) on every one
+   * of its children, so two items would read as active at once. The trailing
+   * slash keeps /patient/profile from claiming /patient/profiles.
+   */
+  const activeHref = nav
+    .flatMap((section) => section.items)
+    .filter(
+      (item) =>
+        pathname === item.href || pathname.startsWith(`${item.href}/`),
+    )
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   useEffect(() => {
     if (isLoading) return;
@@ -77,7 +99,7 @@ export function DashboardShell({
   if (isLoading || !isAllowed || !user) {
     return (
       <div className="flex min-h-screen">
-        <div className="hidden w-64 border-r p-4 lg:block">
+        <div className="hidden w-64 border-e p-4 lg:block">
           <Skeleton className="mb-8 h-9 w-32" />
           <div className="space-y-2">
             {Array.from({ length: 6 }, (_, i) => (
@@ -100,42 +122,56 @@ export function DashboardShell({
 
   return (
     <SidebarProvider>
-      <Sidebar collapsible="icon">
-        <SidebarHeader className="p-4">
-          <Link href="/">
-            <Logo />
+      {/*
+        `side` is physical in the primitive — the rail is `position: fixed`, so
+        it pins to left-0/right-0 rather than following the flex direction. In
+        Arabic the content sits on the left, so the rail has to be told to move
+        to the right or it would overlap it.
+      */}
+      <Sidebar collapsible="icon" side={isRtl ? "right" : "left"}>
+        <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
+          <Link
+            href="/"
+            className="block overflow-hidden group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center"
+          >
+            <Logo textClassName="group-data-[collapsible=icon]:hidden" />
           </Link>
         </SidebarHeader>
 
-        <SidebarContent>
+        <SidebarContent className="gap-1 px-2 py-2">
           {nav.map((section, i) => (
-            <SidebarGroup key={section.label ?? i}>
+            <SidebarGroup key={section.label ?? i} className="px-0 py-1">
               {section.label && (
-                <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+                <SidebarGroupLabel className="px-3 text-[11px] font-semibold tracking-wider text-muted-foreground/70 uppercase">
+                  {section.label}
+                </SidebarGroupLabel>
               )}
               <SidebarGroupContent>
-                <SidebarMenu>
-                  {section.items.map((item) => {
-                    // Exact match for the index route; prefix match for the rest,
-                    // so /admin/users/123 still highlights "Users".
-                    const isActive =
-                      pathname === item.href ||
-                      (item.href !== "/" &&
-                        pathname.startsWith(`${item.href}/`));
-
-                    return (
-                      <SidebarMenuItem key={item.href}>
-                        <SidebarMenuButton
-                          isActive={isActive}
-                          tooltip={item.label}
-                          render={<Link href={item.href} />}
-                        >
-                          <item.icon />
-                          <span>{item.label}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
+                <SidebarMenu className="gap-1">
+                  {section.items.map((item) => (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton
+                        isActive={item.href === activeHref}
+                        tooltip={item.label}
+                        render={<Link href={item.href} />}
+                        className={cn(
+                          "h-10 gap-3 rounded-xl px-3 font-normal text-sidebar-foreground/80",
+                          "[&_svg]:size-[18px] [&_svg]:text-muted-foreground",
+                          "hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+                          // Active reads as a tinted pill with a bar on the
+                          // inline-start edge — hover alone must never look like it.
+                          "data-active:bg-primary/10 data-active:font-semibold data-active:text-primary",
+                          "data-active:[&_svg]:text-primary",
+                          "relative data-active:before:absolute data-active:before:inset-y-2 data-active:before:start-0 data-active:before:w-1 data-active:before:rounded-e-full data-active:before:bg-primary",
+                          // Collapsed to a 32px icon rail, the bar is just noise.
+                          "group-data-[collapsible=icon]:before:hidden",
+                        )}
+                      >
+                        <item.icon />
+                        <span>{item.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -143,7 +179,7 @@ export function DashboardShell({
         </SidebarContent>
 
         <SidebarFooter className="p-3">
-          <div className="flex items-center gap-3 rounded-xl p-2 group-data-[collapsible=icon]:justify-center">
+          <div className="flex items-center gap-3 rounded-xl border bg-sidebar-accent/40 p-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0">
             <Avatar className="size-8 shrink-0">
               <AvatarImage src={user.avatar} alt={user.name} />
               <AvatarFallback className="text-xs">
@@ -153,14 +189,14 @@ export function DashboardShell({
             <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
               <p className="truncate text-sm font-medium">{user.name}</p>
               <p className="truncate text-xs text-muted-foreground">
-                {ROLE_LABELS[user.role]}
+                {L.role(user.role)}
               </p>
             </div>
             <Button
               variant="ghost"
               size="icon-sm"
               onClick={() => logout()}
-              aria-label="Sign out"
+              aria-label={t("actions.signOut")}
               className="shrink-0 group-data-[collapsible=icon]:hidden"
             >
               <LogOut className="size-4" />
@@ -174,7 +210,8 @@ export function DashboardShell({
           <SidebarTrigger />
           <h1 className="truncate text-lg font-semibold">{title}</h1>
 
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ms-auto flex items-center gap-1">
+            <LanguageToggle />
             <ThemeToggle />
             <NotificationCenter />
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, CalendarClock, Loader2, Users } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import {
   AlertDialog,
@@ -13,7 +14,8 @@ import {
   AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { formatDateShort, formatTime } from "@/lib/format";
+import { useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
 import type { CapacityType, TimeSlot } from "@/lib/types";
 
 export interface CapacityConflict {
@@ -30,10 +32,12 @@ export interface CapacityConflict {
 /**
  * The last-place race, resolved for the patient (§6, Appendix A).
  *
- * The patient who loses the race never sees an error. Under a comfort limit the
- * session is merely busy — they are shown exactly where they would land and
- * decide for themselves. Under a strict limit the place genuinely does not
- * exist, and they are handed the next one instead.
+ * The patient who loses the race never sees an error. Under a **comfort** limit
+ * the session is merely busy — they are shown exactly where they would land and
+ * consent to it themselves (`acceptOverCapacity`). Under a **strict** limit the
+ * place genuinely does not exist and is never exceeded, so they are handed the
+ * next one instead. Either way the dialog names the limit they are up against
+ * and offers a real next step.
  */
 export function CapacityDialog({
   conflict,
@@ -50,10 +54,46 @@ export function CapacityDialog({
   onPickAnother: () => void;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useTranslations("booking");
+  const { formatDateShort, formatTime, formatNumber } = useFormat();
+  const L = useLabels();
+
   const next = conflict?.detail.nextSlot;
+  const isComfort = conflict?.kind === "comfort_busy";
+
+  /** A queue number only exists for a doctor's session (§5). */
+  const queueNumber = conflict?.detail.queueNumber;
+  const isSession = queueNumber !== undefined;
 
   const nextLabel = next
     ? `${formatDateShort(next.date)}, ${formatTime(next.time)}`
+    : undefined;
+
+  const title = isComfort
+    ? isSession
+      ? t("capacity.busySessionTitle")
+      : t("capacity.busySlotTitle")
+    : isSession
+      ? t("capacity.fullSessionTitle")
+      : t("capacity.fullSlotTitle");
+
+  const body = isComfort
+    ? queueNumber === undefined
+      ? t("capacity.busyGeneric")
+      : conflict?.detail.estimatedTime
+        ? t("capacity.busyQueueWithTime", {
+            number: formatNumber(queueNumber),
+            time: formatTime(conflict.detail.estimatedTime),
+          })
+        : t("capacity.busyQueue", { number: formatNumber(queueNumber) })
+    : t("capacity.fullBody");
+
+  const follow = nextLabel
+    ? isComfort
+      ? isSession
+        ? t("capacity.busyNextSession", { when: nextLabel })
+        : t("capacity.busyNextSlot", { when: nextLabel })
+      : t("capacity.fullNext", { when: nextLabel })
     : undefined;
 
   return (
@@ -61,49 +101,28 @@ export function CapacityDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogMedia>
-            {conflict?.kind === "comfort_busy" ? (
+            {isComfort ? (
               <Users className="text-warning" />
             ) : (
               <AlertTriangle className="text-destructive" />
             )}
           </AlertDialogMedia>
 
-          <AlertDialogTitle>
-            {conflict?.kind === "comfort_busy"
-              ? "This session is busy"
-              : "This session is full"}
-          </AlertDialogTitle>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
 
           <AlertDialogDescription>
-            {conflict?.kind === "comfort_busy" ? (
-              <>
-                {conflict.detail.queueNumber !== undefined ? (
-                  <>
-                    You&apos;d be #{conflict.detail.queueNumber}
-                    {conflict.detail.estimatedTime
-                      ? `, seen around ~${formatTime(conflict.detail.estimatedTime)}`
-                      : ""}
-                    . You can still book — it just means a longer wait.
-                  </>
-                ) : (
-                  conflict.message
-                )}
-                {nextLabel && (
-                  <>
-                    {" "}
-                    The next session is {nextLabel} if you&apos;d rather not wait.
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                {conflict?.message ??
-                  "This place has just been taken and cannot be exceeded."}
-                {nextLabel && <> Next available: {nextLabel}.</>}
-              </>
-            )}
+            {body}
+            {follow && <> {follow}</>}
           </AlertDialogDescription>
         </AlertDialogHeader>
+
+        {/* Name the limit the patient is actually up against (§6). */}
+        {conflict && (
+          <p className="rounded-xl bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            {L.capacity(conflict.detail.capacityType)}
+            {isComfort && <> — {t("capacity.consent")}</>}
+          </p>
+        )}
 
         <AlertDialogFooter>
           {next ? (
@@ -112,24 +131,25 @@ export function CapacityDialog({
               onClick={() => onTakeNextSlot(next)}
             >
               <CalendarClock className="size-4" />
-              {conflict?.kind === "comfort_busy"
-                ? `Take ${nextLabel}`
-                : `Switch to ${nextLabel}`}
+              {isComfort
+                ? t("capacity.take", { when: nextLabel! })
+                : t("capacity.switch", { when: nextLabel! })}
             </AlertDialogCancel>
           ) : (
             <AlertDialogCancel disabled={isPending} onClick={onPickAnother}>
-              Pick another time
+              {t("capacity.pickAnother")}
             </AlertDialogCancel>
           )}
 
-          {conflict?.kind === "comfort_busy" ? (
+          {isComfort ? (
+            // Consent is explicit — a comfort limit is only exceeded here.
             <AlertDialogAction disabled={isPending} onClick={onBookAnyway}>
               {isPending && <Loader2 className="size-4 animate-spin" />}
-              Book anyway
+              {t("capacity.bookAnyway")}
             </AlertDialogAction>
           ) : (
             <AlertDialogAction disabled={isPending} onClick={onPickAnother}>
-              Choose another time
+              {t("capacity.chooseAnother")}
             </AlertDialogAction>
           )}
         </AlertDialogFooter>
@@ -148,6 +168,19 @@ export function EligibilityBlockedDialog({
   onOpenChange: (open: boolean) => void;
   onChoosePatient: () => void;
 }) {
+  const t = useTranslations("booking");
+  const tCommon = useTranslations("common");
+
+  /**
+   * The API tags each violation with a stable code and an English message. The
+   * code is what we translate; an unknown code falls back to the message rather
+   * than to a blank line.
+   */
+  const describe = (violation: { code: string; message: string }) => {
+    const key = `eligibilityBlocked.reason.${violation.code}`;
+    return t.has(key) ? t(key) : violation.message;
+  };
+
   return (
     <AlertDialog open={!!violations} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -155,9 +188,9 @@ export function EligibilityBlockedDialog({
           <AlertDialogMedia>
             <AlertTriangle className="text-destructive" />
           </AlertDialogMedia>
-          <AlertDialogTitle>This booking can&apos;t go ahead</AlertDialogTitle>
+          <AlertDialogTitle>{t("eligibilityBlocked.title")}</AlertDialogTitle>
           <AlertDialogDescription>
-            The selected patient does not meet this service&apos;s requirements.
+            {t("eligibilityBlocked.description")}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -168,15 +201,15 @@ export function EligibilityBlockedDialog({
                 className="mt-1.5 size-1.5 shrink-0 rounded-full bg-destructive"
                 aria-hidden
               />
-              {violation.message}
+              {describe(violation)}
             </li>
           ))}
         </ul>
 
         <AlertDialogFooter>
-          <AlertDialogCancel>Close</AlertDialogCancel>
+          <AlertDialogCancel>{tCommon("actions.close")}</AlertDialogCancel>
           <AlertDialogAction onClick={onChoosePatient}>
-            Choose a different patient
+            {t("eligibilityBlocked.choosePatient")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -1,21 +1,29 @@
 "use client";
 
 import { Users } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatTime } from "@/lib/format";
+import { useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
 import { TODAY } from "@/lib/data/seed";
-import {
-  CAPACITY_LABELS,
-  WEEKDAY_NAMES,
-  type DaySchedule,
-  type Weekday,
-} from "@/lib/types";
+import { type DaySchedule, type Weekday } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const ORDER: Weekday[] = [6, 0, 1, 2, 3, 4, 5]; // Saturday-first, as in Egypt.
+
+/** `Weekday` index → the key it lives under in the shared `domain` messages. */
+export const WEEKDAY_KEYS: Record<Weekday, string> = {
+  0: "sunday",
+  1: "monday",
+  2: "tuesday",
+  3: "wednesday",
+  4: "thursday",
+  5: "friday",
+  6: "saturday",
+};
 
 /**
  * Weekly working hours for ONE branch (§2).
@@ -26,7 +34,7 @@ const ORDER: Weekday[] = [6, 0, 1, 2, 3, 4, 5]; // Saturday-first, as in Egypt.
  */
 export function ScheduleTable({
   schedule,
-  title = "Weekly schedule",
+  title,
   subtitle,
   className,
 }: {
@@ -36,12 +44,17 @@ export function ScheduleTable({
   subtitle?: string;
   className?: string;
 }) {
+  const t = useTranslations("profile");
+  const tDomain = useTranslations("domain");
+  const L = useLabels();
+  const { formatTime } = useFormat();
+
   const today = TODAY.getUTCDay() as Weekday;
 
   return (
     <Card className={className}>
       <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
+        <CardTitle className="text-base">{title ?? t("schedule.title")}</CardTitle>
         {subtitle && (
           <p className="text-sm text-muted-foreground">{subtitle}</p>
         )}
@@ -61,29 +74,31 @@ export function ScheduleTable({
                 )}
               >
                 <span className="flex items-center gap-2 font-medium">
-                  {WEEKDAY_NAMES[weekday]}
+                  {tDomain(`weekday.${WEEKDAY_KEYS[weekday]}`)}
                   {weekday === today && (
                     <Badge variant="secondary" className="font-normal">
-                      Today
+                      {t("schedule.today")}
                     </Badge>
                   )}
                 </span>
 
                 {isWorking && day ? (
-                  <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-right">
-                    <span className="tabular-nums">
+                  <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-end">
+                    <span className="tabular-nums ltr-nums">
                       {formatTime(day.startTime)} – {formatTime(day.endTime)}
                     </span>
 
                     {day.breaks.length > 0 && (
                       <span className="text-xs text-muted-foreground tabular-nums">
-                        Break{day.breaks.length > 1 ? "s" : ""}:{" "}
-                        {day.breaks
-                          .map(
-                            (b) =>
-                              `${formatTime(b.startTime)}–${formatTime(b.endTime)}`,
-                          )
-                          .join(", ")}
+                        {t("schedule.breaks", {
+                          count: day.breaks.length,
+                          times: day.breaks
+                            .map(
+                              (b) =>
+                                `${formatTime(b.startTime)}–${formatTime(b.endTime)}`,
+                            )
+                            .join(", "),
+                        })}
                       </span>
                     )}
 
@@ -97,18 +112,20 @@ export function ScheduleTable({
                           render={
                             <span className="inline-flex cursor-help items-center gap-1 text-xs text-muted-foreground tabular-nums">
                               <Users className="size-3" aria-hidden />
-                              {day.capacity} places
+                              {t("schedule.places", { count: day.capacity })}
                             </span>
                           }
                         />
                         <TooltipContent>
-                          {CAPACITY_LABELS[day.capacityType]}
+                          {L.capacity(day.capacityType)}
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">Closed</span>
+                  <span className="text-muted-foreground">
+                    {t("schedule.closed")}
+                  </span>
                 )}
               </li>
             );

@@ -11,6 +11,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { ArrowUpDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { EmptyState } from "@/components/shared/states";
@@ -24,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useFormat } from "@/lib/i18n/use-format";
 import { cn } from "@/lib/utils";
 
 interface DataTableProps<TData> {
@@ -32,6 +34,7 @@ interface DataTableProps<TData> {
   /** Enables the search box and filters across every column. */
   searchPlaceholder?: string;
   pageSize?: number;
+  /** Defaults to the shared "No results" copy. */
   emptyTitle?: string;
   emptyDescription?: string;
   /** Rendered to the right of the search box (filters, "Add" button…). */
@@ -52,11 +55,13 @@ export function DataTable<TData>({
   data,
   searchPlaceholder,
   pageSize = 10,
-  emptyTitle = "No results",
-  emptyDescription = "Try adjusting your search or filters.",
+  emptyTitle,
+  emptyDescription,
   toolbar,
   className,
 }: DataTableProps<TData>) {
+  const t = useTranslations("common");
+  const { formatNumber } = useFormat();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
 
@@ -83,13 +88,13 @@ export function DataTable<TData>({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {searchPlaceholder && (
             <div className="relative w-full sm:max-w-xs">
-              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={globalFilter}
                 onChange={(e) => setGlobalFilter(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="h-10 rounded-xl pl-9"
-                aria-label={searchPlaceholder}
+                className="h-10 rounded-xl ps-9"
+                aria-label={searchPlaceholder || t("table.search")}
               />
             </div>
           )}
@@ -146,8 +151,8 @@ export function DataTable<TData>({
                 <TableRow className="hover:bg-transparent">
                   <TableCell colSpan={columns.length} className="p-0">
                     <EmptyState
-                      title={emptyTitle}
-                      description={emptyDescription}
+                      title={emptyTitle ?? t("table.emptyTitle")}
+                      description={emptyDescription ?? t("table.emptyDescription")}
                       className="rounded-none border-0 bg-transparent"
                     />
                   </TableCell>
@@ -171,15 +176,18 @@ export function DataTable<TData>({
       {totalRows > 0 && (
         <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
           <p className="text-sm text-muted-foreground">
-            Showing{" "}
-            <span className="font-medium text-foreground">
-              {pageIndex * table.getState().pagination.pageSize + 1}–
-              {Math.min(
-                (pageIndex + 1) * table.getState().pagination.pageSize,
-                totalRows,
-              )}
-            </span>{" "}
-            of <span className="font-medium text-foreground">{totalRows}</span>
+            {t("labels.showing", {
+              from: formatNumber(
+                pageIndex * table.getState().pagination.pageSize + 1,
+              ),
+              to: formatNumber(
+                Math.min(
+                  (pageIndex + 1) * table.getState().pagination.pageSize,
+                  totalRows,
+                ),
+              ),
+              total: formatNumber(totalRows),
+            })}
           </p>
 
           <div className="flex items-center gap-2">
@@ -190,11 +198,14 @@ export function DataTable<TData>({
               disabled={!table.getCanPreviousPage()}
               className="rounded-lg"
             >
-              <ChevronLeft className="size-4" />
-              Previous
+              <ChevronLeft className="size-4 rtl:rotate-180" />
+              {t("pagination.previous")}
             </Button>
-            <span className="px-2 text-sm tabular-nums text-muted-foreground">
-              {pageIndex + 1} / {table.getPageCount()}
+            <span className="px-2 text-sm tabular-nums text-muted-foreground ltr-nums">
+              {t("pagination.pageOfPages", {
+                page: formatNumber(pageIndex + 1),
+                pages: formatNumber(table.getPageCount()),
+              })}
             </span>
             <Button
               variant="outline"
@@ -203,8 +214,8 @@ export function DataTable<TData>({
               disabled={!table.getCanNextPage()}
               className="rounded-lg"
             >
-              Next
-              <ChevronRight className="size-4" />
+              {t("pagination.next")}
+              <ChevronRight className="size-4 rtl:rotate-180" />
             </Button>
           </div>
         </div>

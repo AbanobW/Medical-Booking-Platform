@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Coins, Gift, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,11 +15,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAsync, useMutation } from "@/hooks/use-async";
 import { deleteCampaign, getCampaigns } from "@/lib/api/admin";
-import { formatDateShort } from "@/lib/format";
-import { formatEGP, formatNumber } from "@/lib/site";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import type { CashbackCampaign } from "@/lib/types";
 
 export default function AdminCashbackPage() {
+  const t = useTranslations("admin");
+  const describeError = useApiError();
+  const { formatDateShort, formatEGP, formatNumber } = useFormat();
+  const { localized } = useDomain();
+
   const { data, error, isLoading, refetch } = useAsync(() => getCampaigns());
 
   const [editing, setEditing] = useState<CashbackCampaign | null>(null);
@@ -32,13 +38,11 @@ export default function AdminCashbackPage() {
 
     try {
       await remove(deleting.id);
-      toast.success(`${deleting.name} deleted.`);
+      toast.success(t("cashback.deleted", { name: deleting.name }));
       setDeleting(null);
       refetch();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not delete the campaign.",
-      );
+      toast.error(describeError(err));
     }
   }
 
@@ -56,7 +60,7 @@ export default function AdminCashbackPage() {
       }}
     >
       <Plus className="size-4" />
-      New campaign
+      {t("cashback.new")}
     </Button>
   );
 
@@ -65,11 +69,9 @@ export default function AdminCashbackPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">
-            Cashback campaigns
+            {t("cashback.title")}
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Wallet credit returned to patients after a completed booking.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("cashback.subtitle")}</p>
         </div>
         {campaigns.length > 0 && newButton}
       </div>
@@ -78,15 +80,15 @@ export default function AdminCashbackPage() {
         <ListSkeleton count={4} />
       ) : error ? (
         <ErrorState
-          title="Couldn't load campaigns"
-          description={error.message}
+          title={t("cashback.errorTitle")}
+          description={describeError(error)}
           onRetry={refetch}
         />
       ) : campaigns.length === 0 ? (
         <EmptyState
           icon={Gift}
-          title="No cashback campaigns"
-          description="Launch a campaign to give patients wallet credit back on their bookings."
+          title={t("cashback.emptyTitle")}
+          description={t("cashback.emptyDescription")}
           action={newButton}
         />
       ) : (
@@ -94,25 +96,25 @@ export default function AdminCashbackPage() {
           <Reveal>
             <div className="grid gap-4 sm:grid-cols-3">
               <StatisticsCard
-                label="Active campaigns"
-                value={`${activeCount} / ${campaigns.length}`}
+                label={t("cashback.stats.active")}
+                value={`${formatNumber(activeCount)} / ${formatNumber(campaigns.length)}`}
                 icon={Gift}
                 tone="primary"
-                hint="running right now"
+                hint={t("cashback.stats.activeHint")}
               />
               <StatisticsCard
-                label="Cashback issued"
+                label={t("cashback.stats.issued")}
                 value={formatEGP(totalIssued)}
                 icon={Coins}
                 tone="warning"
-                hint="across every campaign"
+                hint={t("cashback.stats.issuedHint")}
               />
               <StatisticsCard
-                label="Redemptions"
+                label={t("cashback.stats.redemptions")}
                 value={formatNumber(totalRedeemed)}
                 icon={Users}
                 tone="success"
-                hint="patients who spent their credit"
+                hint={t("cashback.stats.redemptionsHint")}
               />
             </div>
           </Reveal>
@@ -128,7 +130,7 @@ export default function AdminCashbackPage() {
                         <CampaignStatusBadge status={campaign.status} />
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {campaign.description}
+                        {localized(campaign.description)}
                       </p>
                     </div>
 
@@ -136,7 +138,7 @@ export default function AdminCashbackPage() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label={`Edit ${campaign.name}`}
+                        aria-label={t("cashback.editAria", { name: campaign.name })}
                         onClick={() => {
                           setEditing(campaign);
                           setDialogOpen(true);
@@ -147,7 +149,7 @@ export default function AdminCashbackPage() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label={`Delete ${campaign.name}`}
+                        aria-label={t("cashback.deleteAria", { name: campaign.name })}
                         className="text-destructive hover:text-destructive"
                         onClick={() => setDeleting(campaign)}
                       >
@@ -158,25 +160,33 @@ export default function AdminCashbackPage() {
 
                   <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/50 p-4 sm:grid-cols-4">
                     <div>
-                      <p className="text-xs text-muted-foreground">Cashback</p>
-                      <p className="font-semibold tabular-nums">
-                        {campaign.percentage}%
+                      <p className="text-xs text-muted-foreground">
+                        {t("cashback.card.cashback")}
+                      </p>
+                      <p className="ltr-nums font-semibold tabular-nums">
+                        {formatNumber(campaign.percentage)}%
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Cap / booking</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("cashback.card.cap")}
+                      </p>
                       <p className="font-semibold tabular-nums">
                         {formatEGP(campaign.maxCashback)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Issued</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("cashback.card.issued")}
+                      </p>
                       <p className="font-semibold tabular-nums">
                         {formatEGP(campaign.totalIssued)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Redeemed</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("cashback.card.redeemed")}
+                      </p>
                       <p className="font-semibold tabular-nums">
                         {formatNumber(campaign.redeemedCount)}
                       </p>
@@ -207,9 +217,11 @@ export default function AdminCashbackPage() {
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
-        title={`Delete ${deleting?.name ?? "this campaign"}?`}
-        description="The campaign stops issuing cashback immediately. Credit already issued to patients stays in their wallets. This cannot be undone."
-        confirmLabel="Delete campaign"
+        title={t("cashback.deleteConfirm.title", {
+          name: deleting?.name ?? t("cashback.deleteConfirm.fallbackName"),
+        })}
+        description={t("cashback.deleteConfirm.description")}
+        confirmLabel={t("cashback.deleteConfirm.confirmLabel")}
         isPending={isDeleting}
         onConfirm={confirmDelete}
       />

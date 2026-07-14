@@ -8,9 +8,11 @@ import {
   Droplet,
   Pencil,
   Phone,
+  ShieldCheck,
   Trash2,
   UserRound,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -31,9 +33,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useMutation } from "@/hooks/use-async";
 import { deletePatientProfile } from "@/lib/api/profiles";
 import { ageOf } from "@/lib/eligibility";
-import { initialsOf } from "@/lib/format";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { RELATIONSHIP_LABELS, type PatientProfile } from "@/lib/types";
+import { INSURANCE_ENABLED, type PatientProfile } from "@/lib/types";
 
 const RELATIONSHIP_TONES: Record<string, string> = {
   self: "bg-primary/10 text-primary",
@@ -53,6 +57,12 @@ export function PatientProfileCard({
   onEdit: (profile: PatientProfile) => void;
   onDeleted: () => void;
 }) {
+  const t = useTranslations("patient");
+  const L = useLabels();
+  const { initialsOf } = useFormat();
+  const { getInsurancePlanName } = useDomain();
+  const describeError = useApiError();
+
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [refusal, setRefusal] = useState<string>();
   const { mutate, isPending } = useMutation(deletePatientProfile);
@@ -63,17 +73,13 @@ export function PatientProfileCard({
     setRefusal(undefined);
     try {
       await mutate(profile.id, profile.accountId);
-      toast.success(`${profile.fullName}'s profile was removed.`);
+      toast.success(t("profileCard.removed", { name: profile.fullName }));
       setConfirmOpen(false);
       onDeleted();
     } catch (error) {
       // The API refuses to remove the "self" profile, or any profile that owns
       // booking history. Show exactly why rather than a generic failure.
-      setRefusal(
-        error instanceof Error
-          ? error.message
-          : "This profile couldn't be removed.",
-      );
+      setRefusal(describeError(error));
     }
   }
 
@@ -96,12 +102,12 @@ export function PatientProfileCard({
                 variant="secondary"
                 className={RELATIONSHIP_TONES[profile.relationship]}
               >
-                {RELATIONSHIP_LABELS[profile.relationship]}
+                {L.relationship(profile.relationship)}
               </Badge>
               {profile.isPregnant && (
                 <Badge variant="secondary" className="gap-1 bg-primary/10 text-primary">
                   <Baby />
-                  Pregnant
+                  {t("profileCard.pregnant")}
                 </Badge>
               )}
             </div>
@@ -109,22 +115,31 @@ export function PatientProfileCard({
             <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <UserRound className="size-3.5" />
-                {profile.gender === "male" ? "Male" : "Female"}
+                {L.gender(profile.gender)}
               </span>
               <span className="flex items-center gap-1.5">
                 <CalendarDays className="size-3.5" />
-                {age} {age === 1 ? "year" : "years"} old
+                {t("profileCard.age", { count: age })}
               </span>
               {profile.bloodType && (
                 <span className="flex items-center gap-1.5">
                   <Droplet className="size-3.5" />
-                  {profile.bloodType}
+                  <span className="ltr-nums">{profile.bloodType}</span>
                 </span>
               )}
               {profile.phone && (
                 <span className="flex items-center gap-1.5">
                   <Phone className="size-3.5" />
-                  {profile.phone}
+                  <span className="ltr-nums">{profile.phone}</span>
+                </span>
+              )}
+              {/* Insurance stays behind its master switch (§14). */}
+              {INSURANCE_ENABLED && profile.insurance && (
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck className="size-3.5" />
+                  {t("profileCard.insurance", {
+                    plan: getInsurancePlanName(profile.insurance.planId),
+                  })}
                 </span>
               )}
             </p>
@@ -134,19 +149,22 @@ export function PatientProfileCard({
         <div className="space-y-2">
           <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Activity className="size-3.5" />
-            Chronic conditions
+            {t("profileCard.conditions")}
           </p>
           {profile.chronicConditions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">None recorded.</p>
+            <p className="text-sm text-muted-foreground">
+              {t("profileCard.noConditions")}
+            </p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
+              {/* Stored in English — the string *is* the identifier (§3). */}
               {profile.chronicConditions.map((condition) => (
                 <Badge
                   key={condition}
                   variant="outline"
                   className="font-normal"
                 >
-                  {condition}
+                  {L.condition(condition)}
                 </Badge>
               ))}
             </div>
@@ -158,23 +176,25 @@ export function PatientProfileCard({
             render={
               <Link
                 href={`/patient/bookings?profile=${profile.id}`}
-                aria-label={`View bookings for ${profile.fullName}`}
+                aria-label={t("profileCard.viewBookings", {
+                  name: profile.fullName,
+                })}
               />
             }
             variant="outline"
             className="h-10 rounded-xl px-4"
           >
             <CalendarDays className="size-4" />
-            {bookingCount} {bookingCount === 1 ? "booking" : "bookings"}
+            {t("profileCard.bookings", { count: bookingCount })}
           </Button>
 
           <Button
             variant="outline"
             onClick={() => onEdit(profile)}
-            className="ml-auto h-10 rounded-xl px-4"
+            className="ms-auto h-10 rounded-xl px-4"
           >
             <Pencil className="size-4" />
-            Edit
+            {t("profileCard.edit")}
           </Button>
 
           <Button
@@ -186,7 +206,7 @@ export function PatientProfileCard({
             className="h-10 rounded-xl px-4 text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
             <Trash2 className="size-4" />
-            Remove
+            {t("profileCard.remove")}
           </Button>
         </div>
       </CardContent>
@@ -197,28 +217,32 @@ export function PatientProfileCard({
             <AlertDialogMedia className="bg-destructive/10 text-destructive">
               <Trash2 />
             </AlertDialogMedia>
-            <AlertDialogTitle>Remove {profile.fullName}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("profileCard.removeTitle", { name: profile.fullName })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This profile will be removed from your account. Booking and medical
-              history belongs to the profile, so a profile with bookings on record
-              can&apos;t be removed.
+              {t("profileCard.removeDescription")}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           {refusal && (
-            <p className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-left text-sm text-destructive">
+            <p className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-start text-sm text-destructive">
               {refusal}
             </p>
           )}
 
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Keep profile</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>
+              {t("profileCard.keep")}
+            </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               disabled={isPending}
               onClick={onDelete}
             >
-              {isPending ? "Removing…" : "Remove profile"}
+              {isPending
+                ? t("profileCard.removing")
+                : t("profileCard.confirmRemove")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

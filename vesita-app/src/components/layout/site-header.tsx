@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   FlaskConical,
+  Heart,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -11,10 +12,12 @@ import {
   Stethoscope,
   User as UserIcon,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { Logo } from "@/components/layout/logo";
+import { LanguageToggle } from "@/components/layout/language-toggle";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { NotificationCenter } from "@/components/shared/notification-center";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -22,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -29,20 +33,26 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { HOME_FOR_ROLE } from "@/lib/api/auth";
-import { initialsOf } from "@/lib/format";
-import { ROLE_LABELS } from "@/lib/types";
+import { useFormat, useIsRtl } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/search?type=doctor", label: "Doctors", icon: Stethoscope },
-  { href: "/search?type=lab", label: "Labs", icon: FlaskConical },
-  { href: "/search?type=radiology", label: "Radiology", icon: ScanLine },
-];
+  { href: "/search?type=doctor", key: "doctors", icon: Stethoscope },
+  { href: "/search?type=lab", key: "labs", icon: FlaskConical },
+  { href: "/search?type=radiology", key: "radiology", icon: ScanLine },
+] as const;
 
 export function SiteHeader() {
   const { user, isAuthenticated, logout } = useAuth();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const t = useTranslations("nav");
+  const tc = useTranslations("common");
+  // The sheet's `side` is physical, so it has to be mirrored by hand in Arabic.
+  const isRtl = useIsRtl();
+  const { initialsOf } = useFormat();
+  const L = useLabels();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-lg">
@@ -52,7 +62,7 @@ export function SiteHeader() {
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">
-          {NAV.map(({ href, label, icon: Icon }) => (
+          {NAV.map(({ href, key, icon: Icon }) => (
             <Link
               key={href}
               href={href}
@@ -62,12 +72,13 @@ export function SiteHeader() {
               )}
             >
               <Icon className="size-4" />
-              {label}
+              {t(`header.${key}`)}
             </Link>
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ms-auto flex items-center gap-1">
+          <LanguageToggle />
           <ThemeToggle />
 
           {isAuthenticated && <NotificationCenter />}
@@ -77,8 +88,8 @@ export function SiteHeader() {
               <DropdownMenuTrigger
                 render={
                   <button
-                    className="ml-1 flex items-center gap-2 rounded-xl p-1 transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                    aria-label="Account menu"
+                    className="ms-1 flex items-center gap-2 rounded-xl p-1 transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    aria-label={t("header.accountMenu")}
                   >
                     <Avatar className="size-8">
                       <AvatarImage src={user.avatar} alt={user.name} />
@@ -91,32 +102,40 @@ export function SiteHeader() {
               />
 
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>
-                  <p className="truncate font-medium">{user.name}</p>
-                  <p className="truncate text-xs font-normal text-muted-foreground">
-                    {ROLE_LABELS[user.role]}
-                  </p>
-                </DropdownMenuLabel>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>
+                    <p className="truncate font-medium">{user.name}</p>
+                    <p className="truncate text-xs font-normal text-muted-foreground">
+                      {L.role(user.role)}
+                    </p>
+                  </DropdownMenuLabel>
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
 
                 <DropdownMenuItem
                   render={<Link href={HOME_FOR_ROLE[user.role]} />}
                 >
                   <LayoutDashboard className="size-4" />
-                  Dashboard
+                  {t("header.dashboard")}
                 </DropdownMenuItem>
 
                 {user.role === "patient" && (
-                  <DropdownMenuItem render={<Link href="/patient/profile" />}>
-                    <UserIcon className="size-4" />
-                    My profile
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem render={<Link href="/patient/favorites" />}>
+                      <Heart className="size-4" />
+                      {t("header.favorites")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem render={<Link href="/patient/profile" />}>
+                      <UserIcon className="size-4" />
+                      {t("header.myProfile")}
+                    </DropdownMenuItem>
+                  </>
                 )}
 
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => logout()}>
                   <LogOut className="size-4" />
-                  Sign out
+                  {tc("actions.signOut")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -127,13 +146,13 @@ export function SiteHeader() {
                 variant="ghost"
                 className="h-9 rounded-xl px-4"
               >
-                Sign in
+                {tc("actions.signIn")}
               </Button>
               <Button
                 render={<Link href="/register" />}
                 className="h-9 rounded-xl px-4"
               >
-                Create account
+                {tc("actions.signUp")}
               </Button>
             </div>
           )}
@@ -146,13 +165,13 @@ export function SiteHeader() {
                   variant="ghost"
                   size="icon"
                   className="rounded-xl md:hidden"
-                  aria-label="Open menu"
+                  aria-label={t("header.openMenu")}
                 >
                   <Menu className="size-5" />
                 </Button>
               }
             />
-            <SheetContent side="right" className="w-72">
+            <SheetContent side={isRtl ? "left" : "right"} className="w-72">
               <SheetHeader>
                 <SheetTitle>
                   <Logo />
@@ -160,7 +179,7 @@ export function SiteHeader() {
               </SheetHeader>
 
               <nav className="flex flex-col gap-1 px-4">
-                {NAV.map(({ href, label, icon: Icon }) => (
+                {NAV.map(({ href, key, icon: Icon }) => (
                   <Link
                     key={href}
                     href={href}
@@ -168,7 +187,7 @@ export function SiteHeader() {
                     className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors hover:bg-muted"
                   >
                     <Icon className="size-4" />
-                    {label}
+                    {t(`header.${key}`)}
                   </Link>
                 ))}
 
@@ -180,14 +199,14 @@ export function SiteHeader() {
                       className="h-10 w-full rounded-xl"
                       onClick={() => setMobileOpen(false)}
                     >
-                      Sign in
+                      {tc("actions.signIn")}
                     </Button>
                     <Button
                       render={<Link href="/register" />}
                       className="h-10 w-full rounded-xl"
                       onClick={() => setMobileOpen(false)}
                     >
-                      Create account
+                      {tc("actions.signUp")}
                     </Button>
                   </div>
                 )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { ExternalLink, MapPin, Navigation } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -39,13 +40,22 @@ export function MapPlaceholder({
   height?: number;
   className?: string;
 }) {
+  const t = useTranslations("common");
+
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${center.lat},${center.lng}`;
   const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${center.lat},${center.lng}`;
 
   const all: MapMarker[] =
     markers.length > 0
       ? markers
-      : [{ id: "center", label: address ?? "Location", location: center, isPrimary: true }];
+      : [
+          {
+            id: "center",
+            label: address ?? t("map.location"),
+            location: center,
+            isPrimary: true,
+          },
+        ];
 
   // Project lat/lng onto the box. The span widens as zoom decreases.
   const span = 0.08 / Math.max(1, zoom / 14);
@@ -158,7 +168,7 @@ export function MapPlaceholder({
             className="shrink-0 rounded-lg"
           >
             <Navigation className="size-3.5" />
-            Directions
+            {t("map.directions")}
           </Button>
         </div>
       )}
@@ -167,9 +177,11 @@ export function MapPlaceholder({
         href={mapsUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-lg bg-card/95 px-2.5 py-1.5 text-xs font-medium shadow-soft backdrop-blur transition-colors hover:bg-card"
+        aria-label={t("map.openInMaps")}
+        className="absolute top-3 end-3 inline-flex items-center gap-1 rounded-lg bg-card/95 px-2.5 py-1.5 text-xs font-medium shadow-soft backdrop-blur transition-colors hover:bg-card"
       >
         <ExternalLink className="size-3" />
+        {/* Brand name — never translated. */}
         Google Maps
       </a>
     </div>

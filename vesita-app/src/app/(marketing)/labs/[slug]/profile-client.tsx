@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   BadgeCheck,
   CalendarCheck,
@@ -29,13 +30,20 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAsync } from "@/hooks/use-async";
 import { getProviderBySlug } from "@/lib/api/providers";
-import { getAreaName, getGovernorateName } from "@/lib/data/egypt";
-import { formatEGP } from "@/lib/site";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
+import { BUSINESS } from "@/lib/site";
 import type { Lab } from "@/lib/types";
 
 export default function LabProfilePage() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug ?? "";
+
+  const t = useTranslations("profile");
+  const tCommon = useTranslations("common");
+  const { formatEGP } = useFormat();
+  const { named, localized, getAreaName, getGovernorateName } = useDomain();
+  const L = useLabels();
 
   const { data, error, isLoading, refetch } = useAsync(
     () => getProviderBySlug(slug),
@@ -54,15 +62,15 @@ export default function LabProfilePage() {
     if (/not found/i.test(error.message)) {
       return (
         <ProviderNotFound
-          title="We couldn't find that lab"
+          title={t("notFound.labTitle")}
           backHref="/search?type=lab"
-          backLabel="Browse labs"
+          backLabel={t("notFound.browseLabs")}
         />
       );
     }
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-24 sm:px-6 lg:px-8">
-        <ErrorState title="Couldn't load this profile" onRetry={refetch} />
+        <ErrorState title={t("error.loadTitle")} onRetry={refetch} />
       </div>
     );
   }
@@ -70,26 +78,30 @@ export default function LabProfilePage() {
   if (!data || data.type !== "lab") {
     return (
       <ProviderNotFound
-        title="We couldn't find that lab"
-        description="This link points to a profile that isn't a medical lab. It may have moved."
+        title={t("notFound.labTitle")}
+        description={t("notFound.labDescription")}
         backHref="/search?type=lab"
-        backLabel="Browse labs"
+        backLabel={t("notFound.browseLabs")}
       />
     );
   }
 
   const lab: Lab = data;
-  const activeTests = lab.tests.filter((t) => t.isActive);
+  const activeTests = lab.tests.filter((test) => test.isActive);
   const activePackages = lab.packages.filter((p) => p.isActive);
 
   const overview = (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">About {lab.name}</CardTitle>
+          <CardTitle className="text-base">
+            {t("about.title", { name: named(lab) })}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
-          <p className="text-sm leading-relaxed text-foreground/90">{lab.bio}</p>
+          <p className="text-sm leading-relaxed text-foreground/90">
+            {localized(lab.bio)}
+          </p>
 
           <Separator />
 
@@ -97,9 +109,14 @@ export default function LabProfilePage() {
             <div className="flex items-start gap-3">
               <FlaskConical className="mt-0.5 size-4 shrink-0 text-primary" />
               <div>
-                <dt className="text-xs text-muted-foreground">Catalogue</dt>
+                <dt className="text-xs text-muted-foreground">
+                  {t("about.catalogue")}
+                </dt>
                 <dd className="text-sm font-medium">
-                  {activeTests.length} tests · {activePackages.length} packages
+                  {t("about.catalogueTests", {
+                    tests: activeTests.length,
+                    packages: activePackages.length,
+                  })}
                 </dd>
               </div>
             </div>
@@ -108,12 +125,12 @@ export default function LabProfilePage() {
               <HomeIcon className="mt-0.5 size-4 shrink-0 text-primary" />
               <div>
                 <dt className="text-xs text-muted-foreground">
-                  Home sample collection
+                  {t("about.homeCollection")}
                 </dt>
                 <dd className="text-sm font-medium">
                   {lab.homeSampleCollection
-                    ? "Available — a phlebotomist comes to you"
-                    : "Not offered — visit a branch"}
+                    ? t("about.homeCollectionYes")
+                    : t("about.homeCollectionNo")}
                 </dd>
               </div>
             </div>
@@ -121,7 +138,9 @@ export default function LabProfilePage() {
             <div className="flex items-start gap-3">
               <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
               <div>
-                <dt className="text-xs text-muted-foreground">Main branch</dt>
+                <dt className="text-xs text-muted-foreground">
+                  {t("about.mainBranch")}
+                </dt>
                 <dd className="text-sm font-medium">
                   {lab.address} — {getAreaName(lab.areaId)},{" "}
                   {getGovernorateName(lab.governorateId)}
@@ -132,8 +151,8 @@ export default function LabProfilePage() {
             <div className="flex items-start gap-3">
               <Phone className="mt-0.5 size-4 shrink-0 text-primary" />
               <div>
-                <dt className="text-xs text-muted-foreground">Phone</dt>
-                <dd className="text-sm font-medium tabular-nums">
+                <dt className="text-xs text-muted-foreground">{t("about.phone")}</dt>
+                <dd className="text-sm font-medium tabular-nums ltr-nums">
                   <a href={`tel:${lab.phone}`} className="hover:text-primary">
                     {lab.phone}
                   </a>
@@ -146,7 +165,9 @@ export default function LabProfilePage() {
             <>
               <Separator />
               <div>
-                <p className="mb-2 text-xs text-muted-foreground">Accreditations</p>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  {t("about.accreditations")}
+                </p>
                 <div className="flex flex-wrap gap-1.5">
                   {lab.accreditation.map((item) => (
                     <Badge
@@ -167,7 +188,7 @@ export default function LabProfilePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Main location</CardTitle>
+          <CardTitle className="text-base">{t("about.mainLocation")}</CardTitle>
         </CardHeader>
         <CardContent>
           <MapPlaceholder
@@ -176,7 +197,7 @@ export default function LabProfilePage() {
             markers={[
               {
                 id: lab.id,
-                label: lab.name,
+                label: named(lab),
                 location: lab.location,
                 isPrimary: true,
               },
@@ -200,11 +221,11 @@ export default function LabProfilePage() {
     <div className="pb-20">
       <ProfileHero
         provider={lab}
-        subtitle="Medical Laboratory"
-        priceLabel="Tests from"
+        subtitle={t("hero.subtitleLab")}
+        priceLabel={t("hero.priceTestsFrom")}
         chips={[
-          ...lab.accreditation.slice(0, 3),
-          ...(lab.homeSampleCollection ? ["Home sample collection"] : []),
+          ...lab.accreditation.slice(0, 3).map(L.accreditation),
+          ...(lab.homeSampleCollection ? [t("hero.chipHomeCollection")] : []),
         ]}
       />
 
@@ -214,19 +235,19 @@ export default function LabProfilePage() {
             <Tabs defaultValue="overview">
               <TabsList className="h-auto w-full overflow-x-auto rounded-xl p-1 no-scrollbar">
                 <TabsTrigger value="overview" className="h-9 px-4">
-                  Overview
+                  {t("tabs.overview")}
                 </TabsTrigger>
                 <TabsTrigger value="tests" className="h-9 px-4">
-                  Tests ({activeTests.length})
+                  {t("tabs.tests", { count: activeTests.length })}
                 </TabsTrigger>
                 <TabsTrigger value="packages" className="h-9 px-4">
-                  Packages ({activePackages.length})
+                  {t("tabs.packages", { count: activePackages.length })}
                 </TabsTrigger>
                 <TabsTrigger value="branches" className="h-9 px-4">
-                  Branches ({lab.branches.length})
+                  {t("tabs.branches", { count: lab.branches.length })}
                 </TabsTrigger>
                 <TabsTrigger value="reviews" className="h-9 px-4">
-                  Reviews ({lab.reviewCount.toLocaleString()})
+                  {t("tabs.reviews", { count: lab.reviewCount })}
                 </TabsTrigger>
               </TabsList>
 
@@ -254,7 +275,7 @@ export default function LabProfilePage() {
               <TabsContent value="branches" className="mt-6">
                 <BranchesSection
                   branches={lab.branches}
-                  emptyDescription="This lab operates from its main location only."
+                  emptyDescription={t("branches.emptyLab")}
                 />
               </TabsContent>
 
@@ -265,10 +286,18 @@ export default function LabProfilePage() {
           </div>
 
           <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
-            <Card className="border-primary/20">
+            {/*
+              The sticky desktop half of the booking pair — see ProfileHero. Hidden
+              below `lg`, where the hero carries the CTA instead: down there this
+              sidebar stacks underneath all the tab content, so it would sit far
+              below the fold and simply repeat what the hero already said.
+            */}
+            <Card className="hidden border-primary/20 lg:block">
               <CardContent className="space-y-4">
                 <div>
-                  <p className="text-xs text-muted-foreground">Tests starting from</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("sidebar.testsFrom")}
+                  </p>
                   <p className="text-2xl font-bold text-primary tabular-nums">
                     {formatEGP(lab.price)}
                   </p>
@@ -277,8 +306,7 @@ export default function LabProfilePage() {
                 {lab.homeSampleCollection && (
                   <p className="flex items-start gap-2 rounded-xl bg-accent p-3 text-xs text-accent-foreground">
                     <HomeIcon className="mt-0.5 size-3.5 shrink-0 text-primary" />
-                    Home sample collection available — pick the home visit option while
-                    booking.
+                    {t("sidebar.homeCollectionNote")}
                   </p>
                 )}
 
@@ -287,10 +315,12 @@ export default function LabProfilePage() {
                   className="h-11 w-full rounded-xl"
                 >
                   <CalendarCheck className="size-4" />
-                  Book Now
+                  {tCommon("actions.bookNow")}
                 </Button>
                 <p className="text-center text-xs text-muted-foreground">
-                  Free cancellation up to 4 hours before your appointment.
+                  {t("sidebar.freeCancellation", {
+                    hours: BUSINESS.freeCancellationHours,
+                  })}
                 </p>
               </CardContent>
             </Card>
@@ -301,7 +331,7 @@ export default function LabProfilePage() {
 
             <InsuranceCard planIds={lab.acceptedInsurancePlanIds} />
 
-            <NearbySection providerId={lab.id} title="Nearby labs" />
+            <NearbySection providerId={lab.id} title={t("nearby.titleLabs")} />
           </aside>
         </div>
       </div>

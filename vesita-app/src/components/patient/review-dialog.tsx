@@ -1,8 +1,10 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { useBookingNames } from "@/components/patient/booking-names";
 import { RatingInput } from "@/components/shared/rating";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,15 +19,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutation } from "@/hooks/use-async";
 import { createReview, updateReview } from "@/lib/api/engagement";
+import { useApiError } from "@/lib/i18n/use-api-error";
 import type { Booking, Review } from "@/lib/types";
 
 type Breakdown = Review["breakdown"];
 
-const BREAKDOWN_FIELDS: { key: keyof Breakdown; label: string }[] = [
-  { key: "waitingTime", label: "Waiting time" },
-  { key: "staff", label: "Staff" },
-  { key: "cleanliness", label: "Cleanliness" },
-  { key: "communication", label: "Communication" },
+const BREAKDOWN_FIELDS: (keyof Breakdown)[] = [
+  "waitingTime",
+  "staff",
+  "cleanliness",
+  "communication",
 ];
 
 const EMPTY_BREAKDOWN: Breakdown = {
@@ -47,6 +50,10 @@ export function CreateReviewDialog({
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
 }) {
+  const t = useTranslations("patient");
+  const describeError = useApiError();
+  const names = useBookingNames(booking);
+
   const [rating, setRating] = useState(0);
   const [breakdown, setBreakdown] = useState<Breakdown>(EMPTY_BREAKDOWN);
   const [comment, setComment] = useState("");
@@ -55,7 +62,7 @@ export function CreateReviewDialog({
   const isComplete =
     rating > 0 &&
     comment.trim().length >= 10 &&
-    BREAKDOWN_FIELDS.every((field) => breakdown[field.key] > 0);
+    BREAKDOWN_FIELDS.every((field) => breakdown[field] > 0);
 
   async function onSubmit() {
     if (!isComplete) return;
@@ -67,8 +74,10 @@ export function CreateReviewDialog({
         comment: comment.trim(),
         breakdown,
       });
-      toast.success("Thanks for your review!", {
-        description: `Your feedback on ${booking.providerName} is now live.`,
+      toast.success(t("review.createdTitle"), {
+        description: t("review.createdDescription", {
+          provider: names.provider,
+        }),
       });
       onOpenChange(false);
       setRating(0);
@@ -76,11 +85,7 @@ export function CreateReviewDialog({
       setComment("");
       onCreated();
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Couldn't submit your review. Please try again.",
-      );
+      toast.error(describeError(error));
     }
   }
 
@@ -88,15 +93,18 @@ export function CreateReviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Rate your visit</DialogTitle>
+          <DialogTitle>{t("review.createTitle")}</DialogTitle>
           <DialogDescription>
-            {booking.providerName} · {booking.serviceName}
+            {t("review.createDescription", {
+              provider: names.provider,
+              service: names.service,
+            })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
           <div className="space-y-2">
-            <Label>Overall rating</Label>
+            <Label>{t("review.overall")}</Label>
             <RatingInput
               value={rating}
               onChange={setRating}
@@ -105,23 +113,23 @@ export function CreateReviewDialog({
           </div>
 
           <div className="space-y-3 rounded-xl border p-4">
-            <p className="text-sm font-medium">Rate the details</p>
+            <p className="text-sm font-medium">{t("review.details")}</p>
             {BREAKDOWN_FIELDS.map((field) => (
               <div
-                key={field.key}
+                key={field}
                 className="flex items-center justify-between gap-4"
               >
                 <span className="text-sm text-muted-foreground">
-                  {field.label}
+                  {t(`review.breakdown.${field}`)}
                 </span>
                 <RatingInput
                   size="md"
-                  value={breakdown[field.key]}
+                  value={breakdown[field]}
                   disabled={isPending}
                   onChange={(value) =>
                     setBreakdown((current) => ({
                       ...current,
-                      [field.key]: value,
+                      [field]: value,
                     }))
                   }
                 />
@@ -130,12 +138,14 @@ export function CreateReviewDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={`review-comment-${booking.id}`}>Your review</Label>
+            <Label htmlFor={`review-comment-${booking.id}`}>
+              {t("review.commentLabel")}
+            </Label>
             <Textarea
               id={`review-comment-${booking.id}`}
               value={comment}
               onChange={(event) => setComment(event.target.value)}
-              placeholder="What went well? What could be better? (at least 10 characters)"
+              placeholder={t("review.commentPlaceholder")}
               rows={4}
               disabled={isPending}
             />
@@ -149,14 +159,14 @@ export function CreateReviewDialog({
             disabled={isPending}
             className="h-10 rounded-xl px-4"
           >
-            Cancel
+            {t("review.cancel")}
           </Button>
           <Button
             onClick={onSubmit}
             disabled={!isComplete || isPending}
             className="h-10 rounded-xl px-4"
           >
-            {isPending ? "Submitting…" : "Submit review"}
+            {isPending ? t("review.submitting") : t("review.submit")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -176,6 +186,9 @@ export function EditReviewDialog({
   onOpenChange: (open: boolean) => void;
   onUpdated: (review: Review) => void;
 }) {
+  const t = useTranslations("patient");
+  const describeError = useApiError();
+
   const [rating, setRating] = useState(review.rating);
   const [comment, setComment] = useState(review.comment);
   const { mutate, isPending } = useMutation(updateReview);
@@ -190,15 +203,11 @@ export function EditReviewDialog({
         rating,
         comment: comment.trim(),
       });
-      toast.success("Review updated.");
+      toast.success(t("review.updated"));
       onOpenChange(false);
       onUpdated(updated);
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Couldn't update your review. Please try again.",
-      );
+      toast.error(describeError(error));
     }
   }
 
@@ -206,15 +215,13 @@ export function EditReviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Edit your review</DialogTitle>
-          <DialogDescription>
-            Update your rating or rewrite what you said.
-          </DialogDescription>
+          <DialogTitle>{t("review.editTitle")}</DialogTitle>
+          <DialogDescription>{t("review.editDescription")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
           <div className="space-y-2">
-            <Label>Overall rating</Label>
+            <Label>{t("review.overall")}</Label>
             <RatingInput
               value={rating}
               onChange={setRating}
@@ -223,7 +230,9 @@ export function EditReviewDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={`edit-review-${review.id}`}>Your review</Label>
+            <Label htmlFor={`edit-review-${review.id}`}>
+              {t("review.commentLabel")}
+            </Label>
             <Textarea
               id={`edit-review-${review.id}`}
               value={comment}
@@ -241,14 +250,14 @@ export function EditReviewDialog({
             disabled={isPending}
             className="h-10 rounded-xl px-4"
           >
-            Cancel
+            {t("review.cancel")}
           </Button>
           <Button
             onClick={onSubmit}
             disabled={!isValid || isPending}
             className="h-10 rounded-xl px-4"
           >
-            {isPending ? "Saving…" : "Save changes"}
+            {isPending ? t("review.saving") : t("review.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

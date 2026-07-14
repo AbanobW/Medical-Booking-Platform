@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   Ban,
   CircleCheck,
@@ -32,9 +33,9 @@ import {
   setProviderStatus,
   suspendProvider,
 } from "@/lib/api/admin";
-import { GOVERNORATES, getGovernorateName } from "@/lib/data/egypt";
-import { formatDateShort, initialsOf } from "@/lib/format";
-import { formatNumber } from "@/lib/site";
+import { GOVERNORATES } from "@/lib/data/egypt";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import {
   PROVIDER_ROLES,
   type Provider,
@@ -43,28 +44,12 @@ import {
   type SuspensionType,
 } from "@/lib/types";
 
-const TYPE_LABELS: Record<ProviderRole, string> = {
-  doctor: "Doctors",
-  lab: "Labs",
-  radiology: "Radiology centers",
-};
-
-const TYPE_OPTIONS = PROVIDER_ROLES.map((type) => ({
-  value: type,
-  label: TYPE_LABELS[type],
-}));
-
-const STATUS_OPTIONS: { value: ProviderStatus; label: string }[] = [
-  { value: "pending", label: "Pending" },
-  { value: "approved", label: "Approved" },
-  { value: "rejected", label: "Rejected" },
-  { value: "suspended", label: "Suspended" },
+const PROVIDER_STATUSES: ProviderStatus[] = [
+  "pending",
+  "approved",
+  "rejected",
+  "suspended",
 ];
-
-const GOVERNORATE_OPTIONS = GOVERNORATES.map((g) => ({
-  value: g.id,
-  label: g.name,
-}));
 
 /** One pagination model: fetch the filtered set, let DataTable page it. */
 const FULL_PAGE = 1000;
@@ -76,6 +61,12 @@ interface PendingAction {
 }
 
 export default function AdminProvidersPage() {
+  const t = useTranslations("admin");
+  const tCommon = useTranslations("common");
+  const describeError = useApiError();
+  const { formatDateShort, initialsOf, formatNumber } = useFormat();
+  const { named, getGovernorateName } = useDomain();
+
   const [type, setType] = useState<string>("");
   const [status, setStatus] = useState<string>("");
   const [governorateId, setGovernorateId] = useState<string>("");
@@ -112,21 +103,20 @@ export default function AdminProvidersPage() {
   async function changeStatus(provider: Provider, next: ProviderStatus) {
     try {
       await mutate(provider.id, next);
-      const verb =
+      const name = named(provider);
+      toast.success(
         next === "approved"
-          ? "approved"
+          ? t("providers.toast.approved", { name })
           : next === "rejected"
-            ? "rejected"
+            ? t("providers.toast.rejected", { name })
             : next === "suspended"
-              ? "suspended"
-              : "set to pending";
-      toast.success(`${provider.name} ${verb}.`);
+              ? t("providers.toast.suspended", { name })
+              : t("providers.toast.pending", { name }),
+      );
       setConfirming(null);
       refetch();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not update the provider.",
-      );
+      toast.error(describeError(err));
     }
   }
 
@@ -135,47 +125,73 @@ export default function AdminProvidersPage() {
    * result reports it: a soft suspension leaves existing bookings alone, a hard
    * one cancels and refunds them, and we say how many patients that touched.
    */
-  async function applySuspension(type: SuspensionType, reason: string) {
+  async function applySuspension(suspensionType: SuspensionType, reason: string) {
     if (!suspending) return;
 
     try {
-      const result = await suspend(suspending.id, type, reason);
+      const result = await suspend(suspending.id, suspensionType, reason);
+      const name = named(result.provider);
+
       toast.success(
-        type === "hard"
-          ? `${result.provider.name} hard-suspended. ${result.cancelledBookings} upcoming booking${
-              result.cancelledBookings === 1 ? "" : "s"
-            } cancelled and refunded — ${
-              result.cancelledBookings === 1 ? "that patient has" : "those patients have"
-            } been notified.`
-          : `${result.provider.name} soft-suspended. Hidden from search and taking no new bookings; existing bookings are honored.`,
+        suspensionType === "hard"
+          ? t("providers.toast.hardSuspended", {
+              name,
+              count: result.cancelledBookings,
+            })
+          : t("providers.toast.softSuspended", { name }),
       );
       setSuspending(null);
       refetch();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not suspend the provider.",
-      );
+      toast.error(describeError(err));
     }
   }
 
   async function lift(provider: Provider) {
     try {
       await reinstate(provider.id);
-      toast.success(`${provider.name} reinstated and back in search.`);
+      toast.success(
+        t("providers.toast.reinstated", { name: named(provider) }),
+      );
       refetch();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not reinstate the provider.",
-      );
+      toast.error(describeError(err));
     }
   }
+
+  const typeOptions = useMemo(
+    () =>
+      PROVIDER_ROLES.map((role) => ({
+        value: role,
+        label: t(`providers.typeOptions.${role}`),
+      })),
+    [t],
+  );
+
+  const statusOptions = useMemo(
+    () =>
+      PROVIDER_STATUSES.map((s) => ({
+        value: s,
+        label: t(`badges.providerStatus.${s}`),
+      })),
+    [t],
+  );
+
+  const governorateOptions = useMemo(
+    () =>
+      GOVERNORATES.map((g) => ({
+        value: g.id,
+        label: getGovernorateName(g.id),
+      })),
+    [getGovernorateName],
+  );
 
   const columns = useMemo<ColumnDef<Provider, unknown>[]>(
     () => [
       {
         id: "name",
-        accessorKey: "name",
-        header: "Provider",
+        accessorFn: (p) => named(p),
+        header: t("providers.columns.provider"),
         cell: ({ row }) => {
           const provider = row.original;
           return (
@@ -183,12 +199,14 @@ export default function AdminProvidersPage() {
               <Avatar className="size-9 shrink-0 rounded-xl">
                 <AvatarImage src={provider.photo} alt="" />
                 <AvatarFallback className="rounded-xl text-xs">
-                  {initialsOf(provider.name)}
+                  {initialsOf(named(provider))}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0">
-                <p className="font-medium whitespace-nowrap">{provider.name}</p>
-                <p className="truncate text-xs text-muted-foreground">
+                <p className="font-medium whitespace-nowrap">
+                  {named(provider)}
+                </p>
+                <p className="ltr-nums truncate text-xs text-muted-foreground">
                   {provider.phone}
                 </p>
               </div>
@@ -199,13 +217,13 @@ export default function AdminProvidersPage() {
       {
         id: "type",
         accessorKey: "type",
-        header: "Type",
+        header: t("providers.columns.type"),
         cell: ({ row }) => <ProviderTypeBadge type={row.original.type} />,
       },
       {
         id: "governorate",
         accessorFn: (p) => getGovernorateName(p.governorateId),
-        header: "Governorate",
+        header: t("providers.columns.governorate"),
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-muted-foreground">
             {getGovernorateName(row.original.governorateId)}
@@ -215,9 +233,9 @@ export default function AdminProvidersPage() {
       {
         id: "rating",
         accessorKey: "rating",
-        header: "Rating",
+        header: t("providers.columns.rating"),
         cell: ({ row }) => (
-          <span className="inline-flex items-center gap-1 tabular-nums">
+          <span className="ltr-nums inline-flex items-center gap-1 tabular-nums">
             <Star className="size-3.5 fill-warning text-warning" aria-hidden />
             {row.original.rating.toFixed(1)}
             <span className="text-xs text-muted-foreground">
@@ -229,7 +247,7 @@ export default function AdminProvidersPage() {
       {
         id: "bookings",
         accessorKey: "bookingCount",
-        header: "Bookings",
+        header: t("providers.columns.bookings"),
         cell: ({ row }) => (
           <span className="tabular-nums">
             {formatNumber(row.original.bookingCount)}
@@ -239,14 +257,14 @@ export default function AdminProvidersPage() {
       {
         id: "status",
         accessorKey: "status",
-        header: "Status",
+        header: t("providers.columns.status"),
         cell: ({ row }) => {
-          const { status, suspension } = row.original;
+          const { status: rowStatus, suspension } = row.original;
 
           return (
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-1">
-                <ProviderStatusBadge status={status} />
+                <ProviderStatusBadge status={rowStatus} />
                 {suspension && <SuspensionBadge suspension={suspension} />}
               </div>
 
@@ -258,9 +276,9 @@ export default function AdminProvidersPage() {
                   <p className="tabular-nums">
                     {formatDateShort(suspension.suspendedAt)}
                     {suspension.type === "hard" &&
-                      ` · ${suspension.cancelledBookingCount ?? 0} booking${
-                        (suspension.cancelledBookingCount ?? 0) === 1 ? "" : "s"
-                      } refunded`}
+                      ` · ${t("providers.refunded", {
+                        count: suspension.cancelledBookingCount ?? 0,
+                      })}`}
                   </p>
                 </div>
               )}
@@ -271,7 +289,7 @@ export default function AdminProvidersPage() {
       {
         id: "joined",
         accessorKey: "joinedAt",
-        header: "Joined",
+        header: t("providers.columns.joined"),
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-muted-foreground">
             {formatDateShort(row.original.joinedAt)}
@@ -298,7 +316,7 @@ export default function AdminProvidersPage() {
                   onClick={() => changeStatus(provider, "approved")}
                 >
                   <CircleCheck className="size-3.5" />
-                  Approve
+                  {t("providers.actions.approve")}
                 </Button>
               )}
 
@@ -311,7 +329,7 @@ export default function AdminProvidersPage() {
                   onClick={() => setConfirming({ provider, status: "rejected" })}
                 >
                   <CircleX className="size-3.5" />
-                  Reject
+                  {t("providers.actions.reject")}
                 </Button>
               )}
 
@@ -324,7 +342,7 @@ export default function AdminProvidersPage() {
                   onClick={() => lift(provider)}
                 >
                   <RotateCcw className="size-3.5" />
-                  Reinstate
+                  {t("providers.actions.reinstate")}
                 </Button>
               ) : (
                 <Button
@@ -335,7 +353,7 @@ export default function AdminProvidersPage() {
                   onClick={() => setSuspending(provider)}
                 >
                   <Ban className="size-3.5" />
-                  Suspend
+                  {t("providers.actions.suspend")}
                 </Button>
               )}
             </div>
@@ -344,7 +362,7 @@ export default function AdminProvidersPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [busy],
+    [busy, t, named, getGovernorateName, formatDateShort, formatNumber, initialsOf],
   );
 
   const pendingCount = pendingSet?.total ?? 0;
@@ -353,17 +371,19 @@ export default function AdminProvidersPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Providers</h2>
+          <h2 className="text-xl font-semibold tracking-tight">
+            {t("providers.title")}
+          </h2>
           <p className="text-sm text-muted-foreground">
             {data
-              ? `${data.total} provider${data.total === 1 ? "" : "s"} matching the current filters`
-              : "Doctors, labs and radiology centers"}
+              ? t("providers.count", { count: data.total })
+              : t("providers.subtitle")}
           </p>
         </div>
         {busy && (
           <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
-            Saving…
+            {tCommon("states.saving")}
           </span>
         )}
       </div>
@@ -377,11 +397,10 @@ export default function AdminProvidersPage() {
               </div>
               <div>
                 <p className="font-semibold">
-                  {pendingCount} provider{pendingCount === 1 ? "" : "s"} awaiting
-                  approval
+                  {t("providers.pending.banner", { count: pendingCount })}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  New listings stay hidden from search until you review them.
+                  {t("providers.pending.description")}
                 </p>
               </div>
             </div>
@@ -396,7 +415,7 @@ export default function AdminProvidersPage() {
               }}
               disabled={status === "pending"}
             >
-              Review pending
+              {t("providers.pending.review")}
             </Button>
           </CardContent>
         </Card>
@@ -406,42 +425,42 @@ export default function AdminProvidersPage() {
         <TableSkeleton rows={8} columns={7} />
       ) : error ? (
         <ErrorState
-          title="Couldn't load providers"
-          description={error.message}
+          title={t("providers.errorTitle")}
+          description={describeError(error)}
           onRetry={refetch}
         />
       ) : (
         <DataTable
           columns={columns}
           data={data?.items ?? []}
-          searchPlaceholder="Search provider, address or phone…"
+          searchPlaceholder={t("providers.searchPlaceholder")}
           pageSize={10}
-          emptyTitle="No providers found"
-          emptyDescription="Try a different search term, type, status or governorate."
+          emptyTitle={t("providers.emptyTitle")}
+          emptyDescription={t("providers.emptyDescription")}
           toolbar={
             <>
               <AppSelect
                 value={type}
                 onValueChange={setType}
-                options={TYPE_OPTIONS}
-                emptyOption="All types"
-                aria-label="Filter by type"
+                options={typeOptions}
+                emptyOption={t("providers.filters.allTypes")}
+                aria-label={t("providers.filters.typeAria")}
                 className="h-10 w-40"
               />
               <AppSelect
                 value={status}
                 onValueChange={setStatus}
-                options={STATUS_OPTIONS}
-                emptyOption="All statuses"
-                aria-label="Filter by status"
+                options={statusOptions}
+                emptyOption={t("providers.filters.allStatuses")}
+                aria-label={t("providers.filters.statusAria")}
                 className="h-10 w-40"
               />
               <AppSelect
                 value={governorateId}
                 onValueChange={setGovernorateId}
-                options={GOVERNORATE_OPTIONS}
-                emptyOption="All governorates"
-                aria-label="Filter by governorate"
+                options={governorateOptions}
+                emptyOption={t("providers.filters.allGovernorates")}
+                aria-label={t("providers.filters.governorateAria")}
                 className="h-10 w-44"
               />
             </>
@@ -452,9 +471,13 @@ export default function AdminProvidersPage() {
       <ConfirmDialog
         open={confirming !== null}
         onOpenChange={(open) => !open && setConfirming(null)}
-        title={`Reject ${confirming?.provider.name ?? "this provider"}?`}
-        description="The application is declined and the listing stays hidden. You can approve them later if they reapply."
-        confirmLabel="Reject provider"
+        title={t("providers.rejectConfirm.title", {
+          name: confirming
+            ? named(confirming.provider)
+            : t("providers.rejectConfirm.fallbackName"),
+        })}
+        description={t("providers.rejectConfirm.description")}
+        confirmLabel={t("providers.rejectConfirm.confirmLabel")}
         isPending={isPending}
         onConfirm={() => {
           if (confirming) void changeStatus(confirming.provider, confirming.status);
@@ -466,7 +489,9 @@ export default function AdminProvidersPage() {
         open={suspending !== null}
         onOpenChange={(open) => !open && setSuspending(null)}
         isPending={isSuspending}
-        onConfirm={(type, reason) => void applySuspension(type, reason)}
+        onConfirm={(suspensionType, reason) =>
+          void applySuspension(suspensionType, reason)
+        }
       />
     </div>
   );

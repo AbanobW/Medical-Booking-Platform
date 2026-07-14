@@ -1,6 +1,7 @@
 "use client";
 
 import { BellOff, CheckCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -8,7 +9,6 @@ import { NotificationPreferencesCard } from "@/components/patient/notification-p
 import { useAuth } from "@/components/providers/auth-provider";
 import {
   CHANNEL_ICONS,
-  CHANNEL_LABELS,
   NotificationItem,
 } from "@/components/shared/notification-center";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/shared/states";
@@ -23,6 +23,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/lib/api/engagement";
+import { useApiError } from "@/lib/i18n/use-api-error";
 import type { AppNotification, NotificationChannel } from "@/lib/types";
 
 type ChannelTab = "all" | NotificationChannel;
@@ -30,13 +31,12 @@ type ReadFilter = "all" | "unread" | "read";
 
 const CHANNEL_TABS: ChannelTab[] = ["all", "sms", "email", "whatsapp", "browser"];
 
-const READ_FILTERS: { value: ReadFilter; label: string }[] = [
-  { value: "all", label: "Everything" },
-  { value: "unread", label: "Unread" },
-  { value: "read", label: "Read" },
-];
+const READ_FILTERS: ReadFilter[] = ["all", "unread", "read"];
 
 export default function PatientNotificationsPage() {
+  const t = useTranslations("patient");
+  const describeError = useApiError();
+
   const { user } = useAuth();
   const patientId = user?.id ?? "";
 
@@ -71,7 +71,7 @@ export default function PatientNotificationsPage() {
     try {
       await markNotificationRead(id);
     } catch {
-      toast.error("Couldn't mark that as read.");
+      toast.error(t("notifications.readFailed"));
       refetch();
     }
   }
@@ -81,9 +81,9 @@ export default function PatientNotificationsPage() {
 
     try {
       await deleteNotification(id);
-      toast.success("Notification deleted.");
+      toast.success(t("notifications.deleted"));
     } catch {
-      toast.error("Couldn't delete that notification.");
+      toast.error(t("notifications.deleteFailed"));
       refetch();
     }
   }
@@ -95,9 +95,9 @@ export default function PatientNotificationsPage() {
 
     try {
       const result = await markAllNotificationsRead(patientId);
-      toast.success(`Marked ${result.count} notifications as read.`);
+      toast.success(t("notifications.markedAllRead", { count: result.count }));
     } catch {
-      toast.error("Couldn't mark everything as read.");
+      toast.error(t("notifications.markAllFailed"));
       refetch();
     }
   }
@@ -107,11 +107,13 @@ export default function PatientNotificationsPage() {
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Notifications</h2>
+            <h2 className="text-2xl font-bold tracking-tight">
+              {t("notifications.title")}
+            </h2>
             <p className="text-sm text-muted-foreground">
               {unreadCount > 0
-                ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}.`
-                : "You're all caught up."}
+                ? t("notifications.unread", { count: unreadCount })
+                : t("notifications.caughtUp")}
             </p>
           </div>
 
@@ -122,22 +124,22 @@ export default function PatientNotificationsPage() {
             className="h-10 rounded-xl px-4"
           >
             <CheckCheck className="size-4" />
-            Mark all read
+            {t("notifications.markAllRead")}
           </Button>
         </div>
 
         <div className="flex flex-wrap gap-2">
           {READ_FILTERS.map((filter) => (
             <Button
-              key={filter.value}
-              variant={readFilter === filter.value ? "secondary" : "ghost"}
+              key={filter}
+              variant={readFilter === filter ? "secondary" : "ghost"}
               size="sm"
-              onClick={() => setReadFilter(filter.value)}
+              onClick={() => setReadFilter(filter)}
               className="rounded-lg"
             >
-              {filter.label}
-              {filter.value === "unread" && unreadCount > 0 && (
-                <Badge variant="default" className="ml-1">
+              {t(`notifications.filters.${filter}`)}
+              {filter === "unread" && unreadCount > 0 && (
+                <Badge variant="default" className="ms-1">
                   {unreadCount}
                 </Badge>
               )}
@@ -157,8 +159,10 @@ export default function PatientNotificationsPage() {
               return (
                 <TabsTrigger key={tab} value={tab}>
                   {Icon && <Icon />}
-                  {tab === "all" ? "All" : CHANNEL_LABELS[tab]}
-                  <span className="ml-1 text-xs tabular-nums text-muted-foreground">
+                  {tab === "all"
+                    ? t("notifications.all")
+                    : t(`notifications.channel.${tab}`)}
+                  <span className="ms-1 text-xs tabular-nums text-muted-foreground">
                     {countFor(tab)}
                   </span>
                 </TabsTrigger>
@@ -175,18 +179,18 @@ export default function PatientNotificationsPage() {
                   <ListSkeleton count={5} />
                 ) : error ? (
                   <ErrorState
-                    title="Couldn't load your notifications"
-                    description={error.message}
+                    title={t("notifications.error")}
+                    description={describeError(error)}
                     onRetry={refetch}
                   />
                 ) : visible.length === 0 ? (
                   <EmptyState
                     icon={BellOff}
-                    title="Nothing here"
+                    title={t("notifications.emptyTitle")}
                     description={
                       readFilter === "unread"
-                        ? "No unread notifications on this channel."
-                        : "New booking updates and offers will show up here."
+                        ? t("notifications.emptyUnread")
+                        : t("notifications.emptyDescription")
                     }
                   />
                 ) : (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Pencil, Plus, Ticket, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,21 +15,22 @@ import { Button } from "@/components/ui/button";
 import { useAsync, useMutation } from "@/hooks/use-async";
 import { deleteCoupon, getCoupons } from "@/lib/api/admin";
 import { TODAY } from "@/lib/data/seed";
-import { formatDateShort } from "@/lib/format";
-import { formatEGP } from "@/lib/site";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import type { Coupon } from "@/lib/types";
 
 const NOW = TODAY.toISOString();
 
 /** A slim usage meter — the number carries the value, the bar carries the shape. */
 function UsageMeter({ used, limit }: { used: number; limit: number }) {
+  const t = useTranslations("admin");
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   const exhausted = limit > 0 && used >= limit;
 
   return (
     <div className="min-w-32 space-y-1.5">
       <p className="text-xs tabular-nums text-muted-foreground">
-        {used} / {limit} used
+        {t("coupons.usage.used", { used, limit })}
       </p>
       <div
         className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
@@ -36,7 +38,7 @@ function UsageMeter({ used, limit }: { used: number; limit: number }) {
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label="Coupon usage"
+        aria-label={t("coupons.usage.aria")}
       >
         <div
           className={exhausted ? "h-full bg-destructive" : "h-full bg-primary"}
@@ -48,6 +50,11 @@ function UsageMeter({ used, limit }: { used: number; limit: number }) {
 }
 
 export default function AdminCouponsPage() {
+  const t = useTranslations("admin");
+  const describeError = useApiError();
+  const { formatDateShort, formatEGP, formatNumber } = useFormat();
+  const { localized } = useDomain();
+
   const { data, error, isLoading, refetch } = useAsync(() => getCoupons());
 
   const [editing, setEditing] = useState<Coupon | null>(null);
@@ -61,13 +68,11 @@ export default function AdminCouponsPage() {
 
     try {
       await remove(deleting.id);
-      toast.success(`Coupon ${deleting.code} deleted.`);
+      toast.success(t("coupons.deleted", { code: deleting.code }));
       setDeleting(null);
       refetch();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not delete the coupon.",
-      );
+      toast.error(describeError(err));
     }
   }
 
@@ -76,14 +81,14 @@ export default function AdminCouponsPage() {
       {
         id: "code",
         accessorKey: "code",
-        header: "Code",
+        header: t("coupons.columns.code"),
         cell: ({ row }) => (
           <div className="min-w-40">
-            <p className="font-mono font-semibold tracking-wide">
+            <p className="font-mono font-semibold tracking-wide" dir="ltr">
               {row.original.code}
             </p>
             <p className="truncate text-xs text-muted-foreground">
-              {row.original.description}
+              {localized(row.original.description)}
             </p>
           </div>
         ),
@@ -91,20 +96,22 @@ export default function AdminCouponsPage() {
       {
         id: "discount",
         accessorKey: "discountValue",
-        header: "Discount",
+        header: t("coupons.columns.discount"),
         cell: ({ row }) => {
           const coupon = row.original;
           return (
             <div className="whitespace-nowrap">
-              <p className="font-medium tabular-nums">
+              <p className="ltr-nums font-medium tabular-nums">
                 {coupon.discountType === "percentage"
-                  ? `${coupon.discountValue}%`
+                  ? `${formatNumber(coupon.discountValue)}%`
                   : formatEGP(coupon.discountValue)}
               </p>
               <p className="text-xs text-muted-foreground">
                 {coupon.maxDiscount
-                  ? `Max ${formatEGP(coupon.maxDiscount)}`
-                  : "No cap"}
+                  ? t("coupons.maxDiscount", {
+                      amount: formatEGP(coupon.maxDiscount),
+                    })
+                  : t("coupons.noCap")}
               </p>
             </div>
           );
@@ -113,7 +120,7 @@ export default function AdminCouponsPage() {
       {
         id: "minOrderValue",
         accessorKey: "minOrderValue",
-        header: "Min. order",
+        header: t("coupons.columns.minOrder"),
         cell: ({ row }) => (
           <span className="whitespace-nowrap tabular-nums text-muted-foreground">
             {row.original.minOrderValue > 0
@@ -124,14 +131,14 @@ export default function AdminCouponsPage() {
       },
       {
         id: "appliesTo",
-        header: "Applies to",
+        header: t("coupons.columns.appliesTo"),
         enableSorting: false,
         cell: ({ row }) => <AppliesToBadges appliesTo={row.original.appliesTo} />,
       },
       {
         id: "usage",
         accessorKey: "usageCount",
-        header: "Usage",
+        header: t("coupons.columns.usage"),
         cell: ({ row }) => (
           <UsageMeter
             used={row.original.usageCount}
@@ -142,7 +149,7 @@ export default function AdminCouponsPage() {
       {
         id: "expiresAt",
         accessorKey: "expiresAt",
-        header: "Expires",
+        header: t("coupons.columns.expires"),
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-muted-foreground">
             {formatDateShort(row.original.expiresAt)}
@@ -152,7 +159,7 @@ export default function AdminCouponsPage() {
       {
         id: "state",
         accessorKey: "isActive",
-        header: "State",
+        header: t("coupons.columns.state"),
         cell: ({ row }) => (
           <CouponStateBadge
             isActive={row.original.isActive}
@@ -170,7 +177,7 @@ export default function AdminCouponsPage() {
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label={`Edit ${row.original.code}`}
+              aria-label={t("coupons.editAria", { code: row.original.code })}
               onClick={() => {
                 setEditing(row.original);
                 setDialogOpen(true);
@@ -181,7 +188,7 @@ export default function AdminCouponsPage() {
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label={`Delete ${row.original.code}`}
+              aria-label={t("coupons.deleteAria", { code: row.original.code })}
               className="text-destructive hover:text-destructive"
               onClick={() => setDeleting(row.original)}
             >
@@ -191,7 +198,7 @@ export default function AdminCouponsPage() {
         ),
       },
     ],
-    [],
+    [t, localized, formatDateShort, formatEGP, formatNumber],
   );
 
   const coupons = data ?? [];
@@ -208,7 +215,7 @@ export default function AdminCouponsPage() {
       }}
     >
       <Plus className="size-4" />
-      New coupon
+      {t("coupons.new")}
     </Button>
   );
 
@@ -216,16 +223,21 @@ export default function AdminCouponsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Coupons</h2>
+          <h2 className="text-xl font-semibold tracking-tight">
+            {t("coupons.title")}
+          </h2>
           <p className="text-sm text-muted-foreground">
             {coupons.length > 0
-              ? `${coupons.length} coupon${coupons.length === 1 ? "" : "s"} · ${activeCount} live right now`
-              : "Discount codes patients can redeem at checkout"}
+              ? t("coupons.count", {
+                  count: coupons.length,
+                  active: formatNumber(activeCount),
+                })
+              : t("coupons.subtitle")}
           </p>
         </div>
         <Badge variant="outline" className="gap-1">
           <Ticket aria-hidden />
-          {activeCount} active
+          {t("coupons.activeBadge", { count: formatNumber(activeCount) })}
         </Badge>
       </div>
 
@@ -233,26 +245,26 @@ export default function AdminCouponsPage() {
         <TableSkeleton rows={6} columns={6} />
       ) : error ? (
         <ErrorState
-          title="Couldn't load coupons"
-          description={error.message}
+          title={t("coupons.errorTitle")}
+          description={describeError(error)}
           onRetry={refetch}
         />
       ) : coupons.length === 0 ? (
         <EmptyState
           icon={Ticket}
-          title="No coupons yet"
-          description="Create a discount code to run your first promotion."
+          title={t("coupons.emptyTitle")}
+          description={t("coupons.emptyDescription")}
           action={newButton}
         />
       ) : (
         <DataTable
           columns={columns}
           data={coupons}
-          searchPlaceholder="Search by code or description…"
+          searchPlaceholder={t("coupons.searchPlaceholder")}
           pageSize={10}
           toolbar={newButton}
-          emptyTitle="No matching coupons"
-          emptyDescription="Try a different code or description."
+          emptyTitle={t("coupons.tableEmptyTitle")}
+          emptyDescription={t("coupons.tableEmptyDescription")}
         />
       )}
 
@@ -266,9 +278,11 @@ export default function AdminCouponsPage() {
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
-        title={`Delete ${deleting?.code ?? "this coupon"}?`}
-        description="The code stops working immediately. Bookings that already used it keep their discount. This cannot be undone."
-        confirmLabel="Delete coupon"
+        title={t("coupons.deleteConfirm.title", {
+          code: deleting?.code ?? t("coupons.deleteConfirm.fallbackName"),
+        })}
+        description={t("coupons.deleteConfirm.description")}
+        confirmLabel={t("coupons.deleteConfirm.confirmLabel")}
         isPending={isDeleting}
         onConfirm={confirmDelete}
       />

@@ -1,8 +1,13 @@
+"use client";
+
 import Link from "next/link";
 import { Mail, Phone } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Logo } from "@/components/layout/logo";
 import { GOVERNORATES, SPECIALTIES } from "@/lib/data/egypt";
+import { TODAY } from "@/lib/data/seed";
+import { useDomain } from "@/lib/i18n/use-format";
 import { SITE } from "@/lib/site";
 
 /**
@@ -36,37 +41,48 @@ function SocialIcon({ name }: { name: string }) {
   );
 }
 
-const COLUMNS = [
-  {
-    title: "Top Specialties",
-    links: SPECIALTIES.slice(0, 6).map((s) => ({
-      label: s.name,
-      href: `/search?type=doctor&specialtyId=${s.id}`,
-    })),
-  },
-  {
-    title: "Top Cities",
-    links: GOVERNORATES.slice(0, 6).map((g) => ({
-      label: g.name,
-      href: `/search?type=doctor&governorateId=${g.id}`,
-    })),
-  },
-  {
-    title: "Services",
-    links: [
-      { label: "Book a Doctor", href: "/search?type=doctor" },
-      { label: "Medical Labs", href: "/search?type=lab" },
-      { label: "Radiology Centers", href: "/search?type=radiology" },
-      { label: "How It Works", href: "/#how-it-works" },
-      { label: "FAQ", href: "/#faq" },
-      { label: "For Providers", href: "/register?role=doctor" },
-    ],
-  },
-];
-
+/** Brand names — not translated. */
 const SOCIALS = ["Facebook", "X", "Instagram", "LinkedIn"];
 
+const SERVICE_LINKS = [
+  { key: "bookDoctor", href: "/search?type=doctor" },
+  { key: "labs", href: "/search?type=lab" },
+  { key: "radiology", href: "/search?type=radiology" },
+  { key: "howItWorks", href: "/#how-it-works" },
+  { key: "faq", href: "/#faq" },
+  { key: "forProviders", href: "/register?role=doctor" },
+] as const;
+
+const LEGAL_LINKS = ["privacy", "terms", "cookies"] as const;
+
 export function SiteFooter() {
+  const t = useTranslations("nav");
+  const { getSpecialtyName, getGovernorateName } = useDomain();
+
+  const columns = [
+    {
+      title: t("footer.columns.specialties"),
+      links: SPECIALTIES.slice(0, 6).map((s) => ({
+        label: getSpecialtyName(s.id),
+        href: `/search?type=doctor&specialtyId=${s.id}`,
+      })),
+    },
+    {
+      title: t("footer.columns.cities"),
+      links: GOVERNORATES.slice(0, 6).map((g) => ({
+        label: getGovernorateName(g.id),
+        href: `/search?type=doctor&governorateId=${g.id}`,
+      })),
+    },
+    {
+      title: t("footer.columns.services"),
+      links: SERVICE_LINKS.map(({ key, href }) => ({
+        label: t(`footer.services.${key}`),
+        href,
+      })),
+    },
+  ];
+
   return (
     <footer className="border-t bg-card">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
@@ -74,7 +90,7 @@ export function SiteFooter() {
           <div className="space-y-4">
             <Logo />
             <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
-              {SITE.description}
+              {t("footer.tagline")}
             </p>
 
             <div className="space-y-2 pt-2">
@@ -83,14 +99,14 @@ export function SiteFooter() {
                 className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-primary"
               >
                 <Phone className="size-4" />
-                {SITE.supportPhone}
+                <span className="ltr-nums">{SITE.supportPhone}</span>
               </a>
               <a
                 href={`mailto:${SITE.supportEmail}`}
                 className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-primary"
               >
                 <Mail className="size-4" />
-                {SITE.supportEmail}
+                <span dir="ltr">{SITE.supportEmail}</span>
               </a>
             </div>
 
@@ -108,7 +124,7 @@ export function SiteFooter() {
             </div>
           </div>
 
-          {COLUMNS.map((column) => (
+          {columns.map((column) => (
             <div key={column.title}>
               <h3 className="mb-4 text-sm font-semibold">{column.title}</h3>
               <ul className="space-y-2.5">
@@ -129,17 +145,19 @@ export function SiteFooter() {
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t pt-6 sm:flex-row">
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} {SITE.name}. A demo healthcare booking
-            platform — not a real medical service.
+            {t("footer.copyright", {
+              year: String(TODAY.getFullYear()),
+              site: SITE.name,
+            })}
           </p>
           <div className="flex gap-5">
-            {["Privacy Policy", "Terms of Service", "Cookie Policy"].map((label) => (
+            {LEGAL_LINKS.map((key) => (
               <Link
-                key={label}
+                key={key}
                 href="#"
                 className="text-xs text-muted-foreground transition-colors hover:text-primary"
               >
-                {label}
+                {t(`footer.legal.${key}`)}
               </Link>
             ))}
           </div>

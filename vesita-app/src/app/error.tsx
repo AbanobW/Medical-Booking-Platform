@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Home, RefreshCw } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect } from "react";
 
 import { Logo } from "@/components/layout/logo";
@@ -15,6 +16,9 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const t = useTranslations("nav");
+  const tc = useTranslations("common");
+
   useEffect(() => {
     // A real app would ship this to Sentry / a logging backend.
     console.error("Unhandled application error:", error);
@@ -26,22 +30,21 @@ export default function GlobalError({
         <Logo />
       </Link>
 
-      <h1 className="text-2xl font-bold">Something went wrong</h1>
+      <h1 className="text-2xl font-bold">{t("error.title")}</h1>
       <p className="mt-2 max-w-md text-muted-foreground">
-        We hit an unexpected error while loading this page. Trying again usually
-        fixes it.
+        {t("error.description")}
       </p>
 
       {error.digest && (
         <p className="mt-3 font-mono text-xs text-muted-foreground">
-          Reference: {error.digest}
+          {t("error.reference", { digest: error.digest })}
         </p>
       )}
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <Button onClick={reset} className="h-11 rounded-xl px-5">
           <RefreshCw className="size-4" />
-          Try again
+          {tc("actions.retry")}
         </Button>
         <Button
           render={<Link href="/" />}
@@ -49,7 +52,7 @@ export default function GlobalError({
           className="h-11 rounded-xl px-5"
         >
           <Home className="size-4" />
-          Back to home
+          {t("actions.backHome")}
         </Button>
       </div>
     </div>

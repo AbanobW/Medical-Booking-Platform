@@ -1,24 +1,24 @@
 "use client";
 
 import { AlertTriangle, Hourglass, UserX } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
+import { useLabels } from "@/lib/i18n/use-labels";
 import { cn } from "@/lib/utils";
-import {
-  BOOKING_STATUS_LABELS_PROVIDER,
-  CAPACITY_LABELS,
-  type BookingStatus,
-  type CapacityType,
-  type PaymentStatus,
-  type ProviderStatus,
+import type {
+  BookingStatus,
+  CapacityType,
+  PaymentStatus,
+  ProviderStatus,
 } from "@/lib/types";
 
 /**
  * The nine booking states (§7), in provider-facing wording.
  *
  * "Cancelled by you" here means the *provider* cancelled — the patient-facing
- * labels read the other way round, which is why `BOOKING_STATUS_LABELS_PROVIDER`
- * exists.
+ * labels read the other way round, which is why `bookingStatusProvider` exists
+ * alongside `bookingStatus`.
  */
 const BOOKING_TONES: Record<BookingStatus, string> = {
   held: "bg-warning/15 text-warning",
@@ -32,8 +32,6 @@ const BOOKING_TONES: Record<BookingStatus, string> = {
   refunded: "bg-primary/10 text-primary",
 };
 
-const BOOKING_LABELS: Record<BookingStatus, string> = BOOKING_STATUS_LABELS_PROVIDER;
-
 export function BookingStatusBadge({
   status,
   className,
@@ -41,13 +39,15 @@ export function BookingStatusBadge({
   status: BookingStatus;
   className?: string;
 }) {
+  const L = useLabels();
+
   return (
     <Badge
       variant="secondary"
       className={cn("font-medium whitespace-nowrap", BOOKING_TONES[status], className)}
     >
       {status === "no_show" && <UserX className="size-3" />}
-      {BOOKING_LABELS[status]}
+      {L.bookingStatusProvider(status)}
     </Badge>
   );
 }
@@ -59,6 +59,8 @@ export function BookingStatusBadge({
  * waiting time, not against the patient.
  */
 export function LongWaitBadge({ className }: { className?: string }) {
+  const t = useTranslations("provider");
+
   return (
     <Badge
       variant="secondary"
@@ -66,24 +68,26 @@ export function LongWaitBadge({ className }: { className?: string }) {
         "gap-1 font-medium whitespace-nowrap bg-warning/15 text-warning",
         className,
       )}
-      title="This patient arrived and left after a long wait. It counts against your waiting time, not against them."
+      title={t("badges.longWaitTitle")}
     >
       <Hourglass className="size-3" />
-      Left after a long wait
+      {t("badges.longWait")}
     </Badge>
   );
 }
 
 /** Marks a place taken beyond a comfort limit, with the patient's consent (§5). */
 export function OverCapacityBadge({ className }: { className?: string }) {
+  const t = useTranslations("provider");
+
   return (
     <Badge
       variant="outline"
       className={cn("gap-1 font-normal whitespace-nowrap", className)}
-      title="Booked beyond your comfort limit — the patient accepted a longer wait."
+      title={t("badges.overCapacityTitle")}
     >
       <AlertTriangle className="size-3" />
-      Over comfort limit
+      {t("badges.overCapacity")}
     </Badge>
   );
 }
@@ -95,6 +99,9 @@ export function CapacityTypeBadge({
   type: CapacityType;
   className?: string;
 }) {
+  const t = useTranslations("provider");
+  const L = useLabels();
+
   return (
     <Badge
       variant="secondary"
@@ -105,9 +112,9 @@ export function CapacityTypeBadge({
           : "bg-info/10 text-info",
         className,
       )}
-      title={CAPACITY_LABELS[type]}
+      title={L.capacity(type)}
     >
-      {type === "strict" ? "Strict limit" : "Comfort limit"}
+      {type === "strict" ? t("badges.strictLimit") : t("badges.comfortLimit")}
     </Badge>
   );
 }
@@ -118,12 +125,6 @@ const PAYMENT_TONES: Record<PaymentStatus, string> = {
   refunded: "bg-warning/15 text-warning",
 };
 
-const PAYMENT_LABELS: Record<PaymentStatus, string> = {
-  paid: "Paid",
-  unpaid: "Unpaid",
-  refunded: "Refunded",
-};
-
 export function PaymentStatusBadge({
   status,
   className,
@@ -131,12 +132,14 @@ export function PaymentStatusBadge({
   status: PaymentStatus;
   className?: string;
 }) {
+  const L = useLabels();
+
   return (
     <Badge
       variant="secondary"
       className={cn("font-medium", PAYMENT_TONES[status], className)}
     >
-      {PAYMENT_LABELS[status]}
+      {L.paymentStatus(status)}
     </Badge>
   );
 }
@@ -148,13 +151,6 @@ const PROVIDER_TONES: Record<ProviderStatus, string> = {
   suspended: "bg-destructive/10 text-destructive",
 };
 
-const PROVIDER_LABELS: Record<ProviderStatus, string> = {
-  approved: "Approved",
-  pending: "Pending review",
-  rejected: "Rejected",
-  suspended: "Suspended",
-};
-
 export function ProviderStatusBadge({
   status,
   className,
@@ -162,12 +158,14 @@ export function ProviderStatusBadge({
   status: ProviderStatus;
   className?: string;
 }) {
+  const t = useTranslations("provider");
+
   return (
     <Badge
       variant="secondary"
       className={cn("font-medium", PROVIDER_TONES[status], className)}
     >
-      {PROVIDER_LABELS[status]}
+      {t(`status.${status}`)}
     </Badge>
   );
 }

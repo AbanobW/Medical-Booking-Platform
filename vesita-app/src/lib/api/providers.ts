@@ -3,7 +3,10 @@ import {
   earliestAvailability,
   slotsForBranch,
 } from "@/lib/api/availability";
+import { isLiveCapability } from "@/lib/api/capabilities";
 import { db, paginate, request, ApiError } from "@/lib/api/client";
+import * as liveAvailability from "@/lib/api/medpoint/availability";
+import * as liveProviders from "@/lib/api/medpoint/providers";
 import { GOVERNORATES, SPECIALTIES } from "@/lib/data/egypt";
 import { addDays, TODAY, toISODate } from "@/lib/data/seed";
 import type {
@@ -85,6 +88,10 @@ function distanceFrom(provider: Provider, governorateId?: string): number {
 export function searchProviders(
   filters: SearchFilters = {},
 ): Promise<Paginated<Provider> & { appliedFilters: SearchFilters }> {
+  if (isLiveCapability("discovery")) {
+    return liveProviders.searchProviders(filters);
+  }
+
   return request(() => {
     const {
       q,
@@ -184,17 +191,25 @@ export function searchProviders(
 }
 
 export function getProviderBySlug(slug: string): Promise<Provider> {
+  if (isLiveCapability("discovery")) {
+    return liveProviders.getProviderBySlug(slug);
+  }
+
   return request(() => {
     const provider = db().providers.find((p) => p.slug === slug);
-    if (!provider) throw new ApiError("Provider not found", 404);
+    if (!provider) throw new ApiError("Provider not found", 404, "provider.notFound");
     return provider;
   });
 }
 
 export function getProviderById(id: string): Promise<Provider> {
+  if (isLiveCapability("discovery")) {
+    return liveProviders.getProviderById(id);
+  }
+
   return request(() => {
     const provider = db().providers.find((p) => p.id === id);
-    if (!provider) throw new ApiError("Provider not found", 404);
+    if (!provider) throw new ApiError("Provider not found", 404, "provider.notFound");
     return provider;
   });
 }
@@ -203,6 +218,10 @@ export function getFeaturedProviders(
   type: ProviderRole,
   limit = 6,
 ): Promise<Provider[]> {
+  if (isLiveCapability("discovery")) {
+    return liveProviders.getFeaturedProviders(type, limit);
+  }
+
   return request(() =>
     publicProviders()
       .filter((p) => p.type === type && p.isFeatured)
@@ -212,6 +231,10 @@ export function getFeaturedProviders(
 }
 
 export function getPopularSpecialties(limit = 12) {
+  if (isLiveCapability("discovery")) {
+    return liveProviders.getPopularSpecialties(limit);
+  }
+
   return request(() => {
     const counts = new Map<string, number>();
 
@@ -230,6 +253,10 @@ export function getPopularSpecialties(limit = 12) {
 }
 
 export function getProviderReviews(providerId: string): Promise<Review[]> {
+  if (isLiveCapability("discovery")) {
+    return liveProviders.getProviderReviews(providerId);
+  }
+
   return request(() =>
     db()
       .reviews.filter((r) => r.providerId === providerId)
@@ -239,9 +266,13 @@ export function getProviderReviews(providerId: string): Promise<Review[]> {
 
 /** Providers geographically closest to the given one — powers "Nearby". */
 export function getNearbyProviders(providerId: string, limit = 4): Promise<Provider[]> {
+  if (isLiveCapability("discovery")) {
+    return liveProviders.getNearbyProviders(providerId, limit);
+  }
+
   return request(() => {
     const origin = db().providers.find((p) => p.id === providerId);
-    if (!origin) throw new ApiError("Provider not found", 404);
+    if (!origin) throw new ApiError("Provider not found", 404, "provider.notFound");
 
     const km = (p: Provider) => {
       const dLat = (p.location.lat - origin.location.lat) * 111;
@@ -274,12 +305,16 @@ export function getAvailability(
   days = 30,
   branchId?: string,
 ): Promise<Record<string, TimeSlot[]>> {
+  if (isLiveCapability("availability")) {
+    return liveAvailability.getAvailability(providerId, days, branchId);
+  }
+
   return request(() => {
     const provider = db().providers.find((p) => p.id === providerId);
-    if (!provider) throw new ApiError("Provider not found", 404);
+    if (!provider) throw new ApiError("Provider not found", 404, "provider.notFound");
 
     const branch = branchOf(provider, branchId);
-    if (!branch) throw new ApiError("Branch not found", 404);
+    if (!branch) throw new ApiError("Branch not found", 404, "branch.notFound");
 
     const byDate: Record<string, TimeSlot[]> = {};
     for (let i = 0; i < days; i++) {
@@ -295,12 +330,16 @@ export function getSlotsForDate(
   date: string,
   branchId?: string,
 ): Promise<TimeSlot[]> {
+  if (isLiveCapability("availability")) {
+    return liveAvailability.getSlotsForDate(providerId, date, branchId);
+  }
+
   return request(() => {
     const provider = db().providers.find((p) => p.id === providerId);
-    if (!provider) throw new ApiError("Provider not found", 404);
+    if (!provider) throw new ApiError("Provider not found", 404, "provider.notFound");
 
     const branch = branchOf(provider, branchId);
-    if (!branch) throw new ApiError("Branch not found", 404);
+    if (!branch) throw new ApiError("Branch not found", 404, "branch.notFound");
 
     return slotsForBranch(provider, branch, date);
   });
@@ -308,6 +347,10 @@ export function getSlotsForDate(
 
 /** Next few open places across every branch — shown on search-result cards. */
 export function getNextSlots(providerId: string, limit = 4): Promise<TimeSlot[]> {
+  if (isLiveCapability("availability")) {
+    return liveAvailability.getNextSlots(providerId, limit);
+  }
+
   return request(() => {
     const provider = db().providers.find((p) => p.id === providerId);
     if (!provider) return [];

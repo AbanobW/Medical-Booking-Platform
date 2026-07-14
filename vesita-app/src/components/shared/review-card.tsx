@@ -1,13 +1,14 @@
 "use client";
 
 import { CheckCircle2, ThumbsUp } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { RatingStars } from "@/components/shared/rating";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { initialsOf, timeAgo } from "@/lib/format";
+import { useFormat } from "@/lib/i18n/use-format";
 import { cn } from "@/lib/utils";
 import type { Review } from "@/lib/types";
 
@@ -21,6 +22,8 @@ export function ReviewCard({
   actions?: React.ReactNode;
   className?: string;
 }) {
+  const t = useTranslations("common");
+  const { timeAgo, initialsOf, formatNumber } = useFormat();
   const [helpful, setHelpful] = useState(review.helpfulCount);
   const [voted, setVoted] = useState(false);
 
@@ -42,7 +45,7 @@ export function ReviewCard({
                   className="gap-1 bg-success/10 font-normal text-success"
                 >
                   <CheckCircle2 className="size-3" />
-                  Verified visit
+                  {t("review.verifiedVisit")}
                 </Badge>
               )}
             </div>
@@ -62,9 +65,9 @@ export function ReviewCard({
         </p>
 
         {review.reply && (
-          <div className="rounded-xl border-l-2 border-primary bg-accent/50 p-4">
+          <div className="rounded-xl border-s-2 border-primary bg-accent/50 p-4">
             <p className="text-xs font-semibold text-primary">
-              Response from the provider
+              {t("review.providerResponse")}
             </p>
             <p className="mt-1 text-sm text-foreground/80">
               {review.reply.comment}
@@ -88,7 +91,7 @@ export function ReviewCard({
           )}
         >
           <ThumbsUp className={cn("size-3.5", voted && "fill-primary/20")} />
-          Helpful ({helpful})
+          {t("review.helpful", { count: formatNumber(helpful) })}
         </button>
       </CardContent>
     </Card>

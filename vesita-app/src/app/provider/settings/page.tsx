@@ -2,7 +2,8 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarDays, MapPin, Star } from "lucide-react";
-import { useEffect } from "react";
+import { useTranslations } from "next-intl";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -22,7 +23,6 @@ import {
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -33,29 +33,51 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutation } from "@/hooks/use-async";
 import { updateProviderProfile } from "@/lib/api/provider-admin";
-import { getAreaName, getGovernorateName } from "@/lib/data/egypt";
-import { formatDate } from "@/lib/format";
-import { formatEGP } from "@/lib/site";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
 
-const profileSchema = z.object({
-  name: z.string().min(3, "Your name is too short."),
-  bio: z.string().min(20, "Write at least a couple of sentences."),
-  phone: z
-    .string()
-    .regex(/^01[0-2,5]\d{8}$/, "Use an Egyptian mobile number, e.g. 01012345678."),
-  address: z.string().min(5, "Add a street address."),
-  price: z.number().min(0, "Price can't be negative."),
-});
+function profileSchema(t: (key: string) => string) {
+  return z.object({
+    name: z.string().min(3, t("settings.validation.name")),
+    // The bio is what a patient reads on the listing, so it is stored in both
+    // languages and both halves are required.
+    bio: z.string().min(20, t("settings.validation.bio")),
+    bioAr: z.string().min(20, t("settings.validation.bioArabic")),
+    phone: z
+      .string()
+      .regex(/^01[0-2,5]\d{8}$/, t("settings.validation.phone")),
+    address: z.string().min(5, t("settings.validation.address")),
+    price: z.number().min(0, t("settings.validation.priceNegative")),
+  });
+}
 
-type ProfileFormValues = z.infer<typeof profileSchema>;
+type ProfileFormValues = z.infer<ReturnType<typeof profileSchema>>;
 
 export default function ProviderSettingsPage() {
+  const t = useTranslations("provider");
+  const tCommon = useTranslations("common");
+  const describeError = useApiError();
+  const { formatDate, formatEGP, formatNumber } = useFormat();
+  const { getAreaName, getGovernorateName } = useDomain();
+
   const { providerId, provider, isLoading, error, refetch, setData } =
     useCurrentProvider();
 
+  const schema = useMemo(
+    () => profileSchema((key) => t(key as never)),
+    [t],
+  );
+
   const form = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: { name: "", bio: "", phone: "", address: "", price: 0 },
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: "",
+      bio: "",
+      bioAr: "",
+      phone: "",
+      address: "",
+      price: 0,
+    },
   });
 
   const save = useMutation(updateProviderProfile);
@@ -65,7 +87,8 @@ export default function ProviderSettingsPage() {
 
     form.reset({
       name: provider.name,
-      bio: provider.bio,
+      bio: provider.bio.en,
+      bioAr: provider.bio.ar,
       phone: provider.phone,
       address: provider.address,
       price: provider.price,
@@ -78,8 +101,8 @@ export default function ProviderSettingsPage() {
   if (error) {
     return (
       <ErrorState
-        title="Couldn't load your profile"
-        description={error.message}
+        title={t("shared.profileError")}
+        description={describeError(error)}
         onRetry={refetch}
       />
     );
@@ -88,35 +111,39 @@ export default function ProviderSettingsPage() {
   if (!provider) {
     return (
       <EmptyState
-        title="No provider profile"
-        description="This account isn't linked to a provider listing yet."
+        title={t("shared.noProfileTitle")}
+        description={t("shared.noProfileDescription")}
       />
     );
   }
 
   async function onSubmit(values: ProfileFormValues) {
     try {
-      const updated = await save.mutate(providerId, values);
+      const updated = await save.mutate(providerId, {
+        name: values.name,
+        bio: { en: values.bio.trim(), ar: values.bioAr.trim() },
+        phone: values.phone,
+        address: values.address,
+        price: values.price,
+      });
       setData(updated);
-      toast.success("Profile updated.");
+      toast.success(t("settings.updated"));
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Couldn't save your profile.",
-      );
+      toast.error(describeError(err));
     }
   }
 
   const priceLabel =
-    provider.type === "doctor" ? "Consultation fee (EGP)" : "Starting price (EGP)";
+    provider.type === "doctor"
+      ? t("settings.consultationFee")
+      : t("settings.startingPrice");
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Profile</CardTitle>
-          <CardDescription>
-            This is what patients see on your listing and profile page.
-          </CardDescription>
+          <CardTitle className="text-base">{t("settings.profileTitle")}</CardTitle>
+          <CardDescription>{t("settings.profileDescription")}</CardDescription>
         </CardHeader>
 
         <CardContent>
@@ -127,7 +154,7 @@ export default function ProviderSettingsPage() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name</FormLabel>
+                    <FormLabel>{t("settings.name")}</FormLabel>
                     <FormControl>
                       <Input {...field} className="h-10 rounded-xl" />
                     </FormControl>
@@ -136,22 +163,48 @@ export default function ProviderSettingsPage() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="bio"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Bio</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} rows={5} className="rounded-xl" />
-                    </FormControl>
-                    <FormDescription>
-                      Experience, sub-specialties, and what patients can expect.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="bio"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("settings.bioEnglish")}</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          {...field}
+                          dir="ltr"
+                          rows={5}
+                          className="rounded-xl text-start"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="bioAr"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("settings.bioArabic")}</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          {...field}
+                          dir="rtl"
+                          rows={5}
+                          className="rounded-xl text-start"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t("settings.bioHint")}
+              </p>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField
@@ -159,13 +212,14 @@ export default function ProviderSettingsPage() {
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Phone</FormLabel>
+                      <FormLabel>{t("settings.phone")}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
                           inputMode="tel"
-                          placeholder="01012345678"
-                          className="h-10 rounded-xl"
+                          dir="ltr"
+                          placeholder={t("settings.phonePlaceholder")}
+                          className="h-10 rounded-xl text-start"
                         />
                       </FormControl>
                       <FormMessage />
@@ -202,7 +256,7 @@ export default function ProviderSettingsPage() {
                 name="address"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Address</FormLabel>
+                    <FormLabel>{t("settings.address")}</FormLabel>
                     <FormControl>
                       <Input {...field} className="h-10 rounded-xl" />
                     </FormControl>
@@ -216,7 +270,9 @@ export default function ProviderSettingsPage() {
                 disabled={save.isPending}
                 className="h-10 rounded-xl px-4"
               >
-                {save.isPending ? "Saving…" : "Save changes"}
+                {save.isPending
+                  ? tCommon("states.saving")
+                  : tCommon("actions.saveChanges")}
               </Button>
             </form>
           </Form>
@@ -225,13 +281,15 @@ export default function ProviderSettingsPage() {
 
       <Card className="h-fit">
         <CardHeader>
-          <CardTitle className="text-base">Account</CardTitle>
-          <CardDescription>Managed by the Vesita team.</CardDescription>
+          <CardTitle className="text-base">{t("settings.accountTitle")}</CardTitle>
+          <CardDescription>{t("settings.accountDescription")}</CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Status</span>
+            <span className="text-sm text-muted-foreground">
+              {t("settings.status")}
+            </span>
             <ProviderStatusBadge status={provider.status} />
           </div>
 
@@ -240,18 +298,20 @@ export default function ProviderSettingsPage() {
           <div className="flex items-start justify-between gap-4">
             <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
               <MapPin className="size-4" />
-              Location
+              {t("settings.location")}
             </span>
-            <span className="text-right text-sm font-medium">
-              {getAreaName(provider.areaId)},{" "}
-              {getGovernorateName(provider.governorateId)}
+            <span className="text-end text-sm font-medium">
+              {t("settings.locationValue", {
+                area: getAreaName(provider.areaId),
+                governorate: getGovernorateName(provider.governorateId),
+              })}
             </span>
           </div>
 
           <div className="flex items-center justify-between gap-4">
             <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
               <CalendarDays className="size-4" />
-              Joined
+              {t("settings.joined")}
             </span>
             <span className="text-sm font-medium">
               {formatDate(provider.joinedAt)}
@@ -261,12 +321,15 @@ export default function ProviderSettingsPage() {
           <div className="flex items-center justify-between gap-4">
             <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
               <Star className="size-4" />
-              Rating
+              {t("settings.rating")}
             </span>
             <span className="flex items-center gap-2">
               <RatingStars value={provider.rating} size="sm" />
-              <span className="text-sm font-medium tabular-nums">
-                {provider.rating.toFixed(1)} ({provider.reviewCount})
+              <span className="ltr-nums text-sm font-medium tabular-nums">
+                {t("settings.ratingValue", {
+                  rating: provider.rating.toFixed(1),
+                  count: formatNumber(provider.reviewCount),
+                })}
               </span>
             </span>
           </div>
@@ -274,8 +337,10 @@ export default function ProviderSettingsPage() {
           <Separator />
 
           <div className="flex items-center justify-between gap-4">
-            <span className="text-sm text-muted-foreground">Listed price</span>
-            <span className="text-sm font-medium tabular-nums">
+            <span className="text-sm text-muted-foreground">
+              {t("settings.listedPrice")}
+            </span>
+            <span className="ltr-nums text-sm font-medium tabular-nums">
               {formatEGP(provider.price)}
             </span>
           </div>

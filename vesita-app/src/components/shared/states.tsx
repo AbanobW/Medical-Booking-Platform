@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, RefreshCw, SearchX, type LucideIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -42,16 +43,19 @@ export function EmptyState({
 }
 
 export function ErrorState({
-  title = "Something went wrong",
+  title,
   description,
   onRetry,
   className,
 }: {
+  /** Defaults to the shared "Something went wrong" copy. */
   title?: string;
   description?: string;
   onRetry?: () => void;
   className?: string;
 }) {
+  const t = useTranslations("common");
+
   return (
     <div
       className={cn(
@@ -62,14 +66,14 @@ export function ErrorState({
       <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-destructive/10">
         <AlertTriangle className="size-7 text-destructive" />
       </div>
-      <h3 className="text-lg font-semibold">{title}</h3>
+      <h3 className="text-lg font-semibold">{title ?? t("states.error")}</h3>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-        {description ?? "We couldn't load this right now. Please try again."}
+        {description ?? t("states.errorDescription")}
       </p>
       {onRetry && (
         <Button variant="outline" onClick={onRetry} className="mt-6">
           <RefreshCw className="size-4" />
-          Try again
+          {t("actions.retry")}
         </Button>
       )}
     </div>

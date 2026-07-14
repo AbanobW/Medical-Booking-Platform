@@ -1,0 +1,3547 @@
+{
+    "info": {
+        "name": "MedPoint API (v1)",
+        "description": "# MedPoint API — v1\n\nAuto-generated from the application routes and their validation rules.\n\n## Getting started\n1. Set `baseUrl` (defaults to the staging host).\n2. Run **Auth > Login** — the token is captured into `{{accessToken}}` automatically\n   and applied to every other request via collection-level Bearer auth.\n\n## STATUS: SCAFFOLD — NOT PRODUCTION READY\nThese endpoints are CRUD skeletons. In particular:\n- **No ownership scoping.** Any authenticated user can currently read and modify\n  ANY other user's bookings, payments, wallets and patient profiles.\n- **No booking state machine** — `status` is a free-form field.\n- **No capacity/concurrency checks** — overbooking is possible.\n- **`price_snapshot` is taken from the request**, not derived from the Service.\n- **No payment processing** — payments only record intent.\n\nTreat request/response SHAPES as stable enough to build UI against;\ndo not treat the authorization behaviour as final.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{accessToken}}",
+                "type": "string"
+            }
+        ]
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "https://medpoint.intrazero.org",
+            "type": "string"
+        },
+        {
+            "key": "accessToken",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "refreshToken",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "id",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "Auth",
+            "item": [
+                {
+                    "name": "Send Reset Token",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/auth/admin/reset-password",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "auth",
+                                "admin",
+                                "reset-password"
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "description": "Public endpoint.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"patient@example.com\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Confirm Reset",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/auth/admin/reset-password/confirm",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "auth",
+                                "admin",
+                                "reset-password",
+                                "confirm"
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "description": "Public endpoint.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"patient@example.com\",\n    \"token\": \"string\",\n    \"password\": \"password\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Google Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/auth/google",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "auth",
+                                "google"
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "description": "Public endpoint.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"id_token\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/auth/login",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "auth",
+                                "login"
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "description": "Public endpoint.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"patient@example.com\",\n    \"password\": \"password\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const json = pm.response.json();",
+                                    "if (json.access_token) {",
+                                    "    pm.collectionVariables.set(\"accessToken\", json.access_token);",
+                                    "    console.log(\"accessToken stored\");",
+                                    "}",
+                                    "if (json.refresh_token) {",
+                                    "    pm.collectionVariables.set(\"refreshToken\", json.refresh_token);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Login With Phone",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/auth/phone",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "auth",
+                                "phone"
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "description": "Public endpoint.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"id_token\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Refresh Token",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/auth/refresh-token",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "auth",
+                                "refresh-token"
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "description": "Public endpoint."
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const json = pm.response.json();",
+                                    "if (json.access_token) {",
+                                    "    pm.collectionVariables.set(\"accessToken\", json.access_token);",
+                                    "    console.log(\"accessToken stored\");",
+                                    "}",
+                                    "if (json.refresh_token) {",
+                                    "    pm.collectionVariables.set(\"refreshToken\", json.refresh_token);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Register",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/auth/register",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "auth",
+                                "register"
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "description": "Public endpoint.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"full_name\": \"string\",\n    \"email\": \"patient@example.com\",\n    \"password\": \"password\",\n    \"phone\": \"+201234567890\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const json = pm.response.json();",
+                                    "if (json.access_token) {",
+                                    "    pm.collectionVariables.set(\"accessToken\", json.access_token);",
+                                    "    console.log(\"accessToken stored\");",
+                                    "}",
+                                    "if (json.refresh_token) {",
+                                    "    pm.collectionVariables.set(\"refreshToken\", json.refresh_token);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Revoke Token",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/logout",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "logout"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Reset Password With Otp",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/auth/reset-password",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "auth",
+                                "reset-password"
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "description": "Public endpoint.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"patient@example.com\",\n    \"otp\": \"string\",\n    \"password\": \"password\",\n    \"password_confirmation\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Send Otp",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/auth/forgot-password",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "auth",
+                                "forgot-password"
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "description": "Public endpoint.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"patient@example.com\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Verify Otp",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/auth/verify-otp",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "auth",
+                                "verify-otp"
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "description": "Public endpoint.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"patient@example.com\",\n    \"otp\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Send",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/email/verification-notification",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "email",
+                                "verification-notification"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Verify",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/email/verify/:id/:hash",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "email",
+                                "verify",
+                                ":id",
+                                ":hash"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Audits",
+            "item": [
+                {
+                    "name": "Create Audit",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/audits",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "audits"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"subject_type\": \"string\",\n    \"subject_id\": 1,\n    \"actor_type\": \"string\",\n    \"actor_id\": 1,\n    \"action\": \"string\",\n    \"changes\": []\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Audit",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/audits/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "audits",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Audit By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/audits/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "audits",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Audits",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/audits",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "audits"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Audit",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/audits/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "audits",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Bookings",
+            "item": [
+                {
+                    "name": "Create Booking",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/bookings",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "bookings"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"patient_profile_id\": \"{{patient_profile_id}}\",\n    \"branch_id\": \"{{branch_id}}\",\n    \"bookable_type\": \"string\",\n    \"bookable_id\": 1,\n    \"price_snapshot\": 100,\n    \"booking_fee\": 100,\n    \"source\": \"mobile\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Booking",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/bookings/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "bookings",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Booking By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/bookings/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "bookings",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Bookings",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/bookings",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "bookings"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Booking",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/bookings/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "bookings",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"booking_fee\": 100\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Branches",
+            "item": [
+                {
+                    "name": "Create Branch",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/branches",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "branches"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"provider_id\": \"{{provider_id}}\",\n    \"governorate\": \"string\",\n    \"area\": \"string\",\n    \"address\": \"string\",\n    \"lat\": 100,\n    \"lng\": 100,\n    \"phones\": []\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Branch",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/branches/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "branches",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Branch By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/branches/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "branches",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Branches",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/branches",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "branches"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Branch",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/branches/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "branches",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"governorate\": \"string\",\n    \"area\": \"string\",\n    \"address\": \"string\",\n    \"lat\": 100,\n    \"lng\": 100,\n    \"phones\": []\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Coupons",
+            "item": [
+                {
+                    "name": "Create Coupon",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/coupons",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "coupons"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"code\": \"string\",\n    \"type\": \"percentage\",\n    \"value\": 100,\n    \"scope\": \"global\",\n    \"max_uses\": 100,\n    \"max_uses_per_user\": 100,\n    \"expires_at\": \"2026-08-01\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Coupon",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/coupons/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "coupons",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Coupon By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/coupons/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "coupons",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Coupons",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/coupons",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "coupons"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Coupon",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/coupons/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "coupons",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"type\": \"percentage\",\n    \"value\": 100,\n    \"scope\": \"global\",\n    \"max_uses\": 100,\n    \"max_uses_per_user\": 100,\n    \"expires_at\": \"2026-08-01\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Doctor Sessions",
+            "item": [
+                {
+                    "name": "Create Doctor Session",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/doctor-sessions",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "doctor-sessions"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"branch_id\": \"{{branch_id}}\",\n    \"provider_id\": \"{{provider_id}}\",\n    \"date\": \"2026-08-01\",\n    \"start_time\": \"09:00:00\",\n    \"end_time\": \"09:00:00\",\n    \"max_tickets\": 100,\n    \"capacity_type\": \"soft\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Doctor Session",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/doctor-sessions/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "doctor-sessions",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Doctor Session By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/doctor-sessions/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "doctor-sessions",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Doctor Sessions",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/doctor-sessions",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "doctor-sessions"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Doctor Session",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/doctor-sessions/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "doctor-sessions",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"date\": \"2026-08-01\",\n    \"start_time\": \"09:00:00\",\n    \"end_time\": \"09:00:00\",\n    \"max_tickets\": 100,\n    \"capacity_type\": \"soft\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Insurances",
+            "item": [
+                {
+                    "name": "Create Insurance",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/insurances",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "insurances"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"provider_id\": \"{{provider_id}}\",\n    \"patient_profile_id\": \"{{patient_profile_id}}\",\n    \"plan_name\": \"string\",\n    \"policy_number\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Insurance",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/insurances/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "insurances",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Insurance By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/insurances/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "insurances",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Insurances",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/insurances",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "insurances"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Insurance",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/insurances/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "insurances",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"plan_name\": \"string\",\n    \"policy_number\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Notifications",
+            "item": [
+                {
+                    "name": "Create Notification",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/notifications",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "notifications"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"recipient_type\": \"string\",\n    \"recipient_id\": 1,\n    \"channel\": \"push\",\n    \"template\": \"string\",\n    \"payload\": []\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Notification",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/notifications/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "notifications",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Notification By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/notifications/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "notifications",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Notifications",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/notifications",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "notifications"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Notification",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/notifications/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "notifications",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"status\": \"queued\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Patient Profiles",
+            "item": [
+                {
+                    "name": "Create Patient Profile",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/patient-profiles",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "patient-profiles"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_id\": \"{{user_id}}\",\n    \"full_name\": \"string\",\n    \"gender\": \"male\",\n    \"date_of_birth\": \"2026-08-01\",\n    \"relationship\": \"self\",\n    \"phone\": \"+201234567890\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Patient Profile",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/patient-profiles/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "patient-profiles",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Patient Profile By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/patient-profiles/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "patient-profiles",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Patient Profiles",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/patient-profiles",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "patient-profiles"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Patient Profile",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/patient-profiles/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "patient-profiles",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"full_name\": \"string\",\n    \"gender\": \"male\",\n    \"date_of_birth\": \"2026-08-01\",\n    \"relationship\": \"self\",\n    \"phone\": \"+201234567890\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Payments",
+            "item": [
+                {
+                    "name": "Create Payment",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/payments",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "payments"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"booking_id\": \"{{booking_id}}\",\n    \"amount\": 100,\n    \"purpose\": \"booking_fee\",\n    \"gateway\": \"cash\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Payment",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/payments/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "payments",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Payment By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/payments/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "payments",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Payments",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/payments",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "payments"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Payment",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/payments/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "payments",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"status\": \"initiated\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Permissions",
+            "item": [
+                {
+                    "name": "Find Permission By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/permissions/:permission_id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "permissions",
+                                ":permission_id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Permissions",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/permissions",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "permissions"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Providers",
+            "item": [
+                {
+                    "name": "Create Provider",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/providers",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "providers"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"type\": \"doctor\",\n    \"name\": \"string\",\n    \"status\": \"pending\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Provider",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/providers/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "providers",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Provider By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/providers/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "providers",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Providers",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/providers",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "providers"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Provider",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/providers/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "providers",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"type\": \"doctor\",\n    \"name\": \"string\",\n    \"status\": \"pending\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Refunds",
+            "item": [
+                {
+                    "name": "Create Refund",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/refunds",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "refunds"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"booking_id\": \"{{booking_id}}\",\n    \"payment_id\": \"{{payment_id}}\",\n    \"amount\": 100,\n    \"reason\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Refund",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/refunds/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "refunds",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Refund By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/refunds/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "refunds",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Refunds",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/refunds",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "refunds"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Refund",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/refunds/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "refunds",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"status\": \"requested\",\n    \"reason\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Reviews",
+            "item": [
+                {
+                    "name": "Create Review",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/reviews",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "reviews"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"booking_id\": \"{{booking_id}}\",\n    \"ratings\": [],\n    \"comment\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Review",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/reviews/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "reviews",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Review By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/reviews/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "reviews",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Reviews",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/reviews",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "reviews"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Review",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/reviews/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "reviews",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"ratings\": [],\n    \"comment\": \"string\",\n    \"status\": \"pending\",\n    \"provider_reply\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Roles",
+            "item": [
+                {
+                    "name": "Create Role",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/roles",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "roles"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"string\",\n    \"description\": \"string\",\n    \"display_name\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Role",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/roles/:role_id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "roles",
+                                ":role_id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Role By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/roles/:role_id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "roles",
+                                ":role_id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Give Permissions To Role",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/roles/:role_id/permissions",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "roles",
+                                ":role_id",
+                                "permissions"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"role_id\": \"{{role_id}}\",\n    \"permission_ids\": []\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "List Role Permissions",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/roles/:role_id/permissions",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "roles",
+                                ":role_id",
+                                "permissions"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Roles",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/roles",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "roles"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Revoke Role Permissions",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/roles/:role_id/permissions",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "roles",
+                                ":role_id",
+                                "permissions"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Sync Role Permissions",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/roles/:role_id/permissions",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "roles",
+                                ":role_id",
+                                "permissions"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"role_id\": \"{{role_id}}\",\n    \"permission_ids\": []\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Services",
+            "item": [
+                {
+                    "name": "Create Service",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/services",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "services"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"branch_id\": \"{{branch_id}}\",\n    \"name\": \"string\",\n    \"category\": \"lab_test\",\n    \"price\": 100,\n    \"prep_instructions\": \"string\",\n    \"eligibility_rules\": [],\n    \"home_collection\": true\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Service",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/services/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "services",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Service By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/services/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "services",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Services",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/services",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "services"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Service",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/services/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "services",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"string\",\n    \"category\": \"lab_test\",\n    \"price\": 100,\n    \"prep_instructions\": \"string\",\n    \"eligibility_rules\": [],\n    \"home_collection\": true\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Slots",
+            "item": [
+                {
+                    "name": "Create Slot",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/slots",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "slots"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"branch_id\": \"{{branch_id}}\",\n    \"service_id\": \"{{service_id}}\",\n    \"start_datetime\": \"2026-08-01\",\n    \"capacity\": 100\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Slot",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/slots/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "slots",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Slot By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/slots/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "slots",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Slots",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/slots",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "slots"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Slot",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/slots/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "slots",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"start_datetime\": \"2026-08-01\",\n    \"capacity\": 100\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Users",
+            "item": [
+                {
+                    "name": "Assign Roles To User",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/users/:user_id/roles",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "users",
+                                ":user_id",
+                                "roles"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_id\": \"{{user_id}}\",\n    \"role_ids\": []\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Give Permissions To User",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/users/:user_id/permissions",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "users",
+                                ":user_id",
+                                "permissions"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_id\": \"{{user_id}}\",\n    \"permission_ids\": []\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "List User Permissions",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/users/:user_id/permissions",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "users",
+                                ":user_id",
+                                "permissions"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List User Roles",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/users/:user_id/roles",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "users",
+                                ":user_id",
+                                "roles"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Remove User Roles",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/users/:user_id/roles",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "users",
+                                ":user_id",
+                                "roles"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Revoke User Permissions",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/users/:user_id/permissions",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "users",
+                                ":user_id",
+                                "permissions"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Sync User Roles",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/users/:user_id/roles",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "users",
+                                ":user_id",
+                                "roles"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_id\": \"{{user_id}}\",\n    \"role_ids\": []\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Avatar",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/profile/avatar",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "profile",
+                                "avatar"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Delete User",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/users/:user_id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "users",
+                                ":user_id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find User By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/users/:user_id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "users",
+                                ":user_id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Get User Profile",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/profile",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "profile"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Users",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/users",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "users"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Password",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/users/:user_id/password",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "users",
+                                ":user_id",
+                                "password"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"current_password\": \"string\",\n    \"new_password\": \"string\",\n    \"new_password_confirmation\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Update Profile",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/profile",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "profile"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"string\",\n    \"full_name\": \"string\",\n    \"phone\": \"+201234567890\",\n    \"national_id\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Update User",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/users/:user_id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "users",
+                                ":user_id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"string\",\n    \"gender\": \"male\",\n    \"birth\": \"2026-08-01\",\n    \"current_password\": \"string\",\n    \"new_password\": \"string\",\n    \"new_password_confirmation\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Upload Avatar",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/profile/avatar",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "profile",
+                                "avatar"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"avatar\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Wallets",
+            "item": [
+                {
+                    "name": "Create Wallet",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/wallets",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "wallets"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_id\": \"{{user_id}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Wallet",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/wallets/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "wallets",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Find Wallet By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/wallets/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "wallets",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Wallets",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/wallets",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "wallets"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Wallet",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/wallets/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "wallets",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                }
+            ]
+        }
+    ]
+}

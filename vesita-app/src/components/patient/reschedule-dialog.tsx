@@ -1,8 +1,10 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { useBookingNames } from "@/components/patient/booking-names";
 import { CalendarPicker } from "@/components/shared/calendar-picker";
 import { ErrorState } from "@/components/shared/states";
 import { Button } from "@/components/ui/button";
@@ -17,7 +19,8 @@ import {
 import { useAsync, useMutation } from "@/hooks/use-async";
 import { rescheduleBooking } from "@/lib/api/bookings";
 import { getAvailability } from "@/lib/api/providers";
-import { formatDate, formatTime } from "@/lib/format";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useFormat } from "@/lib/i18n/use-format";
 import type { Booking } from "@/lib/types";
 
 export function RescheduleDialog({
@@ -31,14 +34,21 @@ export function RescheduleDialog({
   onOpenChange: (open: boolean) => void;
   onRescheduled: () => void;
 }) {
+  const t = useTranslations("patient");
+  const { formatDate, formatTime } = useFormat();
+  const names = useBookingNames(booking);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Reschedule appointment</DialogTitle>
+          <DialogTitle>{t("reschedule.title")}</DialogTitle>
           <DialogDescription>
-            {booking.providerName} · currently {formatDate(booking.date)} at{" "}
-            {formatTime(booking.time)}
+            {t("reschedule.description", {
+              provider: names.provider,
+              date: formatDate(booking.date),
+              time: formatTime(booking.time),
+            })}
           </DialogDescription>
         </DialogHeader>
 
@@ -62,6 +72,10 @@ function RescheduleBody({
   onOpenChange: (open: boolean) => void;
   onRescheduled: () => void;
 }) {
+  const t = useTranslations("patient");
+  const { formatDate, formatTime } = useFormat();
+  const describeError = useApiError();
+
   const [date, setDate] = useState<string | undefined>();
   const [time, setTime] = useState<string | undefined>();
 
@@ -77,25 +91,24 @@ function RescheduleBody({
 
     try {
       await mutate(booking.id, date, time);
-      toast.success("Appointment rescheduled.", {
-        description: `${formatDate(date)} at ${formatTime(time)}`,
+      toast.success(t("reschedule.toastTitle"), {
+        description: t("reschedule.toastDescription", {
+          date: formatDate(date),
+          time: formatTime(time),
+        }),
       });
       onOpenChange(false);
       onRescheduled();
     } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : "Couldn't reschedule this booking. Please try again.",
-      );
+      toast.error(describeError(err));
     }
   }
 
   if (error) {
     return (
       <ErrorState
-        title="Couldn't load availability"
-        description={error.message}
+        title={t("reschedule.error")}
+        description={describeError(error)}
         onRetry={refetch}
       />
     );
@@ -122,14 +135,14 @@ function RescheduleBody({
           disabled={isPending}
           className="h-10 rounded-xl px-4"
         >
-          Keep current time
+          {t("reschedule.keep")}
         </Button>
         <Button
           onClick={onConfirm}
           disabled={!date || !time || isPending}
           className="h-10 rounded-xl px-4"
         >
-          {isPending ? "Rescheduling…" : "Confirm new time"}
+          {isPending ? t("reschedule.rescheduling") : t("reschedule.confirm")}
         </Button>
       </DialogFooter>
     </>

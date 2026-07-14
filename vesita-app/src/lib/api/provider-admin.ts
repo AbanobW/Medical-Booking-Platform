@@ -16,7 +16,7 @@ import type {
 
 function mustFind(id: string): Provider {
   const provider = db().providers.find((p) => p.id === id);
-  if (!provider) throw new ApiError("Provider not found", 404);
+  if (!provider) throw new ApiError("Provider not found", 404, "provider.notFound");
   return provider;
 }
 
@@ -50,7 +50,7 @@ export function updateProviderProfile(
  */
 function branchOrThrow(provider: Provider, branchId: string): Branch {
   const branch = provider.branches.find((b) => b.id === branchId);
-  if (!branch) throw new ApiError("Branch not found", 404);
+  if (!branch) throw new ApiError("Branch not found", 404, "branch.notFound");
   return branch;
 }
 
@@ -80,6 +80,8 @@ export function updateSchedule(
         throw new ApiError(
           `${day.startTime}–${day.endTime} is not a valid working window.`,
           400,
+          "schedule.invalidWindow",
+          { startTime: day.startTime, endTime: day.endTime },
         );
       }
       // Capacity is the single source of truth for how many places exist
@@ -88,6 +90,7 @@ export function updateSchedule(
         throw new ApiError(
           "A working day needs a capacity of at least one place.",
           400,
+          "schedule.capacityRequired",
         );
       }
     }
@@ -123,7 +126,11 @@ export function addHoliday(
     const clash = state.holidays.some(
       (h) => h.providerId === providerId && h.date === date,
     );
-    if (clash) throw new ApiError("That date is already marked as a holiday.", 409);
+    if (clash) throw new ApiError(
+        "That date is already marked as a holiday.",
+        409,
+        "holiday.duplicate",
+      );
 
     const holiday: Holiday = { id: makeId("hol"), providerId, date, reason };
     state.holidays.push(holiday);
@@ -135,7 +142,7 @@ export function removeHoliday(id: string): Promise<{ id: string }> {
   return request(() => {
     const state = db();
     const index = state.holidays.findIndex((h) => h.id === id);
-    if (index < 0) throw new ApiError("Holiday not found", 404);
+    if (index < 0) throw new ApiError("Holiday not found", 404, "holiday.notFound");
 
     state.holidays.splice(index, 1);
     return { id };
@@ -218,7 +225,7 @@ export function updateService(
     const list = editableList(provider);
 
     const service = list.find((s) => s.id === serviceId);
-    if (!service) throw new ApiError("Service not found", 404);
+    if (!service) throw new ApiError("Service not found", 404, "service.notFound");
 
     Object.assign(service, patch);
     syncEntryPrice(provider);
@@ -235,10 +242,14 @@ export function deleteService(
     const list = editableList(provider);
 
     const index = list.findIndex((s) => s.id === serviceId);
-    if (index < 0) throw new ApiError("Service not found", 404);
+    if (index < 0) throw new ApiError("Service not found", 404, "service.notFound");
 
     if (list.length === 1) {
-      throw new ApiError("You must offer at least one service.", 409);
+      throw new ApiError(
+        "You must offer at least one service.",
+        409,
+        "service.lastOne",
+      );
     }
 
     list.splice(index, 1);
@@ -288,7 +299,11 @@ export type NewPackage = Omit<ServicePackage, "id" | "kind">;
 function withPackages(providerId: string): Lab | RadiologyCenter {
   const provider = mustFind(providerId);
   if (provider.type === "doctor") {
-    throw new ApiError("Doctors do not offer packages.", 400);
+    throw new ApiError(
+      "Doctors do not offer packages.",
+      400,
+      "package.notForDoctors",
+    );
   }
   return provider;
 }
@@ -319,7 +334,7 @@ export function updatePackage(
     const provider = withPackages(providerId);
 
     const pkg = provider.packages.find((p) => p.id === packageId);
-    if (!pkg) throw new ApiError("Package not found", 404);
+    if (!pkg) throw new ApiError("Package not found", 404, "package.notFound");
 
     Object.assign(pkg, patch);
     return pkg;
@@ -334,7 +349,7 @@ export function deletePackage(
     const provider = withPackages(providerId);
 
     const index = provider.packages.findIndex((p) => p.id === packageId);
-    if (index < 0) throw new ApiError("Package not found", 404);
+    if (index < 0) throw new ApiError("Package not found", 404, "package.notFound");
 
     provider.packages.splice(index, 1);
     return { id: packageId };

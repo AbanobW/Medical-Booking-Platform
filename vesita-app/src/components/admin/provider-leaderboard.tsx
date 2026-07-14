@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { Star } from "lucide-react";
 
 import { PROVIDER_TYPE_META } from "@/components/admin/badges";
@@ -16,9 +17,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useAsync } from "@/hooks/use-async";
 import { getTopProviders, type RankedProvider } from "@/lib/api/stats";
-import { getGovernorateName } from "@/lib/data/egypt";
-import { initialsOf } from "@/lib/format";
-import { formatEGP, formatNumber } from "@/lib/site";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import type { ProviderRole } from "@/lib/types";
 
 /**
@@ -38,6 +38,11 @@ export function ProviderLeaderboard({
   colorIndex?: number;
   limit?: number;
 }) {
+  const t = useTranslations("admin");
+  const describeError = useApiError();
+  const { initialsOf, formatEGP, formatNumber } = useFormat();
+  const { named, getGovernorateName } = useDomain();
+
   const { data, error, isLoading, refetch } = useAsync(
     () => getTopProviders(type, limit),
     [type, limit],
@@ -47,7 +52,7 @@ export function ProviderLeaderboard({
     () => [
       {
         id: "rank",
-        header: "#",
+        header: t("leaderboard.columns.rank"),
         enableSorting: false,
         cell: ({ row }) => (
           <span className="tabular-nums text-muted-foreground">
@@ -57,8 +62,8 @@ export function ProviderLeaderboard({
       },
       {
         id: "provider",
-        accessorFn: (r) => r.provider.name,
-        header: "Provider",
+        accessorFn: (r) => named(r.provider),
+        header: t("leaderboard.columns.provider"),
         cell: ({ row }) => {
           const { provider } = row.original;
 
@@ -67,11 +72,13 @@ export function ProviderLeaderboard({
               <Avatar className="size-9 shrink-0 rounded-xl">
                 <AvatarImage src={provider.photo} alt="" />
                 <AvatarFallback className="rounded-xl text-xs">
-                  {initialsOf(provider.name)}
+                  {initialsOf(named(provider))}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0">
-                <p className="font-medium whitespace-nowrap">{provider.name}</p>
+                <p className="font-medium whitespace-nowrap">
+                  {named(provider)}
+                </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {getGovernorateName(provider.governorateId)}
                 </p>
@@ -83,7 +90,7 @@ export function ProviderLeaderboard({
       {
         id: "rating",
         accessorFn: (r) => r.provider.rating,
-        header: "Rating",
+        header: t("leaderboard.columns.rating"),
         cell: ({ row }) => (
           <span className="inline-flex items-center gap-1 tabular-nums">
             <Star className="size-3.5 fill-warning text-warning" aria-hidden />
@@ -94,7 +101,7 @@ export function ProviderLeaderboard({
       {
         id: "bookings",
         accessorKey: "bookings",
-        header: "Bookings",
+        header: t("leaderboard.columns.bookings"),
         cell: ({ row }) => (
           <span className="font-medium tabular-nums">
             {formatNumber(row.original.bookings)}
@@ -104,7 +111,7 @@ export function ProviderLeaderboard({
       {
         id: "revenue",
         accessorKey: "revenue",
-        header: "Revenue",
+        header: t("leaderboard.columns.revenue"),
         cell: ({ row }) => (
           <span className="whitespace-nowrap tabular-nums">
             {formatEGP(row.original.revenue)}
@@ -114,7 +121,7 @@ export function ProviderLeaderboard({
       {
         id: "cancellationRate",
         accessorKey: "cancellationRate",
-        header: "Cancellation rate",
+        header: t("leaderboard.columns.cancellationRate"),
         cell: ({ row }) => {
           const rate = row.original.cancellationRate;
 
@@ -129,13 +136,13 @@ export function ProviderLeaderboard({
                     : "border-0 bg-success/10 text-success"
               }
             >
-              {rate.toFixed(1)}%
+              <span className="ltr-nums">{rate.toFixed(1)}%</span>
             </Badge>
           );
         },
       },
     ],
-    [],
+    [t, named, getGovernorateName, initialsOf, formatEGP, formatNumber],
   );
 
   if (isLoading) {
@@ -150,8 +157,8 @@ export function ProviderLeaderboard({
   if (error) {
     return (
       <ErrorState
-        title={`Couldn't load ${title.toLowerCase()}`}
-        description={error.message}
+        title={t("leaderboard.errorTitle")}
+        description={describeError(error)}
         onRetry={refetch}
       />
     );
@@ -165,8 +172,8 @@ export function ProviderLeaderboard({
     return (
       <EmptyState
         icon={icon}
-        title="No bookings yet"
-        description={`${title} appears here once these providers start taking bookings.`}
+        title={t("leaderboard.emptyTitle")}
+        description={t("leaderboard.emptyDescription")}
       />
     );
   }
@@ -175,7 +182,7 @@ export function ProviderLeaderboard({
     <div className="space-y-6">
       <CategoryBarChart
         data={ranked.map((row) => ({
-          name: row.provider.name,
+          name: named(row.provider),
           value: row.bookings,
         }))}
         title={title}
@@ -187,8 +194,8 @@ export function ProviderLeaderboard({
         columns={columns}
         data={ranked}
         pageSize={10}
-        emptyTitle="No providers"
-        emptyDescription="Nothing to rank yet."
+        emptyTitle={t("leaderboard.tableEmptyTitle")}
+        emptyDescription={t("leaderboard.tableEmptyDescription")}
       />
     </div>
   );

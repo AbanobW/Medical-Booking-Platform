@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { AlertTriangle, Ban, Loader2, PauseCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -16,7 +17,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { SUSPENSION_LABELS, type Provider, type SuspensionType } from "@/lib/types";
+import { useDomain } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
+import type { Provider, SuspensionType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -43,6 +46,11 @@ export function SuspendDialog({
   isPending: boolean;
   onConfirm: (type: SuspensionType, reason: string) => void;
 }) {
+  const t = useTranslations("admin");
+  const tCommon = useTranslations("common");
+  const L = useLabels();
+  const { named } = useDomain();
+
   const [type, setType] = useState<SuspensionType>("soft");
   const [reason, setReason] = useState("");
   const [touched, setTouched] = useState(false);
@@ -68,16 +76,14 @@ export function SuspendDialog({
     {
       value: "soft",
       icon: PauseCircle,
-      title: "Soft suspension",
-      impact:
-        "Hidden from search and blocked from taking new bookings. Bookings that already exist are honored — patients who booked keep their appointment.",
+      title: t("suspend.soft.title"),
+      impact: t("suspend.soft.impact"),
     },
     {
       value: "hard",
       icon: Ban,
-      title: "Hard suspension",
-      impact:
-        "Everything a soft suspension does, and every upcoming booking is cancelled, refunded in full, and the affected patients are notified so they can rebook elsewhere. Use for credential problems or fraud.",
+      title: t("suspend.hard.title"),
+      impact: t("suspend.hard.impact"),
     },
   ];
 
@@ -86,11 +92,12 @@ export function SuspendDialog({
       <AlertDialogContent className="max-w-lg">
         <AlertDialogHeader>
           <AlertDialogTitle>
-            Suspend {provider?.name ?? "this provider"}?
+            {t("suspend.title", {
+              name: provider ? named(provider) : t("suspend.fallbackName"),
+            })}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            Choose the form of suspension. The two differ in exactly one way that
-            matters: what happens to the patients who have already booked.
+            {t("suspend.description")}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -136,7 +143,7 @@ export function SuspendDialog({
                   </Label>
                   <p className="text-sm text-muted-foreground">{option.impact}</p>
                   <p className="text-xs text-muted-foreground">
-                    {SUSPENSION_LABELS[option.value]}
+                    {L.suspension(option.value)}
                   </p>
                 </div>
               </div>
@@ -146,14 +153,13 @@ export function SuspendDialog({
           {type === "hard" && (
             <p className="flex items-start gap-2 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-              This cancels and refunds every upcoming booking with this provider.
-              It cannot be undone by reinstating them.
+              {t("suspend.hardWarning")}
             </p>
           )}
 
           <div className="space-y-1.5">
             <Label htmlFor="suspension-reason" className="text-sm font-medium">
-              Reason (required)
+              {t("suspend.reasonLabel")}
             </Label>
             <Textarea
               id="suspension-reason"
@@ -161,7 +167,7 @@ export function SuspendDialog({
               onChange={(event) => setReason(event.target.value)}
               onBlur={() => setTouched(true)}
               rows={3}
-              placeholder="e.g. Medical syndicate registration could not be verified."
+              placeholder={t("suspend.reasonPlaceholder")}
               className="rounded-xl"
               aria-invalid={touched && !isValid}
             />
@@ -174,14 +180,16 @@ export function SuspendDialog({
               )}
             >
               {touched && !isValid
-                ? "Give a reason of at least 10 characters."
-                : "Recorded against the suspension, and used in what the affected patients are told."}
+                ? t("suspend.reasonError")
+                : t("suspend.reasonHint")}
             </p>
           </div>
         </div>
 
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isPending}>
+            {tCommon("actions.cancel")}
+          </AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
             disabled={isPending || !isValid}
@@ -195,7 +203,7 @@ export function SuspendDialog({
             }}
           >
             {isPending && <Loader2 className="size-4 animate-spin" />}
-            {type === "hard" ? "Suspend, cancel & refund" : "Suspend provider"}
+            {type === "hard" ? t("suspend.confirmHard") : t("suspend.confirmSoft")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

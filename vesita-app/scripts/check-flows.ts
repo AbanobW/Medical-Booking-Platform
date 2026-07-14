@@ -398,7 +398,10 @@ async function main() {
       ? ok("processRefund → REFUNDED", `EGP ${refunded.refundAmount} returned`)
       : fail("refund did not complete", refunded.status);
   } else {
-    ok("late cancellation forfeits the fee", cancelled.refundNote ?? "no refund due");
+    ok(
+      "late cancellation forfeits the fee",
+      cancelled.refundNote?.en ?? "no refund due",
+    );
   }
 
   try {

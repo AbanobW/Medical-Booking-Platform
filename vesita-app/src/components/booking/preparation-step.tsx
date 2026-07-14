@@ -9,12 +9,18 @@ import {
   ShieldAlert,
   Utensils,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { describeEligibility, evaluateEligibility } from "@/lib/eligibility";
+import { ageOf, evaluateEligibility } from "@/lib/eligibility";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
+import { serviceNamed } from "@/components/booking/service-picker";
 import type {
+  EligibilityRules,
+  EligibilityViolation,
   PatientProfile,
   PreparationInstructions,
   Service,
@@ -29,6 +35,10 @@ function preparationOf(service: Service): PreparationInstructions | undefined {
   return "preparation" in service ? service.preparation : undefined;
 }
 
+function rulesOf(service: Service): EligibilityRules | undefined {
+  return "eligibility" in service ? service.eligibility : undefined;
+}
+
 /**
  * Step 3 — preparation & eligibility (§3).
  *
@@ -37,6 +47,10 @@ function preparationOf(service: Service): PreparationInstructions | undefined {
  * an eligible one only continues after an explicit, two-part acknowledgement.
  * This is what stops a patient arriving un-fasted, or booking a scan they
  * cannot have.
+ *
+ * The *decision* still comes from `evaluateEligibility` — the rules live in the
+ * domain, not here. Only the wording of each restriction and violation is
+ * rebuilt for the active locale, because the domain speaks English.
  */
 export function PreparationStep({
   service,
@@ -53,17 +67,106 @@ export function PreparationStep({
   onChangeProfile: () => void;
   onChangeService: () => void;
 }) {
+  const t = useTranslations("booking");
+  const { localized, named } = useDomain();
+  const { formatNumber } = useFormat();
+  const L = useLabels();
+
   const prep = preparationOf(service);
-  const restrictions = describeEligibility(service);
+  const rules = rulesOf(service);
   const result = evaluateEligibility(service, profile);
+
+  const serviceName = named(serviceNamed(service));
+  const age = ageOf(profile.dateOfBirth);
+
+  /** The service's restrictions, in the reader's language. */
+  const restrictions: string[] = [];
+  if (rules) {
+    if (rules.genders?.length === 1) {
+      restrictions.push(
+        rules.genders[0] === "male"
+          ? t("prep.restriction.menOnly")
+          : t("prep.restriction.womenOnly"),
+      );
+    }
+    if (rules.minAge !== undefined && rules.maxAge !== undefined) {
+      restrictions.push(
+        t("prep.restriction.ageRange", {
+          min: formatNumber(rules.minAge),
+          max: formatNumber(rules.maxAge),
+        }),
+      );
+    } else if (rules.minAge !== undefined) {
+      restrictions.push(
+        t("prep.restriction.minAge", { min: formatNumber(rules.minAge) }),
+      );
+    } else if (rules.maxAge !== undefined) {
+      restrictions.push(
+        t("prep.restriction.maxAge", { max: formatNumber(rules.maxAge) }),
+      );
+    }
+    if (!rules.pregnancySafe) {
+      restrictions.push(t("prep.restriction.pregnancy"));
+    }
+    for (const condition of rules.excludedConditions) {
+      restrictions.push(
+        t("prep.restriction.condition", { condition: L.condition(condition) }),
+      );
+    }
+  }
+
+  /**
+   * The violations this profile actually trips. `evaluateEligibility` raises one
+   * `condition` violation per excluded condition the profile carries, in rule
+   * order — so the same filter reproduces which condition each one is about.
+   */
+  const trippedConditions = (rules?.excludedConditions ?? []).filter((c) =>
+    profile.chronicConditions.includes(c),
+  );
+  let conditionIndex = 0;
+
+  const describeViolation = (violation: EligibilityViolation): string => {
+    switch (violation.code) {
+      case "gender":
+        return rules?.genders?.[0] === "male"
+          ? t("prep.violation.genderMale", { service: serviceName })
+          : t("prep.violation.genderFemale", { service: serviceName });
+      case "min_age":
+        return t("prep.violation.minAge", {
+          service: serviceName,
+          name: profile.fullName,
+          min: formatNumber(rules?.minAge ?? 0),
+          age: formatNumber(age),
+        });
+      case "max_age":
+        return t("prep.violation.maxAge", {
+          service: serviceName,
+          name: profile.fullName,
+          max: formatNumber(rules?.maxAge ?? 0),
+          age: formatNumber(age),
+        });
+      case "pregnancy":
+        return t("prep.violation.pregnancy", { service: serviceName });
+      case "condition": {
+        const condition = trippedConditions[conditionIndex++];
+        return condition
+          ? t("prep.violation.condition", {
+              service: serviceName,
+              condition: L.condition(condition),
+            })
+          : violation.message;
+      }
+      default:
+        return violation.message;
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Preparation &amp; eligibility</h2>
+        <h2 className="text-lg font-semibold">{t("prep.title")}</h2>
         <p className="text-sm text-muted-foreground">
-          {service.name} carries requirements a normal visit does not. Please read
-          them before you book — they exist so the visit is not wasted.
+          {t("prep.subtitle", { service: serviceName })}
         </p>
       </div>
 
@@ -71,55 +174,57 @@ export function PreparationStep({
         <section className="rounded-2xl border bg-card p-5 shadow-soft">
           <h3 className="flex items-center gap-2 font-semibold">
             <FileText className="size-4 text-primary" />
-            How to prepare
+            {t("prep.howToPrepare")}
           </h3>
 
           <ul className="mt-4 space-y-3 text-sm">
             <PrepRow
               icon={Utensils}
-              label="Fasting"
+              label={t("prep.label.fasting")}
               value={
                 prep.fastingRequired
-                  ? `Fast for ${prep.fastingHours ?? 12} hours before the appointment.`
-                  : "No fasting is needed for this service."
+                  ? t("prep.fastingRequired", {
+                      hours: formatNumber(prep.fastingHours ?? 12),
+                    })
+                  : t("prep.fastingNotRequired")
               }
             />
 
             {prep.fastingRequired && (
               <PrepRow
                 icon={Droplets}
-                label="Water"
+                label={t("prep.label.water")}
                 value={
                   prep.waterAllowed
-                    ? "Plain water is allowed — and encouraged — during the fast."
-                    : "Do not drink anything, including water, during the fast."
+                    ? t("prep.waterAllowed")
+                    : t("prep.waterNotAllowed")
                 }
               />
             )}
 
             <PrepRow
               icon={Pill}
-              label="Medication"
+              label={t("prep.label.medication")}
               value={
                 prep.medicationRestrictions.length > 0
-                  ? prep.medicationRestrictions
-                  : "No medication changes are required."
+                  ? prep.medicationRestrictions.map((line) => localized(line))
+                  : t("prep.medicationNone")
               }
             />
 
             <PrepRow
               icon={Clock}
-              label="On the day"
-              value={prep.arrivalInstructions}
+              label={t("prep.label.onTheDay")}
+              value={localized(prep.arrivalInstructions)}
             />
 
             <PrepRow
               icon={FileText}
-              label="Bring with you"
+              label={t("prep.label.bring")}
               value={
                 prep.documentsRequired.length > 0
-                  ? prep.documentsRequired
-                  : "Nothing in particular."
+                  ? prep.documentsRequired.map((line) => localized(line))
+                  : t("prep.documentsNone")
               }
             />
           </ul>
@@ -130,7 +235,7 @@ export function PreparationStep({
         <section className="rounded-2xl border bg-card p-5 shadow-soft">
           <h3 className="flex items-center gap-2 font-semibold">
             <ShieldAlert className="size-4 text-primary" />
-            Who can have this service
+            {t("prep.whoCanHave")}
           </h3>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
             {restrictions.map((line) => (
@@ -148,10 +253,8 @@ export function PreparationStep({
 
       {result.eligible ? (
         <section className="space-y-3 rounded-2xl border bg-card p-5 shadow-soft">
-          <h3 className="font-semibold">Your acknowledgement</h3>
-          <p className="text-sm text-muted-foreground">
-            Both boxes are required before this booking can be taken.
-          </p>
+          <h3 className="font-semibold">{t("prep.ack.title")}</h3>
+          <p className="text-sm text-muted-foreground">{t("prep.ack.subtitle")}</p>
 
           <div className="flex items-start gap-3 rounded-xl border bg-background p-4">
             <Checkbox
@@ -166,7 +269,7 @@ export function PreparationStep({
               htmlFor="ack-preparation"
               className="cursor-pointer text-sm font-normal leading-relaxed"
             >
-              I have read and will follow the preparation instructions.
+              {t("prep.ack.preparation")}
             </Label>
           </div>
 
@@ -183,8 +286,10 @@ export function PreparationStep({
               htmlFor="ack-eligibility"
               className="cursor-pointer text-sm font-normal leading-relaxed"
             >
-              I confirm {profile.fullName} meets the eligibility requirements for{" "}
-              {service.name}.
+              {t("prep.ack.eligibility", {
+                name: profile.fullName,
+                service: serviceName,
+              })}
             </Label>
           </div>
         </section>
@@ -195,25 +300,28 @@ export function PreparationStep({
         >
           <h3 className="flex items-center gap-2 font-semibold text-destructive">
             <AlertTriangle className="size-4" />
-            {profile.fullName} cannot have {service.name}
+            {t("prep.blocked.title", {
+              name: profile.fullName,
+              service: serviceName,
+            })}
           </h3>
 
           <ul className="space-y-2 text-sm">
-            {result.violations.map((violation) => (
-              <li key={violation.code} className="flex items-start gap-2">
+            {result.violations.map((violation, i) => (
+              <li
+                key={`${violation.code}-${i}`}
+                className="flex items-start gap-2"
+              >
                 <span
                   className="mt-1.5 size-1.5 shrink-0 rounded-full bg-destructive"
                   aria-hidden
                 />
-                {violation.message}
+                {describeViolation(violation)}
               </li>
             ))}
           </ul>
 
-          <p className="text-sm text-muted-foreground">
-            This booking cannot go ahead. Choose a different patient, or a
-            different service.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("prep.blocked.body")}</p>
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button
@@ -221,7 +329,7 @@ export function PreparationStep({
               className="h-10 rounded-xl px-4"
               onClick={onChangeProfile}
             >
-              Choose a different patient
+              {t("prep.blocked.choosePatient")}
             </Button>
             <Button
               type="button"
@@ -229,7 +337,7 @@ export function PreparationStep({
               className="h-10 rounded-xl px-4"
               onClick={onChangeService}
             >
-              Choose a different service
+              {t("prep.blocked.chooseService")}
             </Button>
           </div>
         </section>

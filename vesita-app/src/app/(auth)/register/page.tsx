@@ -3,9 +3,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Eye, EyeOff, Loader2, UserPlus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -25,40 +26,94 @@ import {
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { HOME_FOR_ROLE } from "@/lib/api/auth";
+import { ValidationError } from "@/lib/api/http";
+import {
+  requiresOtpAfterSignup,
+  signupCollectsProfileFields,
+} from "@/lib/api/session";
 import { GOVERNORATES } from "@/lib/data/egypt";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useDomain } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
 
 /** Egyptian mobile numbers: 010/011/012/015 followed by eight digits. */
 const EG_PHONE = /^01[0125][0-9]{8}$/;
 
-const schema = z
-  .object({
-    name: z
-      .string()
-      .min(3, "Please enter your full name.")
-      .max(60, "That name is a little too long."),
-    email: z.email("Enter a valid email address."),
-    phone: z
-      .string()
-      .regex(EG_PHONE, "Enter a valid Egyptian mobile number, e.g. 01012345678."),
-    password: z.string().min(8, "Use at least 8 characters."),
-    confirmPassword: z.string().min(1, "Please confirm your password."),
-    gender: z.enum(["male", "female"], "Please select your gender."),
-    governorateId: z.string().min(1, "Please select your governorate."),
-    terms: z.boolean().refine((v) => v === true, {
-      message: "You must accept the terms to continue.",
-    }),
-  })
-  .refine((values) => values.password === values.confirmPassword, {
-    message: "Passwords do not match.",
-    path: ["confirmPassword"],
-  });
+type RegisterValues = {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  confirmPassword: string;
+  gender?: "male" | "female";
+  governorateId?: string;
+  terms: boolean;
+};
 
-type RegisterValues = z.infer<typeof schema>;
+const WIRE_FIELD_MAP: Record<string, keyof RegisterValues> = {
+  full_name: "name",
+  name: "name",
+  email: "email",
+  phone: "phone",
+  password: "password",
+};
 
 export default function RegisterPage() {
+  const t = useTranslations("auth");
+  const tCommon = useTranslations("common");
+  const describeError = useApiError();
+  const L = useLabels();
+  const { getGovernorateName } = useDomain();
+
   const router = useRouter();
   const { register } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
+  const collectProfileFields = signupCollectsProfileFields();
+
+  const schema = useMemo(() => {
+    return z
+      .object({
+        name: z
+          .string()
+          .min(3, t("errors.nameTooShort"))
+          .max(60, t("errors.nameTooLong")),
+        email: z.email(tCommon("validation.invalidEmail")),
+        phone: z.string().regex(EG_PHONE, t("errors.invalidPhone")),
+        password: z.string().min(8, t("errors.passwordMin8")),
+        confirmPassword: z.string().min(1, t("errors.confirmPassword")),
+        gender: z.enum(["male", "female"]).optional(),
+        governorateId: z.string().optional(),
+        terms: z.boolean().refine((v) => v === true, {
+          message: t("errors.acceptTerms"),
+        }),
+      })
+      .superRefine((values, ctx) => {
+        if (values.password !== values.confirmPassword) {
+          ctx.addIssue({
+            code: "custom",
+            message: t("errors.passwordMismatch"),
+            path: ["confirmPassword"],
+          });
+        }
+        if (collectProfileFields) {
+          if (!values.gender) {
+            ctx.addIssue({
+              code: "custom",
+              message: t("errors.selectGender"),
+              path: ["gender"],
+            });
+          }
+          if (!values.governorateId) {
+            ctx.addIssue({
+              code: "custom",
+              message: t("errors.selectGovernorate"),
+              path: ["governorateId"],
+            });
+          }
+        }
+      });
+  }, [t, tCommon, collectProfileFields]);
 
   const form = useForm<RegisterValues>({
     resolver: zodResolver(schema),
@@ -74,23 +129,45 @@ export default function RegisterPage() {
     },
   });
 
+  function applyValidationError(error: ValidationError) {
+    let attached = false;
+    for (const [wireField, messages] of Object.entries(error.fields)) {
+      const formField = WIRE_FIELD_MAP[wireField];
+      const message = messages[0];
+      if (formField && message) {
+        form.setError(formField, { message });
+        attached = true;
+      }
+    }
+    return attached;
+  }
+
   async function onSubmit(values: RegisterValues) {
     try {
-      await register({
+      const user = await register({
         name: values.name,
         email: values.email,
         phone: values.phone,
         password: values.password,
-        gender: values.gender,
-        governorateId: values.governorateId,
+        gender: values.gender ?? "male",
+        governorateId: values.governorateId ?? "",
         role: "patient",
       });
 
-      toast.success("Account created — let's verify your number.");
-      router.push("/verify");
+      if (requiresOtpAfterSignup()) {
+        toast.success(t("register.created"));
+        router.push("/verify");
+        return;
+      }
+
+      toast.success(t("login.welcomeBack", { name: user.name.split(" ")[0] }));
+      router.push(HOME_FOR_ROLE[user.role]);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "We couldn't create your account.";
+      if (error instanceof ValidationError && applyValidationError(error)) {
+        toast.error(describeError(error));
+        return;
+      }
+      const message = describeError(error);
       form.setError("email", { message });
       toast.error(message);
     }
@@ -101,10 +178,10 @@ export default function RegisterPage() {
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Create your account</h1>
-        <p className="text-sm text-muted-foreground">
-          Book doctors, labs and scans across Egypt in under a minute.
-        </p>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {t("register.title")}
+        </h1>
+        <p className="text-sm text-muted-foreground">{t("register.subtitle")}</p>
       </header>
 
       <Form {...form}>
@@ -114,11 +191,11 @@ export default function RegisterPage() {
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Full name</FormLabel>
+                <FormLabel>{t("register.nameLabel")}</FormLabel>
                 <FormControl>
                   <Input
                     autoComplete="name"
-                    placeholder="Mariam Hassan"
+                    placeholder={t("register.namePlaceholder")}
                     className="h-11 rounded-xl"
                     {...field}
                   />
@@ -134,12 +211,12 @@ export default function RegisterPage() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>{t("register.emailLabel")}</FormLabel>
                   <FormControl>
                     <Input
                       type="email"
                       autoComplete="email"
-                      placeholder="you@example.com"
+                      placeholder={t("register.emailPlaceholder")}
                       className="h-11 rounded-xl"
                       {...field}
                     />
@@ -154,14 +231,15 @@ export default function RegisterPage() {
               name="phone"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Mobile number</FormLabel>
+                  <FormLabel>{t("register.phoneLabel")}</FormLabel>
                   <FormControl>
                     <Input
                       type="tel"
                       inputMode="numeric"
                       autoComplete="tel"
-                      placeholder="01012345678"
+                      placeholder={t("register.phonePlaceholder")}
                       className="h-11 rounded-xl"
+                      dir="ltr"
                       {...field}
                     />
                   </FormControl>
@@ -178,7 +256,7 @@ export default function RegisterPage() {
               render={({ field }) => (
                 <FormItem>
                   <div className="flex items-center justify-between">
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>{t("register.passwordLabel")}</FormLabel>
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
@@ -189,14 +267,14 @@ export default function RegisterPage() {
                       ) : (
                         <Eye className="size-3.5" />
                       )}
-                      {showPassword ? "Hide" : "Show"}
+                      {showPassword ? t("password.hide") : t("password.show")}
                     </button>
                   </div>
                   <FormControl>
                     <Input
                       type={showPassword ? "text" : "password"}
                       autoComplete="new-password"
-                      placeholder="••••••••"
+                      placeholder={t("password.placeholder")}
                       className="h-11 rounded-xl"
                       {...field}
                     />
@@ -211,12 +289,12 @@ export default function RegisterPage() {
               name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Confirm password</FormLabel>
+                  <FormLabel>{t("register.confirmPasswordLabel")}</FormLabel>
                   <FormControl>
                     <Input
                       type={showPassword ? "text" : "password"}
                       autoComplete="new-password"
-                      placeholder="••••••••"
+                      placeholder={t("password.placeholder")}
                       className="h-11 rounded-xl"
                       {...field}
                     />
@@ -227,62 +305,64 @@ export default function RegisterPage() {
             />
           </div>
 
-          <FormField
-            control={form.control}
-            name="gender"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Gender</FormLabel>
-                <FormControl>
-                  <RadioGroup
-                    value={field.value}
-                    onValueChange={(value: string | null) => {
-                      if (value) field.onChange(value);
-                    }}
-                    className="flex gap-6"
-                  >
-                    {(["male", "female"] as const).map((option) => (
-                      <div key={option} className="flex items-center gap-2">
-                        <RadioGroupItem value={option} id={`gender-${option}`} />
-                        <Label
-                          htmlFor={`gender-${option}`}
-                          className="cursor-pointer text-sm font-normal capitalize"
-                        >
-                          {option}
-                        </Label>
-                      </div>
-                    ))}
-                  </RadioGroup>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {collectProfileFields ? (
+            <>
+              <FormField
+                control={form.control}
+                name="gender"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("register.genderLabel")}</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        value={field.value}
+                        onValueChange={(value: string | null) => {
+                          if (value) field.onChange(value);
+                        }}
+                        className="flex gap-6"
+                      >
+                        {(["male", "female"] as const).map((option) => (
+                          <div key={option} className="flex items-center gap-2">
+                            <RadioGroupItem value={option} id={`gender-${option}`} />
+                            <Label
+                              htmlFor={`gender-${option}`}
+                              className="cursor-pointer text-sm font-normal"
+                            >
+                              {L.gender(option)}
+                            </Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <FormField
-            control={form.control}
-            name="governorateId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Governorate</FormLabel>
-                <FormControl>
-                  <AppSelect
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    options={GOVERNORATES.map((g) => ({
-                      value: g.id,
-                      label: g.name,
-                    }))}
-                    placeholder="Where do you live?"
-                  />
-                </FormControl>
-                <FormDescription>
-                  We use this to show providers near you first.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+              <FormField
+                control={form.control}
+                name="governorateId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("register.governorateLabel")}</FormLabel>
+                    <FormControl>
+                      <AppSelect
+                        value={field.value ?? ""}
+                        onValueChange={field.onChange}
+                        options={GOVERNORATES.map((g) => ({
+                          value: g.id,
+                          label: getGovernorateName(g.id),
+                        }))}
+                        placeholder={t("register.governoratePlaceholder")}
+                      />
+                    </FormControl>
+                    <FormDescription>{t("register.governorateHint")}</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </>
+          ) : null}
 
           <FormField
             control={form.control}
@@ -298,21 +378,24 @@ export default function RegisterPage() {
                     />
                   </FormControl>
                   <FormLabel className="block text-sm font-normal leading-relaxed text-muted-foreground">
-                    I agree to the{" "}
-                    <Link
-                      href="/terms"
-                      className="font-medium text-primary underline-offset-4 hover:underline"
-                    >
-                      Terms of Service
-                    </Link>{" "}
-                    and{" "}
-                    <Link
-                      href="/privacy"
-                      className="font-medium text-primary underline-offset-4 hover:underline"
-                    >
-                      Privacy Policy
-                    </Link>
-                    .
+                    {t.rich("register.terms", {
+                      terms: (chunks) => (
+                        <Link
+                          href="/terms"
+                          className="font-medium text-primary underline-offset-4 hover:underline"
+                        >
+                          {chunks}
+                        </Link>
+                      ),
+                      privacy: (chunks) => (
+                        <Link
+                          href="/privacy"
+                          className="font-medium text-primary underline-offset-4 hover:underline"
+                        >
+                          {chunks}
+                        </Link>
+                      ),
+                    })}
                   </FormLabel>
                 </div>
                 <FormMessage />
@@ -330,18 +413,18 @@ export default function RegisterPage() {
             ) : (
               <UserPlus className="size-4" />
             )}
-            Create account
+            {t("register.submit")}
           </Button>
         </form>
       </Form>
 
       <p className="text-center text-sm text-muted-foreground">
-        Already have an account?{" "}
+        {t("register.haveAccount")}{" "}
         <Link
           href="/login"
           className="font-medium text-primary underline-offset-4 hover:underline"
         >
-          Sign in
+          {t("register.signIn")}
         </Link>
       </p>
     </div>

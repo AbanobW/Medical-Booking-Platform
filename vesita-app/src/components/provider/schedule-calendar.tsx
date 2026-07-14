@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { INTL_LOCALES, type Locale } from "@/i18n/config";
 import { addDays, TODAY, toISODate } from "@/lib/data/seed";
+import { useFormat } from "@/lib/i18n/use-format";
 import { cn } from "@/lib/utils";
 import type {
   DaySchedule,
@@ -19,23 +22,6 @@ import type {
   SchedulingMode,
   Weekday,
 } from "@/lib/types";
-
-const DAY_INITIALS = ["S", "M", "T", "W", "T", "F", "S"];
-
-const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
 
 /**
  * A month grid over the weekly schedule + holiday list.
@@ -57,6 +43,10 @@ export function ScheduleCalendar({
   mode?: SchedulingMode;
   className?: string;
 }) {
+  const t = useTranslations("provider");
+  const { locale } = useFormat();
+  const intlLocale = INTL_LOCALES[locale as Locale];
+
   const [offset, setOffset] = useState(0);
   const dayByWeekday = new Map<Weekday, DaySchedule>(
     schedule.map((d) => [d.weekday, d]),
@@ -81,28 +71,42 @@ export function ScheduleCalendar({
     addDays(firstOfMonth, i),
   );
 
+  const monthLabel = firstOfMonth.toLocaleDateString(intlLocale, {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+
+  // The column headings are the weekday narrows for the locale (S M T W…,
+  // ح ن ث ر…) — derived rather than hand-listed so Arabic reads naturally.
+  const narrowWeekday = new Intl.DateTimeFormat(intlLocale, {
+    weekday: "narrow",
+    timeZone: "UTC",
+  });
+  const dayInitials = Array.from({ length: 7 }, (_, i) =>
+    // 2024-01-07 is a Sunday, matching `Weekday` 0.
+    narrowWeekday.format(new Date(Date.UTC(2024, 0, 7 + i))),
+  );
+
   return (
     <Card className={className}>
       <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
         <div>
-          <CardTitle className="text-base">
-            {MONTH_NAMES[firstOfMonth.getUTCMonth()]}{" "}
-            {firstOfMonth.getUTCFullYear()}
-          </CardTitle>
+          <CardTitle className="text-base">{monthLabel}</CardTitle>
           <CardDescription>
             {branchName
-              ? `Working days, days off and holidays at ${branchName}`
-              : "Working days, days off and holidays at a glance"}
+              ? t("calendar.descriptionAt", { branch: branchName })
+              : t("calendar.description")}
           </CardDescription>
         </div>
         <div className="flex items-center gap-1">
           <Button
             variant="outline"
             size="icon-sm"
-            aria-label="Previous month"
+            aria-label={t("calendar.previousMonth")}
             onClick={() => setOffset((o) => o - 1)}
           >
-            <ChevronLeft className="size-4" />
+            <ChevronLeft className="size-4 rtl:rotate-180" />
           </Button>
           <Button
             variant="outline"
@@ -110,22 +114,22 @@ export function ScheduleCalendar({
             onClick={() => setOffset(0)}
             disabled={offset === 0}
           >
-            Today
+            {t("calendar.today")}
           </Button>
           <Button
             variant="outline"
             size="icon-sm"
-            aria-label="Next month"
+            aria-label={t("calendar.nextMonth")}
             onClick={() => setOffset((o) => o + 1)}
           >
-            <ChevronRight className="size-4" />
+            <ChevronRight className="size-4 rtl:rotate-180" />
           </Button>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-4">
         <div className="grid grid-cols-7 gap-1.5">
-          {DAY_INITIALS.map((initial, i) => (
+          {dayInitials.map((initial, i) => (
             <div
               key={i}
               className="pb-1 text-center text-xs font-medium text-muted-foreground"
@@ -147,14 +151,35 @@ export function ScheduleCalendar({
             const isToday = iso === todayIso;
             const day = dayByWeekday.get(weekday);
 
-            const capacityNote =
-              isWorking && day
-                ? ` — ${day.capacity} ${mode === "session" ? "patients" : "places per slot"} (${day.capacityType} limit), ${day.startTime}–${day.endTime}`
-                : "";
+            let label: string;
 
-            const label = holiday
-              ? `${iso} — holiday: ${holiday.reason}`
-              : `${iso} — ${isWorking ? "working day" : "day off"}${capacityNote}`;
+            if (holiday) {
+              label = t("calendar.cellHoliday", {
+                date: iso,
+                reason: holiday.reason,
+              });
+            } else if (isWorking && day) {
+              const limit =
+                day.capacityType === "strict"
+                  ? t("schedule.limitShortStrict")
+                  : t("schedule.limitShortComfort");
+
+              const capacity =
+                mode === "session"
+                  ? t("calendar.capacitySession", { count: day.capacity, limit })
+                  : t("calendar.capacitySlot", { count: day.capacity, limit });
+
+              label = t("calendar.cellWorkingDetail", {
+                date: iso,
+                capacity,
+                start: day.startTime,
+                end: day.endTime,
+              });
+            } else if (isWorking) {
+              label = t("calendar.cellWorking", { date: iso });
+            } else {
+              label = t("calendar.cellOff", { date: iso });
+            }
 
             return (
               <div
@@ -188,21 +213,21 @@ export function ScheduleCalendar({
               className="size-3 rounded-[4px] border border-primary/30 bg-primary/10"
               aria-hidden
             />
-            Working day
+            {t("calendar.workingDay")}
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span
               className="size-3 rounded-[4px] border border-dashed bg-muted/40"
               aria-hidden
             />
-            Day off
+            {t("calendar.dayOff")}
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span
               className="size-3 rounded-[4px] border border-destructive/40 bg-destructive/10"
               aria-hidden
             />
-            Holiday
+            {t("calendar.holiday")}
           </span>
         </div>
       </CardContent>

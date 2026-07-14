@@ -1,6 +1,7 @@
 "use client";
 
 import { MessageSquareReply, Star } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { ReplyDialog } from "@/components/provider/reply-dialog";
@@ -13,14 +14,15 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAsync } from "@/hooks/use-async";
 import { getReviewsByProvider } from "@/lib/api/engagement";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useFormat } from "@/lib/i18n/use-format";
 import type { Review } from "@/lib/types";
 
-const STAR_OPTIONS = [5, 4, 3, 2, 1].map((n) => ({
-  value: String(n),
-  label: `${n} star${n === 1 ? "" : "s"}`,
-}));
-
 export default function ProviderReviewsPage() {
+  const t = useTranslations("provider");
+  const describeError = useApiError();
+  const { formatNumber } = useFormat();
+
   const { providerId, provider } = useCurrentProvider();
 
   const reviews = useAsync(
@@ -31,6 +33,11 @@ export default function ProviderReviewsPage() {
   const [stars, setStars] = useState("");
   const [editing, setEditing] = useState<Review | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  const starOptions = [5, 4, 3, 2, 1].map((n) => ({
+    value: String(n),
+    label: t("reviews.stars", { count: n }),
+  }));
 
   const all = reviews.data ?? [];
   const filtered = stars
@@ -47,8 +54,8 @@ export default function ProviderReviewsPage() {
         <Skeleton className="h-52 w-full rounded-2xl" />
       ) : reviews.error ? (
         <ErrorState
-          title="Couldn't load your reviews"
-          description={reviews.error.message}
+          title={t("reviews.error")}
+          description={describeError(reviews.error)}
           onRetry={reviews.refetch}
         />
       ) : (
@@ -61,17 +68,19 @@ export default function ProviderReviewsPage() {
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
-              Showing {filtered.length} of {all.length} review
-              {all.length === 1 ? "" : "s"}
+              {t("reviews.showing", {
+                shown: formatNumber(filtered.length),
+                total: all.length,
+              })}
             </p>
 
             <div className="w-full sm:w-56">
               <AppSelect
                 value={stars}
                 onValueChange={setStars}
-                options={STAR_OPTIONS}
-                emptyOption="All ratings"
-                aria-label="Filter reviews by rating"
+                options={starOptions}
+                emptyOption={t("reviews.allRatings")}
+                aria-label={t("reviews.filterAria")}
                 className="h-10"
               />
             </div>
@@ -80,21 +89,21 @@ export default function ProviderReviewsPage() {
           {all.length === 0 ? (
             <EmptyState
               icon={Star}
-              title="No reviews yet"
-              description="Reviews appear here once patients rate their completed visits."
+              title={t("reviews.emptyTitle")}
+              description={t("reviews.emptyDescription")}
             />
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={Star}
-              title="No reviews at this rating"
-              description="Try a different star filter."
+              title={t("reviews.noneAtRatingTitle")}
+              description={t("reviews.noneAtRatingDescription")}
               action={
                 <Button
                   variant="outline"
                   className="h-10 rounded-xl px-4"
                   onClick={() => setStars("")}
                 >
-                  Clear filter
+                  {t("reviews.clearFilter")}
                 </Button>
               }
             />
@@ -114,7 +123,7 @@ export default function ProviderReviewsPage() {
                       }}
                     >
                       <MessageSquareReply className="size-3.5" />
-                      {review.reply ? "Edit reply" : "Reply"}
+                      {review.reply ? t("reviews.editReply") : t("reviews.reply")}
                     </Button>
                   }
                 />

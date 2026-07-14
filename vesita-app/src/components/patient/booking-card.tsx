@@ -15,8 +15,10 @@ import {
   UserRound,
   Wallet,
 } from "lucide-react";
-import { useState } from "react";
+import { useTranslations } from "next-intl";
+import { useState, type ReactNode } from "react";
 
+import { useBookingNames } from "@/components/patient/booking-names";
 import { CancelBookingDialog } from "@/components/patient/cancel-booking-dialog";
 import { LongWaitDialog } from "@/components/patient/long-wait-dialog";
 import { RescheduleDialog } from "@/components/patient/reschedule-dialog";
@@ -30,11 +32,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { isUpcoming } from "@/lib/api/bookings";
-import { formatDate, formatTime, initialsOf, relativeDay } from "@/lib/format";
-import { BUSINESS, formatEGP } from "@/lib/site";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
+import { BUSINESS } from "@/lib/site";
 import {
-  PAYMENT_METHOD_LABELS,
-  RELATIONSHIP_LABELS,
   isCancelled,
   isHold,
   isRefundInFlight,
@@ -72,6 +73,19 @@ export function BookingCard({
   /** Called after a cancel / reschedule / review so the list can refetch. */
   onChanged: () => void;
 }) {
+  const t = useTranslations("patient");
+  const L = useLabels();
+  const {
+    formatDate,
+    formatTime,
+    relativeDay,
+    formatEGP,
+    formatNumber,
+    initialsOf,
+  } = useFormat();
+  const { localized } = useDomain();
+  const names = useBookingNames(booking);
+
   const [cancelOpen, setCancelOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -90,6 +104,18 @@ export function BookingCard({
 
   const feePaidOnline = booking.bookingFee > 0;
 
+  const strong = (chunks: ReactNode) => (
+    <span className="font-medium text-foreground">{chunks}</span>
+  );
+
+  // The cancellation reason is stored as one of the canonical English strings
+  // (analytics key off it), so it is translated only here, at render.
+  const reasonKey = `cancel.reasons.${booking.cancellationReason}`;
+  const cancellationReason =
+    booking.cancellationReason && t.has(reasonKey)
+      ? t(reasonKey)
+      : booking.cancellationReason;
+
   return (
     <Card className="overflow-hidden border-border/60 transition-shadow hover:shadow-card">
       <CardContent className="space-y-4 p-5">
@@ -97,11 +123,11 @@ export function BookingCard({
           <Avatar className="size-16 shrink-0 rounded-2xl ring-1 ring-border">
             <AvatarImage
               src={booking.providerPhoto}
-              alt={booking.providerName}
+              alt={names.provider}
               className="rounded-2xl object-cover"
             />
             <AvatarFallback className="rounded-2xl font-semibold">
-              {initialsOf(booking.providerName)}
+              {initialsOf(names.provider)}
             </AvatarFallback>
           </Avatar>
 
@@ -109,30 +135,30 @@ export function BookingCard({
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <h3 className="truncate font-semibold leading-tight">
-                  {booking.providerName}
+                  {names.provider}
                 </h3>
                 <p className="mt-0.5 flex items-center gap-1 truncate text-sm text-muted-foreground">
                   <Stethoscope className="size-3.5 shrink-0" />
-                  {booking.providerSpecialty}
+                  {names.specialty}
                 </p>
               </div>
               <BookingStatusBadge status={booking.status} />
             </div>
 
-            <p className="mt-2 text-sm font-medium">{booking.serviceName}</p>
+            <p className="mt-2 text-sm font-medium">{names.service}</p>
           </div>
         </div>
 
         {/* Who the booking is for (§1) --------------------------------------- */}
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2 text-sm">
           <UserRound className="size-4 shrink-0 text-primary" />
-          <span className="text-muted-foreground">For</span>
+          <span className="text-muted-foreground">{t("card.for")}</span>
           <span className="font-medium">
             {profile?.fullName ?? booking.patientInfo.fullName}
           </span>
           {profile && (
             <Badge variant="secondary" className="font-normal">
-              {RELATIONSHIP_LABELS[profile.relationship]}
+              {L.relationship(profile.relationship)}
             </Badge>
           )}
         </div>
@@ -149,21 +175,28 @@ export function BookingCard({
           {isQueued ? (
             <p className="flex items-center gap-2">
               <ListOrdered className="size-4 shrink-0 text-muted-foreground" />
-              <span className="font-semibold tabular-nums">
-                #{booking.queueNumber}
+              <span className="font-semibold tabular-nums ltr-nums">
+                {t("card.queueNumber", {
+                  number: formatNumber(booking.queueNumber!),
+                })}
               </span>
               <span className="text-muted-foreground">
-                ·{" "}
                 {booking.estimatedTime
-                  ? `seen around ~${formatTime(booking.estimatedTime)}`
-                  : `session from ${formatTime(booking.time)}`}
+                  ? t("card.seenAround", {
+                      time: formatTime(booking.estimatedTime),
+                    })
+                  : t("card.sessionFrom", { time: formatTime(booking.time) })}
               </span>
             </p>
           ) : (
             <p className="flex items-center gap-2">
               <Clock className="size-4 shrink-0 text-muted-foreground" />
-              <span className="tabular-nums">{formatTime(booking.time)}</span>
-              <span className="text-muted-foreground">· your slot</span>
+              <span className="tabular-nums ltr-nums">
+                {formatTime(booking.time)}
+              </span>
+              <span className="text-muted-foreground">
+                {t("card.yourSlot")}
+              </span>
             </p>
           )}
 
@@ -177,8 +210,7 @@ export function BookingCard({
           {isQueued && (
             <p className="flex items-start gap-2 text-xs text-muted-foreground sm:col-span-2">
               <Info className="mt-px size-3.5 shrink-0" />
-              The clinic runs as a queue, so this is an estimate, not an exact
-              appointment time.
+              {t("card.queueNote")}
             </p>
           )}
         </div>
@@ -188,35 +220,35 @@ export function BookingCard({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="flex items-center gap-1.5 text-muted-foreground">
               <Wallet className="size-4" />
-              Booking fee (paid online)
+              {t("card.bookingFee")}
             </span>
             <span className="flex items-center gap-2">
-              <span className="font-semibold tabular-nums">
-                {feePaidOnline ? formatEGP(booking.bookingFee) : "None"}
+              <span className="font-semibold tabular-nums ltr-nums">
+                {feePaidOnline
+                  ? formatEGP(booking.bookingFee)
+                  : t("card.noFee")}
               </span>
               {feePaidOnline && <PaymentStatusBadge status={booking.paymentStatus} />}
             </span>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-muted-foreground">
-              Visit fee (payable at the clinic)
-            </span>
+            <span className="text-muted-foreground">{t("card.visitFee")}</span>
             <span className="flex items-center gap-2">
               {booking.discount > 0 && (
-                <span className="text-xs text-muted-foreground line-through tabular-nums">
+                <span className="text-xs text-muted-foreground line-through tabular-nums ltr-nums">
                   {formatEGP(booking.price)}
                 </span>
               )}
-              <span className="font-semibold tabular-nums text-primary">
+              <span className="font-semibold tabular-nums text-primary ltr-nums">
                 {formatEGP(booking.total)}
               </span>
             </span>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground">
-            <span>{PAYMENT_METHOD_LABELS[booking.paymentMethod]}</span>
-            <span className="font-mono">{booking.reference}</span>
+            <span>{L.paymentMethod(booking.paymentMethod)}</span>
+            <span className="font-mono ltr-nums">{booking.reference}</span>
           </div>
         </div>
 
@@ -235,24 +267,16 @@ export function BookingCard({
               <Hourglass className="mt-0.5 size-4 shrink-0 text-info" />
             )}
             <span>
-              {booking.status === "refunded" ? (
-                <>
-                  Your{" "}
-                  <span className="font-medium text-foreground">
-                    {formatEGP(booking.refundAmount ?? booking.bookingFee)}
-                  </span>{" "}
-                  booking fee has been refunded to your original payment method.
-                </>
-              ) : (
-                <>
-                  Refund in progress —{" "}
-                  <span className="font-medium text-foreground">
-                    {formatEGP(booking.refundAmount ?? booking.bookingFee)}
-                  </span>{" "}
-                  is on its way back to your original payment method. Your bank may
-                  take up to {BUSINESS.refundWorkingDays} working days to show it.
-                </>
-              )}
+              {booking.status === "refunded"
+                ? t.rich("card.refunded", {
+                    amount: formatEGP(booking.refundAmount ?? booking.bookingFee),
+                    b: strong,
+                  })
+                : t.rich("card.refundPending", {
+                    amount: formatEGP(booking.refundAmount ?? booking.bookingFee),
+                    days: formatNumber(BUSINESS.refundWorkingDays),
+                    b: strong,
+                  })}
             </span>
           </p>
         )}
@@ -260,28 +284,27 @@ export function BookingCard({
         {booking.refundNote && (
           <p className="rounded-xl border border-warning/20 bg-warning/5 p-3 text-xs text-muted-foreground">
             <span className="font-medium text-warning">
-              About your booking fee:{" "}
+              {t("card.refundNoteLabel")}
             </span>
-            {booking.refundNote}
+            {localized(booking.refundNote)}
           </p>
         )}
 
-        {isCancelled(booking.status) && booking.cancellationReason && (
+        {isCancelled(booking.status) && cancellationReason && (
           <p className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-xs text-muted-foreground">
             <span className="font-medium text-destructive">
-              Cancellation reason:{" "}
+              {t("card.cancellationReasonLabel")}
             </span>
-            {booking.cancellationReason}
+            {cancellationReason}
           </p>
         )}
 
         {booking.longWaitReported && (
           <p className="rounded-xl border bg-muted/40 p-3 text-xs text-muted-foreground">
             <span className="font-medium text-foreground">
-              You reported a long wait.{" "}
+              {t("card.longWaitLabel")}
             </span>
-            It counts towards this provider&apos;s waiting-time rating, not against
-            you.
+            {t("card.longWaitBody")}
           </p>
         )}
 
@@ -294,7 +317,7 @@ export function BookingCard({
                 className="h-10 rounded-xl px-4"
               >
                 <CalendarClock className="size-4" />
-                Reschedule
+                {t("card.reschedule")}
               </Button>
               <Button
                 variant="destructive"
@@ -302,7 +325,7 @@ export function BookingCard({
                 className="h-10 rounded-xl px-4"
               >
                 <CalendarX className="size-4" />
-                Cancel
+                {t("card.cancel")}
               </Button>
             </>
           )}
@@ -313,7 +336,7 @@ export function BookingCard({
               className="h-10 rounded-xl px-4"
             >
               <Star className="size-4" />
-              Leave a review
+              {t("card.leaveReview")}
             </Button>
           )}
 
@@ -324,7 +347,7 @@ export function BookingCard({
               className="h-10 rounded-xl px-4"
             >
               <Star className="size-4" />
-              View your review
+              {t("card.viewReview")}
             </Button>
           )}
 
@@ -335,7 +358,7 @@ export function BookingCard({
               className="h-10 rounded-xl px-4"
             >
               <Hourglass className="size-4" />
-              I arrived but left after a long wait
+              {t("card.reportLongWait")}
             </Button>
           )}
 
@@ -345,7 +368,7 @@ export function BookingCard({
               variant="outline"
               className="h-10 rounded-xl px-4"
             >
-              Book again
+              {t("card.bookAgain")}
             </Button>
           )}
         </div>

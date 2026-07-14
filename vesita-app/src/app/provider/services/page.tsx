@@ -1,6 +1,7 @@
 "use client";
 
 import { Clock, Droplet, Package, Pencil, Plus, Stethoscope, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -22,23 +23,35 @@ import {
   deleteService,
   getServices,
 } from "@/lib/api/provider-admin";
-import { formatDuration } from "@/lib/format";
-import { formatEGP } from "@/lib/site";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import type { ProviderRole, ServicePackage } from "@/lib/types";
 
-const TITLES: Record<ProviderRole, string> = {
-  doctor: "Consultation types",
-  lab: "Tests",
-  radiology: "Scans",
-};
+const TITLE_KEYS = {
+  doctor: "services.titleDoctor",
+  lab: "services.titleLab",
+  radiology: "services.titleRadiology",
+} as const;
 
-const ADD_LABELS: Record<ProviderRole, string> = {
-  doctor: "Add consultation type",
-  lab: "Add test",
-  radiology: "Add scan",
-};
+const ADD_KEYS = {
+  doctor: "services.addDoctor",
+  lab: "services.addLab",
+  radiology: "services.addRadiology",
+} as const;
+
+const EMPTY_KEYS = {
+  doctor: "services.emptyDoctor",
+  lab: "services.emptyLab",
+  radiology: "services.emptyRadiology",
+} as const;
 
 export default function ProviderServicesPage() {
+  const t = useTranslations("provider");
+  const tCommon = useTranslations("common");
+  const describeError = useApiError();
+  const { formatDuration, formatEGP, formatNumber } = useFormat();
+  const { named, localized, locale } = useDomain();
+
   const { providerId, provider, isLoading, error, refetch } = useCurrentProvider();
 
   const services = useAsync(() => getServices(providerId), [providerId]);
@@ -57,8 +70,8 @@ export default function ProviderServicesPage() {
   if (error) {
     return (
       <ErrorState
-        title="Couldn't load your profile"
-        description={error.message}
+        title={t("shared.profileError")}
+        description={describeError(error)}
         onRetry={refetch}
       />
     );
@@ -66,13 +79,13 @@ export default function ProviderServicesPage() {
   if (!provider) {
     return (
       <EmptyState
-        title="No provider profile"
-        description="This account isn't linked to a provider listing yet."
+        title={t("shared.noProfileTitle")}
+        description={t("shared.noProfileDescription")}
       />
     );
   }
 
-  const type = provider.type;
+  const type: ProviderRole = provider.type;
   const hasPackages = type !== "doctor";
 
   const list = services.data?.services ?? [];
@@ -82,11 +95,9 @@ export default function ProviderServicesPage() {
     try {
       await removeService.mutate(providerId, id);
       services.refetch();
-      toast.success(`${name} deleted.`);
+      toast.success(t("services.deleted", { name }));
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Couldn't delete this service.",
-      );
+      toast.error(describeError(err));
     }
   }
 
@@ -94,11 +105,9 @@ export default function ProviderServicesPage() {
     try {
       await removePackage.mutate(providerId, id);
       services.refetch();
-      toast.success(`${name} deleted.`);
+      toast.success(t("services.deleted", { name }));
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Couldn't delete this package.",
-      );
+      toast.error(describeError(err));
     }
   }
 
@@ -108,8 +117,8 @@ export default function ProviderServicesPage() {
     if (services.error) {
       return (
         <ErrorState
-          title="Couldn't load your services"
-          description={services.error.message}
+          title={t("services.servicesError")}
+          description={describeError(services.error)}
           onRetry={services.refetch}
         />
       );
@@ -119,8 +128,8 @@ export default function ProviderServicesPage() {
       return (
         <EmptyState
           icon={Stethoscope}
-          title={`No ${TITLES[type].toLowerCase()} yet`}
-          description="Patients can't book you until you offer at least one service."
+          title={t(EMPTY_KEYS[type])}
+          description={t("services.emptyDescription")}
           action={
             <Button
               className="h-10 rounded-xl px-4"
@@ -130,7 +139,7 @@ export default function ProviderServicesPage() {
               }}
             >
               <Plus className="size-4" />
-              {ADD_LABELS[type]}
+              {t(ADD_KEYS[type])}
             </Button>
           }
         />
@@ -139,109 +148,120 @@ export default function ProviderServicesPage() {
 
     return (
       <div className="grid gap-4 lg:grid-cols-2">
-        {list.map((service) => (
-          <Card key={service.id}>
-            <CardContent className="space-y-3 p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="truncate font-semibold">{service.name}</h3>
-                    <Badge
-                      variant="secondary"
-                      className={
-                        service.isActive
-                          ? "bg-success/10 text-success"
-                          : "bg-muted text-muted-foreground"
-                      }
-                    >
-                      {service.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  </div>
-                  {service.kind !== "consultation" && (
-                    <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                      {service.nameAr} · {service.category}
-                    </p>
-                  )}
-                </div>
+        {list.map((service) => {
+          const name = named(service);
 
-                <div className="flex shrink-0 items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Edit ${service.name}`}
-                    onClick={() => {
-                      setEditingService(service);
-                      setServiceDialog(true);
-                    }}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-
-                  <ConfirmDialog
-                    trigger={
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Delete ${service.name}`}
+          return (
+            <Card key={service.id}>
+              <CardContent className="space-y-3 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="truncate font-semibold">{name}</h3>
+                      <Badge
+                        variant="secondary"
+                        className={
+                          service.isActive
+                            ? "bg-success/10 text-success"
+                            : "bg-muted text-muted-foreground"
+                        }
                       >
-                        <Trash2 className="size-4 text-destructive" />
-                      </Button>
-                    }
-                    title={`Delete ${service.name}?`}
-                    description="Patients will no longer be able to book it. Existing bookings are unaffected."
-                    confirmLabel="Delete"
-                    isPending={removeService.isPending}
-                    onConfirm={() => onDeleteService(service.id, service.name)}
-                  />
-                </div>
-              </div>
-
-              <p className="line-clamp-2 text-sm text-muted-foreground">
-                {service.description}
-              </p>
-
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <span className="font-semibold tabular-nums">
-                  {formatEGP(service.price)}
-                </span>
-
-                {service.kind === "consultation" && (
-                  <span className="inline-flex items-center gap-1 text-muted-foreground">
-                    <Clock className="size-3.5" />
-                    {formatDuration(service.durationMinutes)}
-                  </span>
-                )}
-
-                {service.kind === "test" && (
-                  <>
-                    <span className="inline-flex items-center gap-1 text-muted-foreground">
-                      <Clock className="size-3.5" />
-                      Results in {service.resultTimeHours}h
-                    </span>
-                    {service.fastingRequired && (
-                      <Badge variant="outline" className="gap-1">
-                        <Droplet className="size-3" />
-                        Fasting
+                        {service.isActive
+                          ? t("shared.active")
+                          : t("shared.inactive")}
                       </Badge>
+                    </div>
+                    {service.kind !== "consultation" && (
+                      // The name in the *other* language, so a provider editing
+                      // a bilingual catalogue can see both at a glance.
+                      <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                        {locale === "ar" ? service.name : service.nameAr} ·{" "}
+                        {service.category}
+                      </p>
                     )}
-                  </>
-                )}
+                  </div>
 
-                {service.kind === "scan" && (
-                  <>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t("services.editAria", { name })}
+                      onClick={() => {
+                        setEditingService(service);
+                        setServiceDialog(true);
+                      }}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+
+                    <ConfirmDialog
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={t("services.deleteAria", { name })}
+                        >
+                          <Trash2 className="size-4 text-destructive" />
+                        </Button>
+                      }
+                      title={t("services.deleteTitle", { name })}
+                      description={t("services.deleteServiceDescription")}
+                      confirmLabel={tCommon("actions.delete")}
+                      isPending={removeService.isPending}
+                      onConfirm={() => onDeleteService(service.id, name)}
+                    />
+                  </div>
+                </div>
+
+                <p className="line-clamp-2 text-sm text-muted-foreground">
+                  {localized(service.description)}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <span className="ltr-nums font-semibold tabular-nums">
+                    {formatEGP(service.price)}
+                  </span>
+
+                  {service.kind === "consultation" && (
                     <span className="inline-flex items-center gap-1 text-muted-foreground">
                       <Clock className="size-3.5" />
                       {formatDuration(service.durationMinutes)}
                     </span>
-                    {service.contrastRequired && (
-                      <Badge variant="outline">Contrast</Badge>
-                    )}
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                  )}
+
+                  {service.kind === "test" && (
+                    <>
+                      <span className="inline-flex items-center gap-1 text-muted-foreground">
+                        <Clock className="size-3.5" />
+                        {t("services.resultsIn", {
+                          hours: formatNumber(service.resultTimeHours),
+                        })}
+                      </span>
+                      {service.fastingRequired && (
+                        <Badge variant="outline" className="gap-1">
+                          <Droplet className="size-3" />
+                          {t("services.fasting")}
+                        </Badge>
+                      )}
+                    </>
+                  )}
+
+                  {service.kind === "scan" && (
+                    <>
+                      <span className="inline-flex items-center gap-1 text-muted-foreground">
+                        <Clock className="size-3.5" />
+                        {formatDuration(service.durationMinutes)}
+                      </span>
+                      {service.contrastRequired && (
+                        <Badge variant="outline">{t("services.contrast")}</Badge>
+                      )}
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     );
   }
@@ -252,8 +272,8 @@ export default function ProviderServicesPage() {
     if (services.error) {
       return (
         <ErrorState
-          title="Couldn't load your packages"
-          description={services.error.message}
+          title={t("services.packagesError")}
+          description={describeError(services.error)}
           onRetry={services.refetch}
         />
       );
@@ -263,8 +283,8 @@ export default function ProviderServicesPage() {
       return (
         <EmptyState
           icon={Package}
-          title="No packages yet"
-          description="Bundle several services together at a discount."
+          title={t("services.noPackagesTitle")}
+          description={t("services.noPackagesDescription")}
           action={
             <Button
               className="h-10 rounded-xl px-4"
@@ -274,7 +294,7 @@ export default function ProviderServicesPage() {
               }}
             >
               <Plus className="size-4" />
-              Add package
+              {t("services.addPackage")}
             </Button>
           }
         />
@@ -292,7 +312,7 @@ export default function ProviderServicesPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="truncate font-semibold">{pkg.name}</h3>
+                      <h3 className="truncate font-semibold">{named(pkg)}</h3>
                       <Badge
                         variant="secondary"
                         className={
@@ -301,12 +321,11 @@ export default function ProviderServicesPage() {
                             : "bg-muted text-muted-foreground"
                         }
                       >
-                        {pkg.isActive ? "Active" : "Inactive"}
+                        {pkg.isActive ? t("shared.active") : t("shared.inactive")}
                       </Badge>
                     </div>
                     <p className="mt-0.5 text-sm text-muted-foreground">
-                      {included.length} service
-                      {included.length === 1 ? "" : "s"} included
+                      {t("services.includedCount", { count: included.length })}
                     </p>
                   </div>
 
@@ -314,7 +333,7 @@ export default function ProviderServicesPage() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`Edit ${pkg.name}`}
+                      aria-label={t("services.editAria", { name: named(pkg) })}
                       onClick={() => {
                         setEditingPackage(pkg);
                         setPackageDialog(true);
@@ -328,22 +347,22 @@ export default function ProviderServicesPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          aria-label={`Delete ${pkg.name}`}
+                          aria-label={t("services.deleteAria", { name: named(pkg) })}
                         >
                           <Trash2 className="size-4 text-destructive" />
                         </Button>
                       }
-                      title={`Delete ${pkg.name}?`}
-                      description="Patients will no longer be able to book this package."
-                      confirmLabel="Delete"
+                      title={t("services.deleteTitle", { name: named(pkg) })}
+                      description={t("services.deletePackageDescription")}
+                      confirmLabel={tCommon("actions.delete")}
                       isPending={removePackage.isPending}
-                      onConfirm={() => onDeletePackage(pkg.id, pkg.name)}
+                      onConfirm={() => onDeletePackage(pkg.id, named(pkg))}
                     />
                   </div>
                 </div>
 
                 <p className="line-clamp-2 text-sm text-muted-foreground">
-                  {pkg.description}
+                  {localized(pkg.description)}
                 </p>
 
                 {included.length > 0 && (
@@ -351,7 +370,7 @@ export default function ProviderServicesPage() {
                     {included.map((service) => (
                       <li key={service.id}>
                         <Badge variant="outline" className="font-normal">
-                          {service.name}
+                          {named(service)}
                         </Badge>
                       </li>
                     ))}
@@ -359,19 +378,21 @@ export default function ProviderServicesPage() {
                 )}
 
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="font-semibold tabular-nums">
+                  <span className="ltr-nums font-semibold tabular-nums">
                     {formatEGP(pkg.price)}
                   </span>
                   {pkg.originalPrice > pkg.price && (
                     <>
-                      <span className="tabular-nums text-muted-foreground line-through">
+                      <span className="ltr-nums tabular-nums text-muted-foreground line-through">
                         {formatEGP(pkg.originalPrice)}
                       </span>
                       <Badge
                         variant="secondary"
                         className="bg-success/10 text-success"
                       >
-                        Save {formatEGP(pkg.originalPrice - pkg.price)}
+                        {t("services.saveAmount", {
+                          amount: formatEGP(pkg.originalPrice - pkg.price),
+                        })}
                       </Badge>
                     </>
                   )}
@@ -389,8 +410,10 @@ export default function ProviderServicesPage() {
       <Tabs defaultValue="services" className="space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <TabsList>
-            <TabsTrigger value="services">{TITLES[type]}</TabsTrigger>
-            {hasPackages && <TabsTrigger value="packages">Packages</TabsTrigger>}
+            <TabsTrigger value="services">{t(TITLE_KEYS[type])}</TabsTrigger>
+            {hasPackages && (
+              <TabsTrigger value="packages">{t("services.packages")}</TabsTrigger>
+            )}
           </TabsList>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -402,7 +425,7 @@ export default function ProviderServicesPage() {
               }}
             >
               <Plus className="size-4" />
-              {ADD_LABELS[type]}
+              {t(ADD_KEYS[type])}
             </Button>
 
             {hasPackages && (
@@ -415,7 +438,7 @@ export default function ProviderServicesPage() {
                 }}
               >
                 <Package className="size-4" />
-                Add package
+                {t("services.addPackage")}
               </Button>
             )}
           </div>

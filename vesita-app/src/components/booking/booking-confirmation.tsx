@@ -14,18 +14,17 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import { toast } from "sonner";
 
 import { OrderSummary } from "@/components/booking/order-summary";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EASE } from "@/components/shared/motion";
-import { formatDate, formatTime } from "@/lib/format";
-import {
-  BOOKING_STATUS_LABELS,
-  PAYMENT_METHOD_LABELS,
-  type Booking,
-} from "@/lib/types";
+import { useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
+import type { Booking } from "@/lib/types";
 
 /** The final step — the booking exists. Show exactly what was agreed. */
 export function BookingConfirmation({
@@ -35,42 +34,62 @@ export function BookingConfirmation({
   booking: Booking;
   branchName?: string;
 }) {
+  const t = useTranslations("booking");
+  const { formatDate, formatTime, formatNumber } = useFormat();
+  const L = useLabels();
+
   async function copyReference() {
     try {
       await navigator.clipboard.writeText(booking.reference);
-      toast.success("Reference copied to your clipboard.");
+      toast.success(t("confirmation.copied"));
     } catch {
-      toast.error("Couldn't copy — please write the reference down.");
+      toast.error(t("confirmation.copyFailed"));
     }
   }
 
   const isSession = booking.queueNumber !== undefined;
 
+  /** Bold the parts of the sentence the patient will scan for. */
+  const bold = (chunks: ReactNode) => (
+    <span className="font-medium text-foreground">{chunks}</span>
+  );
+
   const details = [
     {
       icon: Stethoscope,
-      label: "Provider",
+      label: t("confirmation.detail.provider"),
       value: `${booking.providerName} · ${booking.providerSpecialty}`,
     },
-    { icon: CalendarDays, label: "Date", value: formatDate(booking.date) },
+    {
+      icon: CalendarDays,
+      label: t("confirmation.detail.date"),
+      value: formatDate(booking.date),
+    },
     isSession
       ? {
           icon: Users,
-          label: "Your place in the session",
-          value: `#${booking.queueNumber} · session starts ${formatTime(booking.time)}${
-            booking.estimatedTime
-              ? `, seen around ~${formatTime(booking.estimatedTime)}`
-              : ""
-          }`,
+          label: t("confirmation.detail.queue"),
+          value: booking.estimatedTime
+            ? t("confirmation.detail.queueValueWithTime", {
+                number: formatNumber(booking.queueNumber!),
+                time: formatTime(booking.time),
+                estimate: formatTime(booking.estimatedTime),
+              })
+            : t("confirmation.detail.queueValue", {
+                number: formatNumber(booking.queueNumber!),
+                time: formatTime(booking.time),
+              }),
         }
       : {
           icon: Clock,
-          label: "Appointment time",
+          label: t("confirmation.detail.time"),
           value: formatTime(booking.time),
         },
     {
       icon: MapPin,
-      label: branchName ? `Branch · ${branchName}` : "Branch",
+      label: branchName
+        ? t("confirmation.detail.branchNamed", { name: branchName })
+        : t("confirmation.detail.branch"),
       value: booking.address,
     },
   ];
@@ -92,41 +111,36 @@ export function BookingConfirmation({
         transition={{ duration: 0.4, delay: 0.15, ease: EASE }}
         className="space-y-3"
       >
-        <h1 className="text-3xl font-bold tracking-tight">Booking confirmed</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {t("confirmation.title")}
+        </h1>
         <p className="text-muted-foreground">
-          {isSession ? (
-            <>
-              You are{" "}
-              <span className="font-medium text-foreground">
-                number {booking.queueNumber}
-              </span>{" "}
-              in the queue for {booking.patientInfo.fullName}
-              {booking.estimatedTime && (
-                <>
-                  , expected to be seen around{" "}
-                  <span className="font-medium text-foreground">
-                    ~{formatTime(booking.estimatedTime)}
-                  </span>
-                </>
-              )}
-              . It&apos;s an estimate, not an exact minute.
-            </>
-          ) : (
-            <>
-              {booking.patientInfo.fullName} is booked for{" "}
-              <span className="font-medium text-foreground">
-                {formatTime(booking.time)}
-              </span>{" "}
-              on {formatDate(booking.date)}.
-            </>
-          )}
+          {isSession
+            ? booking.estimatedTime
+              ? t.rich("confirmation.sessionBodyWithTime", {
+                  b: bold,
+                  name: booking.patientInfo.fullName,
+                  number: formatNumber(booking.queueNumber!),
+                  time: formatTime(booking.estimatedTime),
+                })
+              : t.rich("confirmation.sessionBody", {
+                  b: bold,
+                  name: booking.patientInfo.fullName,
+                  number: formatNumber(booking.queueNumber!),
+                })
+            : t.rich("confirmation.slotBody", {
+                b: bold,
+                name: booking.patientInfo.fullName,
+                time: formatTime(booking.time),
+                date: formatDate(booking.date),
+              })}
         </p>
 
         <div className="inline-flex items-center gap-3 rounded-xl border border-dashed bg-card px-4 py-2">
           <span className="text-xs uppercase tracking-wide text-muted-foreground">
-            Reference
+            {t("confirmation.reference")}
           </span>
-          <span className="font-mono text-lg font-bold tracking-wider">
+          <span className="font-mono text-lg font-bold tracking-wider ltr-nums">
             {booking.reference}
           </span>
           <Button
@@ -134,7 +148,7 @@ export function BookingConfirmation({
             variant="ghost"
             size="icon-sm"
             onClick={() => void copyReference()}
-            aria-label="Copy booking reference"
+            aria-label={t("confirmation.copyAria")}
           >
             <Copy className="size-4" />
           </Button>
@@ -145,20 +159,18 @@ export function BookingConfirmation({
         initial={{ y: 16, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.4, delay: 0.25, ease: EASE }}
-        className="space-y-4 text-left"
+        className="space-y-4 text-start"
       >
         <div className="rounded-2xl border bg-card p-5 shadow-soft">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-semibold">{booking.serviceName}</p>
             <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">
-                {BOOKING_STATUS_LABELS[booking.status]}
-              </Badge>
+              <Badge variant="secondary">{L.bookingStatus(booking.status)}</Badge>
               <Badge variant="outline">
-                {PAYMENT_METHOD_LABELS[booking.paymentMethod]}
+                {L.paymentMethod(booking.paymentMethod)}
               </Badge>
               {booking.overCapacity && (
-                <Badge variant="outline">Over the comfort limit — longer wait</Badge>
+                <Badge variant="outline">{t("confirmation.overCapacity")}</Badge>
               )}
             </div>
           </div>
@@ -183,11 +195,11 @@ export function BookingConfirmation({
             <div className="mt-4 flex items-start gap-3 rounded-xl border border-success/30 bg-success/5 p-3">
               <ClipboardCheck className="mt-0.5 size-4 shrink-0 text-success" />
               <div>
-                <p className="text-sm font-medium">Acknowledgement recorded</p>
+                <p className="text-sm font-medium">{t("confirmation.ackTitle")}</p>
                 <p className="text-xs text-muted-foreground">
-                  You confirmed you have read the preparation instructions and
-                  that {booking.patientInfo.fullName} meets the eligibility
-                  requirements.
+                  {t("confirmation.ackBody", {
+                    name: booking.patientInfo.fullName,
+                  })}
                 </p>
               </div>
             </div>
@@ -196,7 +208,7 @@ export function BookingConfirmation({
           {booking.patientInfo.notes && (
             <div className="mt-4 rounded-xl bg-muted/50 p-3">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Your notes
+                {t("confirmation.notes")}
               </p>
               <p className="mt-1 text-sm">{booking.patientInfo.notes}</p>
             </div>
@@ -217,7 +229,7 @@ export function BookingConfirmation({
         {booking.cashback > 0 && (
           <p className="flex items-center justify-center gap-2 text-sm text-success">
             <Wallet className="size-4" />
-            You earned cashback on this booking.
+            {t("confirmation.cashback")}
           </p>
         )}
       </motion.div>
@@ -232,7 +244,7 @@ export function BookingConfirmation({
           className="h-11 rounded-xl px-5"
           render={<Link href="/patient/bookings" />}
         >
-          View my bookings
+          {t("confirmation.viewBookings")}
         </Button>
         <Button
           variant="outline"
@@ -240,7 +252,7 @@ export function BookingConfirmation({
           render={<Link href="/" />}
         >
           <Home className="size-4" />
-          Back to home
+          {t("confirmation.backHome")}
         </Button>
       </motion.div>
     </div>

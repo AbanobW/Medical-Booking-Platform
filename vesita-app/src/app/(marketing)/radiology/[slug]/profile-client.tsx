@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   BadgeCheck,
   CalendarCheck,
@@ -29,14 +30,19 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAsync } from "@/hooks/use-async";
 import { getProviderBySlug } from "@/lib/api/providers";
-import { getAreaName, getGovernorateName } from "@/lib/data/egypt";
-import { formatDuration } from "@/lib/format";
-import { formatEGP } from "@/lib/site";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
 import type { RadiologyCenter } from "@/lib/types";
 
 export default function RadiologyProfilePage() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug ?? "";
+
+  const t = useTranslations("profile");
+  const tCommon = useTranslations("common");
+  const { formatDuration, formatEGP } = useFormat();
+  const { named, localized, getAreaName, getGovernorateName } = useDomain();
+  const L = useLabels();
 
   const { data, error, isLoading, refetch } = useAsync(
     () => getProviderBySlug(slug),
@@ -55,15 +61,15 @@ export default function RadiologyProfilePage() {
     if (/not found/i.test(error.message)) {
       return (
         <ProviderNotFound
-          title="We couldn't find that radiology center"
+          title={t("notFound.radiologyTitle")}
           backHref="/search?type=radiology"
-          backLabel="Browse radiology centers"
+          backLabel={t("notFound.browseRadiology")}
         />
       );
     }
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-24 sm:px-6 lg:px-8">
-        <ErrorState title="Couldn't load this profile" onRetry={refetch} />
+        <ErrorState title={t("error.loadTitle")} onRetry={refetch} />
       </div>
     );
   }
@@ -71,10 +77,10 @@ export default function RadiologyProfilePage() {
   if (!data || data.type !== "radiology") {
     return (
       <ProviderNotFound
-        title="We couldn't find that radiology center"
-        description="This link points to a profile that isn't a radiology center. It may have moved."
+        title={t("notFound.radiologyTitle")}
+        description={t("notFound.radiologyDescription")}
         backHref="/search?type=radiology"
-        backLabel="Browse radiology centers"
+        backLabel={t("notFound.browseRadiology")}
       />
     );
   }
@@ -94,10 +100,14 @@ export default function RadiologyProfilePage() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">About {center.name}</CardTitle>
+          <CardTitle className="text-base">
+            {t("about.title", { name: named(center) })}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
-          <p className="text-sm leading-relaxed text-foreground/90">{center.bio}</p>
+          <p className="text-sm leading-relaxed text-foreground/90">
+            {localized(center.bio)}
+          </p>
 
           <Separator />
 
@@ -105,9 +115,14 @@ export default function RadiologyProfilePage() {
             <div className="flex items-start gap-3">
               <ScanLine className="mt-0.5 size-4 shrink-0 text-primary" />
               <div>
-                <dt className="text-xs text-muted-foreground">Catalogue</dt>
+                <dt className="text-xs text-muted-foreground">
+                  {t("about.catalogue")}
+                </dt>
                 <dd className="text-sm font-medium">
-                  {activeScans.length} scans · {activePackages.length} packages
+                  {t("about.catalogueScans", {
+                    scans: activeScans.length,
+                    packages: activePackages.length,
+                  })}
                 </dd>
               </div>
             </div>
@@ -115,11 +130,13 @@ export default function RadiologyProfilePage() {
             <div className="flex items-start gap-3">
               <Clock className="mt-0.5 size-4 shrink-0 text-primary" />
               <div>
-                <dt className="text-xs text-muted-foreground">Typical scan time</dt>
+                <dt className="text-xs text-muted-foreground">
+                  {t("about.typicalScanTime")}
+                </dt>
                 <dd className="text-sm font-medium">
                   {averageScanMinutes
                     ? formatDuration(averageScanMinutes)
-                    : "Varies by scan"}
+                    : t("about.variesByScan")}
                 </dd>
               </div>
             </div>
@@ -127,7 +144,9 @@ export default function RadiologyProfilePage() {
             <div className="flex items-start gap-3">
               <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
               <div>
-                <dt className="text-xs text-muted-foreground">Main branch</dt>
+                <dt className="text-xs text-muted-foreground">
+                  {t("about.mainBranch")}
+                </dt>
                 <dd className="text-sm font-medium">
                   {center.address} — {getAreaName(center.areaId)},{" "}
                   {getGovernorateName(center.governorateId)}
@@ -138,8 +157,8 @@ export default function RadiologyProfilePage() {
             <div className="flex items-start gap-3">
               <Phone className="mt-0.5 size-4 shrink-0 text-primary" />
               <div>
-                <dt className="text-xs text-muted-foreground">Phone</dt>
-                <dd className="text-sm font-medium tabular-nums">
+                <dt className="text-xs text-muted-foreground">{t("about.phone")}</dt>
+                <dd className="text-sm font-medium tabular-nums ltr-nums">
                   <a href={`tel:${center.phone}`} className="hover:text-primary">
                     {center.phone}
                   </a>
@@ -152,7 +171,9 @@ export default function RadiologyProfilePage() {
             <>
               <Separator />
               <div>
-                <p className="mb-2 text-xs text-muted-foreground">Accreditations</p>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  {t("about.accreditations")}
+                </p>
                 <div className="flex flex-wrap gap-1.5">
                   {center.accreditation.map((item) => (
                     <Badge
@@ -173,7 +194,7 @@ export default function RadiologyProfilePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Main location</CardTitle>
+          <CardTitle className="text-base">{t("about.mainLocation")}</CardTitle>
         </CardHeader>
         <CardContent>
           <MapPlaceholder
@@ -182,7 +203,7 @@ export default function RadiologyProfilePage() {
             markers={[
               {
                 id: center.id,
-                label: center.name,
+                label: named(center),
                 location: center.location,
                 isPrimary: true,
               },
@@ -206,9 +227,9 @@ export default function RadiologyProfilePage() {
     <div className="pb-20">
       <ProfileHero
         provider={center}
-        subtitle="Radiology Center"
-        priceLabel="Scans from"
-        chips={center.accreditation.slice(0, 4)}
+        subtitle={t("hero.subtitleRadiology")}
+        priceLabel={t("hero.priceScansFrom")}
+        chips={center.accreditation.slice(0, 4).map(L.accreditation)}
       />
 
       <div className="mx-auto mt-10 w-full max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -217,19 +238,19 @@ export default function RadiologyProfilePage() {
             <Tabs defaultValue="overview">
               <TabsList className="h-auto w-full overflow-x-auto rounded-xl p-1 no-scrollbar">
                 <TabsTrigger value="overview" className="h-9 px-4">
-                  Overview
+                  {t("tabs.overview")}
                 </TabsTrigger>
                 <TabsTrigger value="scans" className="h-9 px-4">
-                  Scans ({activeScans.length})
+                  {t("tabs.scans", { count: activeScans.length })}
                 </TabsTrigger>
                 <TabsTrigger value="packages" className="h-9 px-4">
-                  Packages ({activePackages.length})
+                  {t("tabs.packages", { count: activePackages.length })}
                 </TabsTrigger>
                 <TabsTrigger value="branches" className="h-9 px-4">
-                  Branches ({center.branches.length})
+                  {t("tabs.branches", { count: center.branches.length })}
                 </TabsTrigger>
                 <TabsTrigger value="reviews" className="h-9 px-4">
-                  Reviews ({center.reviewCount.toLocaleString()})
+                  {t("tabs.reviews", { count: center.reviewCount })}
                 </TabsTrigger>
               </TabsList>
 
@@ -257,7 +278,7 @@ export default function RadiologyProfilePage() {
               <TabsContent value="branches" className="mt-6">
                 <BranchesSection
                   branches={center.branches}
-                  emptyDescription="This center operates from its main location only."
+                  emptyDescription={t("branches.emptyRadiology")}
                 />
               </TabsContent>
 
@@ -268,10 +289,18 @@ export default function RadiologyProfilePage() {
           </div>
 
           <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
-            <Card className="border-primary/20">
+            {/*
+              The sticky desktop half of the booking pair — see ProfileHero. Hidden
+              below `lg`, where the hero carries the CTA instead: down there this
+              sidebar stacks underneath all the tab content, so it would sit far
+              below the fold and simply repeat what the hero already said.
+            */}
+            <Card className="hidden border-primary/20 lg:block">
               <CardContent className="space-y-4">
                 <div>
-                  <p className="text-xs text-muted-foreground">Scans starting from</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("sidebar.scansFrom")}
+                  </p>
                   <p className="text-2xl font-bold text-primary tabular-nums">
                     {formatEGP(center.price)}
                   </p>
@@ -282,10 +311,10 @@ export default function RadiologyProfilePage() {
                   className="h-11 w-full rounded-xl"
                 >
                   <CalendarCheck className="size-4" />
-                  Book Now
+                  {tCommon("actions.bookNow")}
                 </Button>
                 <p className="text-center text-xs text-muted-foreground">
-                  Bring any previous imaging or referral letter with you.
+                  {t("sidebar.bringImaging")}
                 </p>
               </CardContent>
             </Card>
@@ -296,7 +325,10 @@ export default function RadiologyProfilePage() {
 
             <InsuranceCard planIds={center.acceptedInsurancePlanIds} />
 
-            <NearbySection providerId={center.id} title="Nearby centers" />
+            <NearbySection
+              providerId={center.id}
+              title={t("nearby.titleCenters")}
+            />
           </aside>
         </div>
       </div>

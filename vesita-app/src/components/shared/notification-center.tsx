@@ -16,6 +16,7 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -33,7 +34,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/lib/api/engagement";
-import { timeAgo } from "@/lib/format";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import { cn } from "@/lib/utils";
 import type { AppNotification, NotificationChannel, NotificationKind } from "@/lib/types";
 
@@ -63,12 +64,28 @@ export const CHANNEL_ICONS: Record<NotificationChannel, LucideIcon> = {
   browser: Bell,
 };
 
+/**
+ * English channel names — kept for non-React callers. In a component use
+ * `useChannelLabels()`, which returns the same map in the active locale.
+ */
 export const CHANNEL_LABELS: Record<NotificationChannel, string> = {
   sms: "SMS",
   email: "Email",
   whatsapp: "WhatsApp",
   browser: "Browser",
 };
+
+/** The locale-aware version of `CHANNEL_LABELS`. */
+export function useChannelLabels(): Record<NotificationChannel, string> {
+  const t = useTranslations("common");
+
+  return {
+    sms: t("notifications.channel.sms"),
+    email: t("notifications.channel.email"),
+    whatsapp: t("notifications.channel.whatsapp"),
+    browser: t("notifications.channel.browser"),
+  };
+}
 
 export function NotificationItem({
   notification,
@@ -81,14 +98,19 @@ export function NotificationItem({
   onDelete?: (id: string) => void;
   showChannel?: boolean;
 }) {
+  const t = useTranslations("common");
+  const { timeAgo } = useFormat();
+  const { localized } = useDomain();
+  const channelLabels = useChannelLabels();
+
   const Icon = KIND_ICONS[notification.kind];
   const ChannelIcon = CHANNEL_ICONS[notification.channel];
 
   const body = (
     <div
       className={cn(
-        "flex gap-3 rounded-xl p-3 transition-colors",
-        notification.isRead ? "opacity-70" : "bg-accent/40",
+        "group flex gap-3 rounded-xl p-3 transition-colors",
+        notification.isRead ? "opacity-70 hover:opacity-100" : "bg-accent/40",
       )}
     >
       <div
@@ -101,21 +123,23 @@ export function NotificationItem({
       </div>
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-medium leading-snug">{notification.title}</p>
+        <div className="flex items-start gap-2">
+          <p className="min-w-0 flex-1 text-sm font-medium leading-snug">
+            {localized(notification.title)}
+          </p>
           {!notification.isRead && (
             <span
               className="mt-1.5 size-2 shrink-0 rounded-full bg-primary"
-              aria-label="Unread"
+              aria-label={t("notifications.unread")}
             />
           )}
         </div>
 
         <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-          {notification.body}
+          {localized(notification.body)}
         </p>
 
-        <div className="mt-1.5 flex items-center gap-2">
+        <div className="mt-1 flex min-h-6 items-center gap-2">
           <span className="text-xs text-muted-foreground">
             {timeAgo(notification.createdAt)}
           </span>
@@ -125,44 +149,44 @@ export function NotificationItem({
               className="h-5 gap-1 px-1.5 text-[10px] font-normal"
             >
               <ChannelIcon className="size-2.5" />
-              {CHANNEL_LABELS[notification.channel]}
+              {channelLabels[notification.channel]}
             </Badge>
+          )}
+
+          {(onRead || onDelete) && (
+            <span className="ms-auto flex items-center transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+              {onRead && !notification.isRead && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6 text-muted-foreground hover:text-foreground"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onRead(notification.id);
+                  }}
+                  aria-label={t("notifications.markAsRead")}
+                >
+                  <Check className="size-3.5" />
+                </Button>
+              )}
+              {onDelete && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6 text-muted-foreground hover:text-destructive"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onDelete(notification.id);
+                  }}
+                  aria-label={t("notifications.delete")}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              )}
+            </span>
           )}
         </div>
       </div>
-
-      {(onRead || onDelete) && (
-        <div className="flex shrink-0 flex-col gap-1">
-          {onRead && !notification.isRead && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              onClick={(e) => {
-                e.preventDefault();
-                onRead(notification.id);
-              }}
-              aria-label="Mark as read"
-            >
-              <Check className="size-3.5" />
-            </Button>
-          )}
-          {onDelete && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 text-muted-foreground hover:text-destructive"
-              onClick={(e) => {
-                e.preventDefault();
-                onDelete(notification.id);
-              }}
-              aria-label="Delete notification"
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
-          )}
-        </div>
-      )}
     </div>
   );
 
@@ -178,6 +202,8 @@ export function NotificationItem({
 /** The bell + dropdown in the header. */
 export function NotificationCenter() {
   const { user } = useAuth();
+  const t = useTranslations("common");
+  const { formatNumber } = useFormat();
   const [open, setOpen] = useState(false);
 
   const { data, isLoading, setData } = useAsync(
@@ -205,7 +231,7 @@ export function NotificationCenter() {
 
     setData((current) => (current ?? []).map((n) => ({ ...n, isRead: true })));
     const result = await markAllNotificationsRead(user.id);
-    toast.success(`Marked ${result.count} notifications as read.`);
+    toast.success(t("notifications.markedAllRead", { count: result.count }));
   }
 
   if (!user) return null;
@@ -218,12 +244,16 @@ export function NotificationCenter() {
             variant="ghost"
             size="icon"
             className="relative rounded-xl"
-            aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
+            aria-label={
+              unread
+                ? t("notifications.bellUnread", { count: unread })
+                : t("notifications.bell")
+            }
           >
             <Bell className="size-5" />
             {unread > 0 && (
-              <span className="absolute top-1 right-1 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground tabular-nums">
-                {unread > 9 ? "9+" : unread}
+              <span className="absolute top-1 end-1 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground tabular-nums">
+                {unread > 9 ? "9+" : formatNumber(unread)}
               </span>
             )}
           </Button>
@@ -232,7 +262,7 @@ export function NotificationCenter() {
 
       <PopoverContent align="end" className="w-[22rem] p-0">
         <div className="flex items-center justify-between border-b p-3">
-          <p className="font-semibold">Notifications</p>
+          <p className="font-semibold">{t("notifications.title")}</p>
           {unread > 0 && (
             <Button
               variant="ghost"
@@ -240,7 +270,7 @@ export function NotificationCenter() {
               onClick={onMarkAll}
               className="h-7 text-xs"
             >
-              Mark all read
+              {t("notifications.markAllRead")}
             </Button>
           )}
         </div>
@@ -262,8 +292,8 @@ export function NotificationCenter() {
             ) : notifications.length === 0 ? (
               <EmptyState
                 icon={BellOff}
-                title="You're all caught up"
-                description="New booking updates will show up here."
+                title={t("notifications.emptyTitle")}
+                description={t("notifications.emptyDescription")}
                 className="border-0 bg-transparent py-10"
               />
             ) : (
@@ -289,7 +319,7 @@ export function NotificationCenter() {
             className="w-full"
             onClick={() => setOpen(false)}
           >
-            View all notifications
+            {t("notifications.viewAll")}
           </Button>
         </div>
       </PopoverContent>

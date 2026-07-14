@@ -1,8 +1,11 @@
 "use client";
 
 import { Hourglass, ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import { toast } from "sonner";
 
+import { useBookingNames } from "@/components/patient/booking-names";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,6 +19,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useMutation } from "@/hooks/use-async";
 import { reportLongWait } from "@/lib/api/bookings";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useFormat } from "@/lib/i18n/use-format";
 import type { Booking } from "@/lib/types";
 
 /**
@@ -38,22 +43,29 @@ export function LongWaitDialog({
   onOpenChange: (open: boolean) => void;
   onReported: () => void;
 }) {
+  const t = useTranslations("patient");
+  const { formatDate } = useFormat();
+  const describeError = useApiError();
+  const names = useBookingNames(booking);
+
   const { mutate, isPending } = useMutation(reportLongWait);
+
+  const strong = (chunks: ReactNode) => (
+    <span className="font-medium text-foreground">{chunks}</span>
+  );
 
   async function onConfirm() {
     try {
       await mutate(booking.id);
-      toast.success("Thank you — that's recorded against the waiting time.", {
-        description: `${booking.providerName}'s waiting-time rating reflects this. Nothing is held against you.`,
+      toast.success(t("longWait.toastTitle"), {
+        description: t("longWait.toastDescription", {
+          provider: names.provider,
+        }),
       });
       onOpenChange(false);
       onReported();
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Couldn't record that right now. Please try again.",
-      );
+      toast.error(describeError(error));
     }
   }
 
@@ -64,27 +76,26 @@ export function LongWaitDialog({
           <AlertDialogMedia className="bg-warning/15 text-warning">
             <Hourglass />
           </AlertDialogMedia>
-          <AlertDialogTitle>You waited too long and left?</AlertDialogTitle>
+          <AlertDialogTitle>{t("longWait.title")}</AlertDialogTitle>
           <AlertDialogDescription>
-            Tell us and we&apos;ll record it against {booking.providerName}&apos;s
-            waiting time on {booking.date}.
+            {t("longWait.description", {
+              provider: names.provider,
+              date: formatDate(booking.date),
+            })}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <p className="flex items-start gap-2 rounded-xl border border-success/20 bg-success/5 p-3 text-left text-sm text-muted-foreground">
+        <p className="flex items-start gap-2 rounded-xl border border-success/20 bg-success/5 p-3 text-start text-sm text-muted-foreground">
           <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" />
-          <span>
-            This is <span className="font-medium text-foreground">not</span> a missed
-            visit and nothing is held against you. You turned up — the wait didn&apos;t
-            hold up its end. It feeds the provider&apos;s waiting-time reputation, so
-            other patients see an honest picture before they book.
-          </span>
+          <span>{t.rich("longWait.reassurance", { b: strong })}</span>
         </p>
 
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>Never mind</AlertDialogCancel>
+          <AlertDialogCancel disabled={isPending}>
+            {t("longWait.never")}
+          </AlertDialogCancel>
           <AlertDialogAction disabled={isPending} onClick={onConfirm}>
-            {isPending ? "Recording…" : "Yes, I left after a long wait"}
+            {isPending ? t("longWait.recording") : t("longWait.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

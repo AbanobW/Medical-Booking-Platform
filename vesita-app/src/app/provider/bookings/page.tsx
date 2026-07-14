@@ -9,6 +9,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -42,13 +43,13 @@ import {
   processRefund,
 } from "@/lib/api/bookings";
 import { todayISO } from "@/lib/data/seed";
-import { formatDateShort, formatTime } from "@/lib/format";
-import { formatEGP } from "@/lib/site";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
 import {
   canTransition,
   isHold,
   schedulingModeFor,
-  PAYMENT_METHOD_LABELS,
   type Booking,
 } from "@/lib/types";
 
@@ -65,23 +66,21 @@ type TabKey =
   | "refunds"
   | "all";
 
-const TABS: { key: TabKey; label: string; match: (b: Booking) => boolean }[] = [
-  { key: "confirmed", label: "Confirmed", match: (b) => b.status === "confirmed" },
-  { key: "holds", label: "Holds", match: (b) => isHold(b.status) },
-  { key: "completed", label: "Completed", match: (b) => b.status === "completed" },
-  { key: "no_show", label: "Missed visits", match: (b) => b.status === "no_show" },
+const TABS: { key: TabKey; match: (b: Booking) => boolean }[] = [
+  { key: "confirmed", match: (b) => b.status === "confirmed" },
+  { key: "holds", match: (b) => isHold(b.status) },
+  { key: "completed", match: (b) => b.status === "completed" },
+  { key: "no_show", match: (b) => b.status === "no_show" },
   {
     key: "cancelled",
-    label: "Cancelled",
     match: (b) =>
       b.status === "cancelled_by_patient" || b.status === "cancelled_by_provider",
   },
   {
     key: "refunds",
-    label: "Refunds",
     match: (b) => b.status === "refund_pending" || b.status === "refunded",
   },
-  { key: "all", label: "All", match: () => true },
+  { key: "all", match: () => true },
 ];
 
 /**
@@ -95,6 +94,12 @@ function sessionHasEnded(booking: Booking): boolean {
 }
 
 export default function ProviderBookingsPage() {
+  const t = useTranslations("provider");
+  const describeError = useApiError();
+  const { formatDateShort, formatTime, formatEGP } = useFormat();
+  const { bookingServiceName } = useDomain();
+  const L = useLabels();
+
   const { providerId, provider } = useCurrentProvider();
   const [tab, setTab] = useState<TabKey>("confirmed");
 
@@ -115,7 +120,7 @@ export default function ProviderBookingsPage() {
 
   const all = useMemo(() => bookings.data?.items ?? [], [bookings.data]);
   const rows = useMemo(
-    () => all.filter(TABS.find((t) => t.key === tab)!.match),
+    () => all.filter(TABS.find((entry) => entry.key === tab)!.match),
     [all, tab],
   );
 
@@ -133,10 +138,8 @@ export default function ProviderBookingsPage() {
       await action();
       bookings.refetch();
       toast.success(message);
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Couldn't update this booking.",
-      );
+    } catch (error) {
+      toast.error(describeError(error));
     }
   }
 
@@ -145,13 +148,14 @@ export default function ProviderBookingsPage() {
       {
         accessorFn: (row) => row.patientInfo.fullName,
         id: "patient",
-        header: "Patient",
+        header: t("bookings.columns.patient"),
         cell: ({ row }) => (
           <div className="min-w-0 space-y-1">
             <p className="font-medium">{row.original.patientInfo.fullName}</p>
             <p className="text-xs text-muted-foreground">
-              {row.original.patientInfo.phone}
-              {row.original.patientInfo.bookingForSomeoneElse && " · booked by family"}
+              <span className="ltr-nums">{row.original.patientInfo.phone}</span>
+              {row.original.patientInfo.bookingForSomeoneElse &&
+                ` · ${t("bookings.bookedByFamily")}`}
             </p>
             {row.original.longWaitReported && <LongWaitBadge />}
           </div>
@@ -159,10 +163,10 @@ export default function ProviderBookingsPage() {
       },
       {
         accessorKey: "serviceName",
-        header: "Service",
+        header: t("bookings.columns.service"),
         cell: ({ row }) => (
           <div className="min-w-0">
-            <p className="truncate">{row.original.serviceName}</p>
+            <p className="truncate">{bookingServiceName(row.original)}</p>
             <p className="text-xs text-muted-foreground">{row.original.reference}</p>
           </div>
         ),
@@ -170,7 +174,9 @@ export default function ProviderBookingsPage() {
       {
         accessorFn: (row) => `${row.date} ${row.time}`,
         id: "when",
-        header: isDoctor ? "Session & queue" : "Date & time",
+        header: isDoctor
+          ? t("bookings.columns.whenSession")
+          : t("bookings.columns.whenSlot"),
         cell: ({ row }) => {
           const booking = row.original;
           return (
@@ -182,8 +188,12 @@ export default function ProviderBookingsPage() {
               {booking.queueNumber !== undefined && (
                 <p className="mt-1 text-xs tabular-nums">
                   <Badge variant="outline" className="font-normal">
-                    Queue #{booking.queueNumber}
-                    {booking.estimatedTime && ` · ~${formatTime(booking.estimatedTime)}`}
+                    {booking.estimatedTime
+                      ? t("bookings.queueAt", {
+                          number: booking.queueNumber,
+                          time: formatTime(booking.estimatedTime),
+                        })
+                      : t("bookings.queue", { number: booking.queueNumber })}
                   </Badge>
                 </p>
               )}
@@ -194,7 +204,7 @@ export default function ProviderBookingsPage() {
       {
         accessorFn: (row) => branchName(row.branchId),
         id: "branch",
-        header: "Branch",
+        header: t("bookings.columns.branch"),
         cell: ({ row }) => (
           <span className="text-sm whitespace-nowrap">
             {branchName(row.original.branchId)}
@@ -203,7 +213,7 @@ export default function ProviderBookingsPage() {
       },
       {
         accessorKey: "status",
-        header: "Status",
+        header: t("bookings.columns.status"),
         cell: ({ row }) => (
           <div className="space-y-1">
             <BookingStatusBadge status={row.original.status} />
@@ -218,16 +228,18 @@ export default function ProviderBookingsPage() {
       },
       {
         accessorKey: "paymentStatus",
-        header: "Payment",
+        header: t("bookings.columns.payment"),
         cell: ({ row }) => (
           <div className="space-y-1">
             <PaymentStatusBadge status={row.original.paymentStatus} />
             <p className="text-xs whitespace-nowrap text-muted-foreground">
-              {PAYMENT_METHOD_LABELS[row.original.paymentMethod]}
+              {L.paymentMethod(row.original.paymentMethod)}
             </p>
             {row.original.refundAmount !== undefined && (
-              <p className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-                Refund {formatEGP(row.original.refundAmount)}
+              <p className="ltr-nums text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+                {t("bookings.refundAmount", {
+                  amount: formatEGP(row.original.refundAmount),
+                })}
               </p>
             )}
           </div>
@@ -235,9 +247,9 @@ export default function ProviderBookingsPage() {
       },
       {
         accessorKey: "total",
-        header: "Total",
+        header: t("bookings.columns.total"),
         cell: ({ row }) => (
-          <span className="font-semibold whitespace-nowrap tabular-nums">
+          <span className="ltr-nums font-semibold whitespace-nowrap tabular-nums">
             {formatEGP(row.original.total)}
           </span>
         ),
@@ -258,10 +270,10 @@ export default function ProviderBookingsPage() {
 
           if (!canComplete && !canNoShow && !canCancel && !canRefund) {
             return (
-              <span className="block text-right text-xs whitespace-nowrap text-muted-foreground">
+              <span className="block text-end text-xs whitespace-nowrap text-muted-foreground">
                 {isHold(booking.status)
-                  ? "Awaiting the patient's payment"
-                  : "No actions"}
+                  ? t("bookings.awaitingPatientPayment")
+                  : t("bookings.noActions")}
               </span>
             );
           }
@@ -273,11 +285,14 @@ export default function ProviderBookingsPage() {
                   size="sm"
                   disabled={isPending}
                   onClick={() =>
-                    run(() => complete.mutate(booking.id), "Visit marked completed.")
+                    run(
+                      () => complete.mutate(booking.id),
+                      t("bookings.toastCompleted"),
+                    )
                   }
                 >
                   <CheckCheck className="size-3.5" />
-                  Mark completed
+                  {t("bookings.markCompleted")}
                 </Button>
               )}
 
@@ -293,20 +308,20 @@ export default function ProviderBookingsPage() {
                           onClick={() =>
                             run(
                               () => noShow.mutate(booking.id),
-                              "Recorded as a missed visit.",
+                              t("bookings.toastMissed"),
                             )
                           }
                         >
                           <UserX className="size-3.5" />
-                          Record missed visit
+                          {t("bookings.recordMissed")}
                         </Button>
                       </span>
                     }
                   />
                   <TooltipContent>
                     {ended
-                      ? "The patient did not arrive at all. Someone who arrived and left after a long wait is not a missed visit."
-                      : "A missed visit can only be recorded once the session has ended — until then the patient may still be waiting."}
+                      ? t("bookings.recordMissedHint")
+                      : t("bookings.recordMissedDisabledHint")}
                   </TooltipContent>
                 </Tooltip>
               )}
@@ -316,30 +331,33 @@ export default function ProviderBookingsPage() {
                   trigger={
                     <Button variant="outline" size="sm" disabled={isPending}>
                       <X className="size-3.5" />
-                      Cancel
+                      {t("bookings.cancel")}
                     </Button>
                   }
-                  title="Cancel this booking?"
-                  description={`${booking.patientInfo.fullName}'s appointment on ${formatDateShort(booking.date)} at ${formatTime(booking.time)} will be cancelled on your behalf.`}
+                  title={t("bookings.cancelTitle")}
+                  description={t("bookings.cancelDescription", {
+                    name: booking.patientInfo.fullName,
+                    date: formatDateShort(booking.date),
+                    time: formatTime(booking.time),
+                  })}
                   consequences={
                     <Alert variant="destructive">
                       <Info className="size-4" />
-                      <AlertTitle>What happens</AlertTitle>
+                      <AlertTitle>
+                        {t("bookings.cancelConsequencesTitle")}
+                      </AlertTitle>
                       <AlertDescription>
-                        Any booking fee paid is refunded in full, automatically —
-                        the patient is never out of pocket for a cancellation you
-                        caused. Provider-initiated cancellations are tracked and
-                        affect your standing on the platform.
+                        {t("bookings.cancelConsequences")}
                       </AlertDescription>
                     </Alert>
                   }
-                  confirmLabel="Cancel booking"
-                  cancelLabel="Keep booking"
+                  confirmLabel={t("bookings.cancelConfirm")}
+                  cancelLabel={t("bookings.cancelKeep")}
                   isPending={cancel.isPending}
                   onConfirm={(reason) =>
                     run(
                       () => cancel.mutate(booking.id, reason),
-                      "Booking cancelled — the patient has been notified and refunded.",
+                      t("bookings.toastCancelled"),
                     )
                   }
                 />
@@ -352,12 +370,12 @@ export default function ProviderBookingsPage() {
                   onClick={() =>
                     run(
                       () => refund.mutate(booking.id),
-                      "Refund completed and returned to the patient.",
+                      t("bookings.toastRefunded"),
                     )
                   }
                 >
                   <Wallet className="size-3.5" />
-                  Complete refund
+                  {t("bookings.completeRefund")}
                 </Button>
               )}
             </div>
@@ -366,7 +384,7 @@ export default function ProviderBookingsPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isPending, isDoctor, branchName],
+    [isPending, isDoctor, branchName, t],
   );
 
   return (
@@ -375,13 +393,13 @@ export default function ProviderBookingsPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <Alert className="sm:max-w-2xl">
             <Hourglass className="size-4" />
-            <AlertTitle>What counts as a missed visit</AlertTitle>
+            <AlertTitle>{t("bookings.missedAlertTitle")}</AlertTitle>
             <AlertDescription>
-              A missed visit means <strong>the patient never arrived</strong>. A
-              patient who came, waited a long time and left is <em>not</em> a
-              missed visit — that shows up here as{" "}
-              <span className="font-medium">&ldquo;Left after a long wait&rdquo;</span>{" "}
-              and counts against your waiting time, not against them.
+              {t.rich("bookings.missedAlertBody", {
+                strong: (chunks) => <strong>{chunks}</strong>,
+                em: (chunks) => <em>{chunks}</em>,
+                b: (chunks) => <span className="font-medium">{chunks}</span>,
+              })}
             </AlertDescription>
           </Alert>
 
@@ -402,40 +420,40 @@ export default function ProviderBookingsPage() {
         >
           <div className="overflow-x-auto">
             <TabsList>
-              {TABS.map((t) => (
-                <TabsTrigger key={t.key} value={t.key}>
-                  {t.label}
-                  <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">
-                    {all.filter(t.match).length}
+              {TABS.map((entry) => (
+                <TabsTrigger key={entry.key} value={entry.key}>
+                  {t(`bookings.tabs.${entry.key}`)}
+                  <span className="ms-1.5 text-xs text-muted-foreground tabular-nums">
+                    {all.filter(entry.match).length}
                   </span>
                 </TabsTrigger>
               ))}
             </TabsList>
           </div>
 
-          {TABS.map((t) => (
-            <TabsContent key={t.key} value={t.key}>
+          {TABS.map((entry) => (
+            <TabsContent key={entry.key} value={entry.key}>
               {bookings.isLoading && !bookings.data ? (
                 <TableSkeleton rows={6} columns={7} />
               ) : bookings.error ? (
                 <ErrorState
-                  title="Couldn't load your bookings"
-                  description={bookings.error.message}
+                  title={t("bookings.error")}
+                  description={describeError(bookings.error)}
                   onRetry={bookings.refetch}
                 />
               ) : rows.length === 0 ? (
                 <EmptyState
                   icon={ClipboardList}
-                  title={`No ${t.label.toLowerCase()} bookings`}
-                  description="Bookings appear here as patients make them."
+                  title={t(`bookings.empty.${entry.key}`)}
+                  description={t("bookings.emptyDescription")}
                 />
               ) : (
                 <DataTable
                   columns={columns}
                   data={rows}
-                  searchPlaceholder="Search patient, service or reference…"
+                  searchPlaceholder={t("bookings.searchPlaceholder")}
                   pageSize={10}
-                  emptyTitle="No matching bookings"
+                  emptyTitle={t("bookings.noMatches")}
                 />
               )}
             </TabsContent>

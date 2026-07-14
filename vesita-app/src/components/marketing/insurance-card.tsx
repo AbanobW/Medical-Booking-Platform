@@ -1,10 +1,11 @@
 "use client";
 
 import { ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getInsurancePlanName } from "@/lib/data/egypt";
+import { useDomain } from "@/lib/i18n/use-format";
 import { INSURANCE_ENABLED } from "@/lib/types";
 
 /**
@@ -15,6 +16,9 @@ import { INSURANCE_ENABLED } from "@/lib/types";
  * *through* insurance yet, and we say so rather than implying coverage.
  */
 export function InsuranceCard({ planIds }: { planIds: string[] }) {
+  const t = useTranslations("profile");
+  const { getInsurancePlanName } = useDomain();
+
   if (planIds.length === 0) return null;
 
   return (
@@ -22,7 +26,7 @@ export function InsuranceCard({ planIds }: { planIds: string[] }) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <ShieldCheck className="size-4 text-primary" />
-          Accepted insurance
+          {t("insurance.title")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -36,10 +40,10 @@ export function InsuranceCard({ planIds }: { planIds: string[] }) {
 
         {!INSURANCE_ENABLED && (
           <p className="rounded-xl bg-muted p-3 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">Coming soon.</span> These
-            are the networks this provider accepts at the clinic. Booking with
-            insurance isn&apos;t live on Vesita yet — for now, bookings are paid
-            directly.
+            <span className="font-medium text-foreground">
+              {t("insurance.comingSoonLabel")}
+            </span>{" "}
+            {t("insurance.comingSoon")}
           </p>
         )}
       </CardContent>

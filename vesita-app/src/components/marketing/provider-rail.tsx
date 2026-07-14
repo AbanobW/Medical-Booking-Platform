@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, Users } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { SectionHeading } from "@/components/marketing/section-heading";
 import { ProviderCard } from "@/components/shared/provider-card";
@@ -29,6 +30,7 @@ export function ProviderRail({
   description?: string;
   limit?: number;
 }) {
+  const t = useTranslations("home.rails");
   const { data, error, isLoading, refetch } = useAsync(
     () => getFeaturedProviders(type, limit),
     [type, limit],
@@ -49,8 +51,8 @@ export function ProviderRail({
               variant="outline"
               className="h-10 rounded-xl px-4"
             >
-              View all
-              <ArrowRight className="size-4" />
+              {t("viewAll")}
+              <ArrowRight className="size-4 rtl:rotate-180" />
             </Button>
           }
         />
@@ -59,18 +61,18 @@ export function ProviderRail({
           <ProviderListSkeleton count={3} />
         ) : error ? (
           <ErrorState
-            title="Couldn't load providers"
-            description="We hit a problem fetching this list. Please try again."
+            title={t("errorTitle")}
+            description={t("errorDescription")}
             onRetry={refetch}
           />
         ) : !data || data.length === 0 ? (
           <EmptyState
             icon={Users}
-            title="Nothing featured yet"
-            description="Featured providers will appear here as soon as they join."
+            title={t("emptyTitle")}
+            description={t("emptyDescription")}
             action={
               <Button render={<Link href={viewAll} />} className="h-10 rounded-xl px-4">
-                Browse all
+                {t("browseAll")}
               </Button>
             }
           />

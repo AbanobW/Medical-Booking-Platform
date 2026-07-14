@@ -14,6 +14,7 @@ import {
   Star,
 } from "lucide-react";
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -29,7 +30,7 @@ import {
   type AcknowledgementState,
 } from "@/components/booking/preparation-step";
 import { ProfilePicker } from "@/components/booking/profile-picker";
-import { ServicePicker } from "@/components/booking/service-picker";
+import { ServicePicker, serviceNamed } from "@/components/booking/service-picker";
 import { StepIndicator } from "@/components/booking/step-indicator";
 import { useAuth } from "@/components/providers/auth-provider";
 import { CalendarPicker } from "@/components/shared/calendar-picker";
@@ -53,10 +54,9 @@ import {
 import { ApiError } from "@/lib/api/client";
 import { getAvailability } from "@/lib/api/providers";
 import { getPatientProfiles } from "@/lib/api/profiles";
-import { getGovernorateName } from "@/lib/data/egypt";
-import { formatDate, formatTime } from "@/lib/format";
 import { evaluateEligibility } from "@/lib/eligibility";
-import { formatEGP } from "@/lib/site";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import {
   branchPriceOf,
   requiresAcknowledgement,
@@ -72,17 +72,14 @@ import {
 
 type StepKey = "patient" | "service" | "prep" | "date" | "time" | "payment";
 
-const STEP_LABELS: Record<StepKey, string> = {
-  patient: "Patient",
-  service: "Service",
-  prep: "Preparation",
-  date: "Date",
-  time: "Time",
-  payment: "Payment",
-};
-
 export function BookingWizard({ provider }: { provider: Provider }) {
   const { user, isAuthenticated } = useAuth();
+
+  const t = useTranslations("booking");
+  const tCommon = useTranslations("common");
+  const { named } = useDomain();
+  const { formatDate, formatTime, formatEGP, formatNumber, locale } = useFormat();
+  const describeError = useApiError();
 
   // A guest still books — the appointment attaches to the demo patient account
   // so the flow works end to end and shows up in the patient dashboard.
@@ -145,6 +142,8 @@ export function BookingWizard({ provider }: { provider: Provider }) {
   const needsAck = !!service && requiresAcknowledgement(service);
   const price = service ? branchPriceOf(branch, service) : provider.price;
   const fee = bookingFeeFor(paymentMethod);
+
+  const serviceName = service ? named(serviceNamed(service)) : undefined;
 
   // The only branch is not a choice — take it.
   useEffect(() => {
@@ -216,17 +215,25 @@ export function BookingWizard({ provider }: { provider: Provider }) {
     }
   };
 
-  const BLOCKED_MESSAGE: Record<StepKey, string> = {
-    patient: "Please choose who this booking is for.",
-    service: !branchId
-      ? "Please choose a branch first."
-      : "Please choose a service to continue.",
-    prep: !eligibility.eligible
-      ? "This patient is not eligible for this service."
-      : "Please tick both acknowledgements to continue.",
-    date: "Please pick a date to continue.",
-    time: "Please pick a time to continue.",
-    payment: "",
+  const blockedMessage = (from: StepKey): string => {
+    switch (from) {
+      case "patient":
+        return t("wizard.blocked.patient");
+      case "service":
+        return branchId
+          ? t("wizard.blocked.service")
+          : t("wizard.blocked.branch");
+      case "prep":
+        return eligibility.eligible
+          ? t("wizard.blocked.acknowledge")
+          : t("wizard.blocked.ineligible");
+      case "date":
+        return t("wizard.blocked.date");
+      case "time":
+        return t("wizard.blocked.time");
+      case "payment":
+        return "";
+    }
   };
 
   const goToIndex = useCallback(
@@ -256,7 +263,7 @@ export function BookingWizard({ provider }: { provider: Provider }) {
 
   function goNext() {
     if (!canAdvance(step)) {
-      toast.error(BLOCKED_MESSAGE[step]);
+      toast.error(blockedMessage(step));
       return;
     }
     goToIndex(stepIndex + 1);
@@ -294,7 +301,7 @@ export function BookingWizard({ provider }: { provider: Provider }) {
     const when = { date: options?.date ?? date, time: options?.time ?? time };
 
     if (!profile || !branch || !service || !when.date || !when.time) {
-      toast.error("Some booking details are missing. Please review the steps.");
+      toast.error(t("wizard.toast.missingDetails"));
       return;
     }
 
@@ -319,7 +326,7 @@ export function BookingWizard({ provider }: { provider: Provider }) {
       // Cash carries no online fee, so the booking is confirmed outright (§9).
       if (created.status === "confirmed") {
         setBooking(created);
-        toast.success("Booking confirmed.");
+        toast.success(t("wizard.toast.confirmed"));
         return;
       }
 
@@ -342,18 +349,14 @@ export function BookingWizard({ provider }: { provider: Provider }) {
       }
 
       if (error instanceof ApiError && (error.status === 409 || error.status === 410)) {
-        toast.error(error.message);
+        toast.error(describeError(error));
         setTime(undefined);
         availability.refetch();
         goToStep("time");
         return;
       }
 
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "We couldn't complete your booking. Please try again.",
-      );
+      toast.error(describeError(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -363,11 +366,9 @@ export function BookingWizard({ provider }: { provider: Provider }) {
   const handleExpire = useCallback(() => {
     setHeld(null);
     availability.refetch();
-    toast.error(
-      "Your reservation window expired and the place was released. Please pick a time again.",
-    );
+    toast.error(t("wizard.toast.expired"));
     goToStep("time");
-  }, [availability, goToStep]);
+  }, [availability, goToStep, t]);
 
   async function handlePay(outcome: "success" | "failure") {
     if (!held) return;
@@ -377,18 +378,14 @@ export function BookingWizard({ provider }: { provider: Provider }) {
       const paid = await payBooking(held.id, outcome);
       setHeld(null);
       setBooking(paid);
-      toast.success("Payment received — your booking is confirmed.");
+      toast.success(t("wizard.toast.paid"));
     } catch (error) {
       // Failure or a lapsed window: the API discards the hold and releases the
       // place. Never leave the patient in a half-booked state.
       setHeld(null);
       availability.refetch();
       setTime(undefined);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "The payment did not go through, so the place was released.",
-      );
+      toast.error(describeError(error));
       goToStep("time");
     } finally {
       setIsPaying(false);
@@ -402,7 +399,7 @@ export function BookingWizard({ provider }: { provider: Provider }) {
     setHeld(null);
     await releaseHold(id);
     availability.refetch();
-    toast.info("Your place was released. Pick another time when you're ready.");
+    toast.info(t("wizard.toast.released"));
     goToStep("time");
   }
 
@@ -424,19 +421,33 @@ export function BookingWizard({ provider }: { provider: Provider }) {
         const day = branch ? scheduleFor(branch, slot.date) : undefined;
         const estimate = day ? estimatedTimeFor(day, queueNumber) : undefined;
 
-        return `You'd be #${queueNumber}${
-          estimate ? `, seen around ~${formatTime(estimate)}` : ""
-        }${slot.isFull ? " — the session is busy" : ""}`;
+        const number = formatNumber(queueNumber);
+
+        if (estimate) {
+          const params = { number, time: formatTime(estimate) };
+          return slot.isFull
+            ? t("slot.sessionBusyWithTime", params)
+            : t("slot.sessionWithTime", params);
+        }
+
+        return slot.isFull
+          ? t("slot.sessionBusy", { number })
+          : t("slot.session", { number });
       }
 
       if (slot.isFull) {
+        // A strict limit is genuinely full; a comfort limit is merely busy (§6).
         return slot.capacityType === "strict"
-          ? "Fully booked"
-          : "Busy — expect a longer wait";
+          ? t("slot.fullyBooked")
+          : t("slot.busy");
       }
-      return `${slot.remaining} of ${slot.capacity} places left`;
+
+      return t("slot.placesLeft", {
+        remaining: formatNumber(slot.remaining),
+        capacity: formatNumber(slot.capacity),
+      });
     },
-    [mode, branch],
+    [mode, branch, t, formatNumber, formatTime],
   );
 
   // ---------------------------------------------------------------------
@@ -447,7 +458,12 @@ export function BookingWizard({ provider }: { provider: Provider }) {
     return <BookingConfirmation booking={booking} branchName={branch?.name} />;
   }
 
-  const stepLabels = steps.map((key) => STEP_LABELS[key]);
+  const stepLabels = steps.map((key) => t(`steps.${key}`));
+  const nextStepLabel =
+    stepIndex + 1 < steps.length ? t(`steps.${steps[stepIndex + 1]}`) : "";
+
+  // The wizard slides forward towards the reading edge, so it flips under RTL.
+  const slide = direction * (locale === "ar" ? -32 : 32);
 
   return (
     <div className="space-y-6">
@@ -464,8 +480,7 @@ export function BookingWizard({ provider }: { provider: Provider }) {
         {!isAuthenticated && (
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed bg-muted/40 p-3">
             <p className="text-sm text-muted-foreground">
-              You&apos;re booking as a guest. Sign in to keep this appointment on
-              your account.
+              {t("wizard.guestNotice")}
             </p>
             <Button
               variant="outline"
@@ -474,7 +489,7 @@ export function BookingWizard({ provider }: { provider: Provider }) {
               render={<Link href={`/login?next=/booking/${provider.slug}`} />}
             >
               <LogIn className="size-4" />
-              Sign in
+              {tCommon("actions.signIn")}
             </Button>
           </div>
         )}
@@ -484,9 +499,9 @@ export function BookingWizard({ provider }: { provider: Provider }) {
             <motion.div
               key={step}
               custom={direction}
-              initial={{ opacity: 0, x: direction * 32 }}
+              initial={{ opacity: 0, x: slide }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: direction * -32 }}
+              exit={{ opacity: 0, x: -slide }}
               transition={{ duration: 0.28, ease: EASE }}
             >
               {step === "patient" && (
@@ -542,17 +557,17 @@ export function BookingWizard({ provider }: { provider: Provider }) {
               {step === "date" && (
                 <div className="space-y-4">
                   <div>
-                    <h2 className="text-lg font-semibold">Select a date</h2>
+                    <h2 className="text-lg font-semibold">{t("date.title")}</h2>
                     <p className="text-sm text-muted-foreground">
                       {branch
-                        ? `Open days at ${branch.name}. Green dots mark days with places.`
-                        : "Green dots mark days with places."}
+                        ? t("date.subtitleBranch", { branch: branch.name })
+                        : t("date.subtitle")}
                     </p>
                   </div>
 
                   {availability.error ? (
                     <ErrorState
-                      description={availability.error.message}
+                      description={describeError(availability.error)}
                       onRetry={availability.refetch}
                     />
                   ) : (
@@ -573,20 +588,22 @@ export function BookingWizard({ provider }: { provider: Provider }) {
                 <div className="space-y-4">
                   <div>
                     <h2 className="text-lg font-semibold">
-                      {mode === "session" ? "Join a session" : "Select a time"}
+                      {mode === "session"
+                        ? t("time.sessionTitle")
+                        : t("time.slotTitle")}
                     </h2>
                     <p className="text-sm text-muted-foreground">
                       {mode === "session"
-                        ? "Doctors run sessions, not exact minutes: you get a queue number and an estimated time."
+                        ? t("time.sessionSubtitle")
                         : date
-                          ? `Open slots on ${formatDate(date)}.`
-                          : "Pick a date first."}
+                          ? t("time.slotSubtitle", { date: formatDate(date) })
+                          : t("time.pickDateFirst")}
                     </p>
                   </div>
 
                   {availability.error ? (
                     <ErrorState
-                      description={availability.error.message}
+                      description={describeError(availability.error)}
                       onRetry={availability.refetch}
                     />
                   ) : (
@@ -610,7 +627,7 @@ export function BookingWizard({ provider }: { provider: Provider }) {
               {step === "payment" && (
                 <PaymentStep
                   provider={provider}
-                  serviceName={service?.name ?? "Appointment"}
+                  serviceName={serviceName ?? t("wizard.fallbackServiceName")}
                   branchName={branch?.name}
                   price={price}
                   method={paymentMethod}
@@ -638,14 +655,14 @@ export function BookingWizard({ provider }: { provider: Provider }) {
             disabled={stepIndex === 0 || isSubmitting || isPaying}
             className="h-11 rounded-xl px-4"
           >
-            <ArrowLeft className="size-4" />
-            Back
+            <ArrowLeft className="size-4 rtl:rotate-180" />
+            {tCommon("actions.back")}
           </Button>
 
           <div className="flex items-center gap-4 sm:justify-end">
             <SelectionSummary
               patientName={profile?.fullName}
-              serviceName={service?.name}
+              serviceName={serviceName}
               price={service ? price : undefined}
               date={date}
               time={time}
@@ -664,13 +681,15 @@ export function BookingWizard({ provider }: { provider: Provider }) {
                 {isSubmitting && <Loader2 className="size-4 animate-spin" />}
                 {step === "payment"
                   ? isSubmitting
-                    ? "Reserving your place…"
+                    ? t("wizard.reserving")
                     : fee > 0
-                      ? `Hold my place · pay ${formatEGP(fee)}`
-                      : "Confirm booking"
-                  : `Continue to ${STEP_LABELS[steps[stepIndex + 1]].toLowerCase()}`}
+                      ? t("wizard.holdAndPay", { fee: formatEGP(fee) })
+                      : t("wizard.confirmBooking")
+                  : t("wizard.continueTo", {
+                      step: nextStepLabel.toLocaleLowerCase(locale),
+                    })}
                 {!isSubmitting && step !== "payment" && (
-                  <ArrowRight className="size-4" />
+                  <ArrowRight className="size-4 rtl:rotate-180" />
                 )}
               </Button>
             )}
@@ -683,6 +702,7 @@ export function BookingWizard({ provider }: { provider: Provider }) {
         isPending={isSubmitting}
         onBookAnyway={() => {
           setConflict(null);
+          // Explicit consent — the only way past a comfort limit (§6).
           void claimPlace({ acceptOverCapacity: true });
         }}
         onTakeNextSlot={takeNextSlot}
@@ -725,10 +745,12 @@ function SelectionSummary({
   date?: string;
   time?: string;
 }) {
+  const { formatDate, formatTime, formatEGP } = useFormat();
+
   if (!patientName && !serviceName && !date) return null;
 
   return (
-    <div className="hidden text-right text-xs text-muted-foreground lg:block">
+    <div className="hidden text-end text-xs text-muted-foreground lg:block">
       {patientName && (
         <p className="max-w-[16rem] truncate font-medium text-foreground">
           {patientName}
@@ -751,12 +773,16 @@ function SelectionSummary({
 }
 
 function ProviderSummary({ provider }: { provider: Provider }) {
+  const t = useTranslations("booking");
+  const { named, getGovernorateName } = useDomain();
+  const { formatEGP, formatNumber } = useFormat();
+
   return (
     <div className="flex flex-col gap-4 rounded-2xl border bg-card p-4 shadow-soft sm:flex-row sm:items-center sm:p-5">
       <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border bg-muted sm:size-20">
         <Image
           src={provider.photo}
-          alt={provider.name}
+          alt={named(provider)}
           fill
           sizes="80px"
           className="object-cover"
@@ -765,11 +791,13 @@ function ProviderSummary({ provider }: { provider: Provider }) {
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="truncate text-lg font-bold sm:text-xl">{provider.name}</h1>
+          <h1 className="truncate text-lg font-bold sm:text-xl">
+            {named(provider)}
+          </h1>
           {provider.status === "approved" && (
             <Badge variant="secondary" className="gap-1">
               <ShieldCheck className="size-3" />
-              Verified
+              {t("provider.verified")}
             </Badge>
           )}
         </div>
@@ -777,27 +805,33 @@ function ProviderSummary({ provider }: { provider: Provider }) {
         <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <Star className="size-3.5 fill-warning text-warning" />
-            <span className="font-medium text-foreground">
+            <span className="font-medium text-foreground ltr-nums">
               {provider.rating.toFixed(1)}
             </span>
-            ({provider.reviewCount})
+            <span className="ltr-nums">({formatNumber(provider.reviewCount)})</span>
           </span>
           <span className="inline-flex items-center gap-1">
             <MapPin className="size-3.5" />
             {getGovernorateName(provider.governorateId)}
           </span>
           <span className="inline-flex items-center gap-1">
-            <Clock className="size-3.5" />~{provider.waitingTimeMinutes} min wait
+            <Clock className="size-3.5" />
+            {t("provider.wait", {
+              minutes: formatNumber(provider.waitingTimeMinutes),
+            })}
           </span>
         </p>
       </div>
 
-      <div className="shrink-0 text-left sm:text-right">
-        <p className="text-xs text-muted-foreground">Starts from</p>
+      <div className="shrink-0 text-start sm:text-end">
+        <p className="text-xs text-muted-foreground">{t("provider.startsFrom")}</p>
         <p className="text-lg font-bold text-primary">{formatEGP(provider.price)}</p>
         <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
           <CalendarDays className="size-3" />
-          {provider.bookingCount.toLocaleString("en-US")} bookings
+          {t("provider.bookings", {
+            count: provider.bookingCount,
+            n: formatNumber(provider.bookingCount),
+          })}
         </p>
       </div>
     </div>

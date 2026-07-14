@@ -2,6 +2,7 @@
 
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import {
   Award,
   Building2,
@@ -29,14 +30,24 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAsync } from "@/hooks/use-async";
 import { getProviderBySlug } from "@/lib/api/providers";
-import { getAreaName, getGovernorateName, getSpecialtyName } from "@/lib/data/egypt";
-import { formatDuration } from "@/lib/format";
-import { formatEGP } from "@/lib/site";
+import { useDomain, useFormat, useIsRtl } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
+import { BUSINESS } from "@/lib/site";
 import type { Doctor } from "@/lib/types";
 
 export default function DoctorProfilePage() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug ?? "";
+
+  const t = useTranslations("profile");
+  const tCommon = useTranslations("common");
+  const { formatDuration, formatEGP } = useFormat();
+  const { named, localized, getAreaName, getGovernorateName, getSpecialtyName } =
+    useDomain();
+  const L = useLabels();
+  const isRtl = useIsRtl();
+  // Arabic separates a list with an Arabic comma, not a Latin one.
+  const listSeparator = isRtl ? "، " : ", ";
 
   const { data, error, isLoading, refetch } = useAsync(
     () => getProviderBySlug(slug),
@@ -57,18 +68,15 @@ export default function DoctorProfilePage() {
     if (isNotFound) {
       return (
         <ProviderNotFound
-          title="We couldn't find that doctor"
+          title={t("notFound.doctorTitle")}
           backHref="/search?type=doctor"
-          backLabel="Browse doctors"
+          backLabel={t("notFound.browseDoctors")}
         />
       );
     }
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-24 sm:px-6 lg:px-8">
-        <ErrorState
-          title="Couldn't load this profile"
-          onRetry={refetch}
-        />
+        <ErrorState title={t("error.loadTitle")} onRetry={refetch} />
       </div>
     );
   }
@@ -76,10 +84,10 @@ export default function DoctorProfilePage() {
   if (!data || data.type !== "doctor") {
     return (
       <ProviderNotFound
-        title="We couldn't find that doctor"
-        description="This link points to a profile that isn't a doctor. It may have moved."
+        title={t("notFound.doctorTitle")}
+        description={t("notFound.doctorDescription")}
         backHref="/search?type=doctor"
-        backLabel="Browse doctors"
+        backLabel={t("notFound.browseDoctors")}
       />
     );
   }
@@ -90,10 +98,14 @@ export default function DoctorProfilePage() {
   const about = (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">About {doctor.name}</CardTitle>
+        <CardTitle className="text-base">
+          {t("about.title", { name: named(doctor) })}
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
-        <p className="text-sm leading-relaxed text-foreground/90">{doctor.bio}</p>
+        <p className="text-sm leading-relaxed text-foreground/90">
+          {localized(doctor.bio)}
+        </p>
 
         <Separator />
 
@@ -101,7 +113,9 @@ export default function DoctorProfilePage() {
           <div className="flex items-start gap-3">
             <Stethoscope className="mt-0.5 size-4 shrink-0 text-primary" />
             <div>
-              <dt className="text-xs text-muted-foreground">Specialty</dt>
+              <dt className="text-xs text-muted-foreground">
+                {t("about.specialty")}
+              </dt>
               <dd className="text-sm font-medium">
                 {getSpecialtyName(doctor.specialtyId)}
               </dd>
@@ -111,9 +125,11 @@ export default function DoctorProfilePage() {
           <div className="flex items-start gap-3">
             <Award className="mt-0.5 size-4 shrink-0 text-primary" />
             <div>
-              <dt className="text-xs text-muted-foreground">Experience</dt>
+              <dt className="text-xs text-muted-foreground">
+                {t("about.experience")}
+              </dt>
               <dd className="text-sm font-medium">
-                {doctor.yearsOfExperience} years of practice
+                {t("about.experienceValue", { years: doctor.yearsOfExperience })}
               </dd>
             </div>
           </div>
@@ -121,16 +137,22 @@ export default function DoctorProfilePage() {
           <div className="flex items-start gap-3">
             <GraduationCap className="mt-0.5 size-4 shrink-0 text-primary" />
             <div>
-              <dt className="text-xs text-muted-foreground">Degrees</dt>
-              <dd className="text-sm font-medium">{doctor.degrees.join(" · ")}</dd>
+              <dt className="text-xs text-muted-foreground">{t("about.degrees")}</dt>
+              <dd className="text-sm font-medium">
+                {doctor.degrees.map(L.degree).join(" · ")}
+              </dd>
             </div>
           </div>
 
           <div className="flex items-start gap-3">
             <Languages className="mt-0.5 size-4 shrink-0 text-primary" />
             <div>
-              <dt className="text-xs text-muted-foreground">Languages</dt>
-              <dd className="text-sm font-medium">{doctor.languages.join(", ")}</dd>
+              <dt className="text-xs text-muted-foreground">
+                {t("about.languages")}
+              </dt>
+              <dd className="text-sm font-medium">
+                {doctor.languages.map(L.language).join(listSeparator)}
+              </dd>
             </div>
           </div>
         </dl>
@@ -139,11 +161,11 @@ export default function DoctorProfilePage() {
           <>
             <Separator />
             <div>
-              <p className="mb-2 text-xs text-muted-foreground">Areas of focus</p>
+              <p className="mb-2 text-xs text-muted-foreground">{t("about.focus")}</p>
               <div className="flex flex-wrap gap-1.5">
                 {doctor.subSpecialties.map((item) => (
                   <Badge key={item} variant="outline" className="font-normal">
-                    {item}
+                    {L.subSpecialty(item)}
                   </Badge>
                 ))}
               </div>
@@ -157,11 +179,10 @@ export default function DoctorProfilePage() {
   const services = (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Consultation types</CardTitle>
+        <CardTitle className="text-base">{t("consultations.title")}</CardTitle>
         {doctor.branches.length > 1 && (
           <p className="text-sm text-muted-foreground">
-            Fees can differ between clinics — you&apos;ll see the exact fee for the
-            clinic you pick.
+            {t("consultations.feesVary")}
           </p>
         )}
       </CardHeader>
@@ -173,11 +194,13 @@ export default function DoctorProfilePage() {
               className="flex flex-col gap-2 rounded-xl border p-4"
             >
               <div className="flex items-start justify-between gap-3">
-                <h4 className="font-medium leading-tight">{consultation.name}</h4>
+                <h4 className="font-medium leading-tight">
+                  {named(consultation)}
+                </h4>
                 <BranchPrice service={consultation} branches={doctor.branches} />
               </div>
               <p className="text-sm text-muted-foreground">
-                {consultation.description}
+                {localized(consultation.description)}
               </p>
               <div className="mt-auto flex items-center justify-between gap-2 pt-1">
                 <Badge variant="secondary" className="font-normal">
@@ -193,7 +216,7 @@ export default function DoctorProfilePage() {
                   variant="outline"
                   className="rounded-lg"
                 >
-                  Book
+                  {t("consultations.book")}
                 </Button>
               </div>
             </li>
@@ -206,7 +229,7 @@ export default function DoctorProfilePage() {
   const clinic = (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Clinic & location</CardTitle>
+        <CardTitle className="text-base">{t("about.clinicTitle")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-start gap-3">
@@ -243,12 +266,12 @@ export default function DoctorProfilePage() {
     <div className="pb-20">
       <ProfileHero
         provider={doctor}
-        subtitle={`${doctor.title} · ${getSpecialtyName(doctor.specialtyId)}`}
-        priceLabel="Consultation fee"
+        subtitle={`${L.doctorTitle(doctor.title)} · ${getSpecialtyName(doctor.specialtyId)}`}
+        priceLabel={t("hero.priceConsultation")}
         chips={[
-          `${doctor.yearsOfExperience} yrs experience`,
-          ...doctor.degrees.slice(0, 2),
-          ...doctor.languages.slice(0, 2),
+          t("hero.chipExperience", { years: doctor.yearsOfExperience }),
+          ...doctor.degrees.slice(0, 2).map(L.degree),
+          ...doctor.languages.slice(0, 2).map(L.language),
         ]}
       />
 
@@ -258,19 +281,19 @@ export default function DoctorProfilePage() {
             <Tabs defaultValue="about">
               <TabsList className="h-auto w-full overflow-x-auto rounded-xl p-1 no-scrollbar">
                 <TabsTrigger value="about" className="h-9 px-4">
-                  Overview
+                  {t("tabs.overview")}
                 </TabsTrigger>
                 <TabsTrigger value="services" className="h-9 px-4">
-                  Services
+                  {t("tabs.services")}
                 </TabsTrigger>
                 <TabsTrigger value="clinic" className="h-9 px-4">
-                  Clinic
+                  {t("tabs.clinic")}
                 </TabsTrigger>
                 <TabsTrigger value="branches" className="h-9 px-4">
-                  Branches ({doctor.branches.length})
+                  {t("tabs.branches", { count: doctor.branches.length })}
                 </TabsTrigger>
                 <TabsTrigger value="reviews" className="h-9 px-4">
-                  Reviews ({doctor.reviewCount.toLocaleString()})
+                  {t("tabs.reviews", { count: doctor.reviewCount })}
                 </TabsTrigger>
               </TabsList>
 
@@ -293,7 +316,7 @@ export default function DoctorProfilePage() {
               <TabsContent value="branches" className="mt-6">
                 <BranchesSection
                   branches={doctor.branches}
-                  emptyDescription="This doctor practises from a single clinic."
+                  emptyDescription={t("branches.emptyDoctor")}
                 />
               </TabsContent>
 
@@ -304,10 +327,18 @@ export default function DoctorProfilePage() {
           </div>
 
           <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
-            <Card className="border-primary/20">
+            {/*
+              The sticky desktop half of the booking pair — see ProfileHero. Hidden
+              below `lg`, where the hero carries the CTA instead: down there this
+              sidebar stacks underneath all the tab content, so it would sit far
+              below the fold and simply repeat what the hero already said.
+            */}
+            <Card className="hidden border-primary/20 lg:block">
               <CardContent className="space-y-4">
                 <div>
-                  <p className="text-xs text-muted-foreground">Consultation fee</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("sidebar.consultationFee")}
+                  </p>
                   <p className="text-2xl font-bold text-primary tabular-nums">
                     {formatEGP(doctor.price)}
                   </p>
@@ -317,10 +348,12 @@ export default function DoctorProfilePage() {
                   className="h-11 w-full rounded-xl"
                 >
                   <CalendarCheck className="size-4" />
-                  Book Now
+                  {tCommon("actions.bookNow")}
                 </Button>
                 <p className="text-center text-xs text-muted-foreground">
-                  Free cancellation up to 4 hours before your appointment.
+                  {t("sidebar.freeCancellation", {
+                    hours: BUSINESS.freeCancellationHours,
+                  })}
                 </p>
               </CardContent>
             </Card>
@@ -331,7 +364,10 @@ export default function DoctorProfilePage() {
 
             <InsuranceCard planIds={doctor.acceptedInsurancePlanIds} />
 
-            <NearbySection providerId={doctor.id} title="Nearby doctors" />
+            <NearbySection
+              providerId={doctor.id}
+              title={t("nearby.titleDoctors")}
+            />
           </aside>
         </div>
       </div>

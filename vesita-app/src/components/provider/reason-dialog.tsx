@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import {
@@ -27,10 +28,10 @@ export function ReasonDialog({
   title,
   description,
   consequences,
-  label = "Reason",
-  placeholder = "Tell the patient what happened.",
-  confirmLabel = "Confirm",
-  cancelLabel = "Go back",
+  label,
+  placeholder,
+  confirmLabel,
+  cancelLabel,
   isPending = false,
   onConfirm,
 }: {
@@ -46,10 +47,16 @@ export function ReasonDialog({
   isPending?: boolean;
   onConfirm: (reason: string) => void | Promise<void>;
 }) {
+  const t = useTranslations("provider");
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
 
   const tooShort = reason.trim().length < 5;
+
+  const labelText = label ?? t("reasonDialog.label");
+  const placeholderText = placeholder ?? t("reasonDialog.placeholder");
+  const confirmText = confirmLabel ?? t("reasonDialog.confirm");
+  const cancelText = cancelLabel ?? t("reasonDialog.goBack");
 
   return (
     <AlertDialog
@@ -70,24 +77,24 @@ export function ReasonDialog({
         {consequences}
 
         <div className="space-y-1.5">
-          <Label htmlFor="cancel-reason">{label}</Label>
+          <Label htmlFor="cancel-reason">{labelText}</Label>
           <Textarea
             id="cancel-reason"
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder={placeholder}
+            placeholder={placeholderText}
             className="rounded-xl"
           />
           <p className="text-xs text-muted-foreground">
             {tooShort
-              ? "Write at least a few words — the patient is shown this."
-              : "The patient will see this in their cancellation notice."}
+              ? t("reasonDialog.tooShort")
+              : t("reasonDialog.willSee")}
           </p>
         </div>
 
         <AlertDialogFooter>
-          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel>{cancelText}</AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
             disabled={isPending || tooShort}
@@ -98,7 +105,7 @@ export function ReasonDialog({
               setOpen(false);
             }}
           >
-            {isPending ? "Working…" : confirmLabel}
+            {isPending ? t("reasonDialog.working") : confirmText}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

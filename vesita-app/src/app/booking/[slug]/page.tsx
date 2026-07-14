@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, SearchX } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { BookingWizard } from "@/components/booking/booking-wizard";
 import { providerHref } from "@/components/shared/provider-card";
@@ -12,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAsync } from "@/hooks/use-async";
 import { ApiError } from "@/lib/api/client";
 import { getProviderBySlug } from "@/lib/api/providers";
+import { useApiError } from "@/lib/i18n/use-api-error";
 
 function WizardSkeleton() {
   return (
@@ -34,6 +36,9 @@ export default function BookingPage() {
   const params = useParams<{ slug: string }>();
   const slug = typeof params.slug === "string" ? params.slug : "";
 
+  const t = useTranslations("booking");
+  const describeError = useApiError();
+
   const { data: provider, error, isLoading, refetch } = useAsync(
     () => getProviderBySlug(slug),
     [slug],
@@ -49,8 +54,8 @@ export default function BookingPage() {
         className="mb-4 h-9 rounded-xl px-2"
         render={<Link href={provider ? providerHref(provider) : "/search"} />}
       >
-        <ArrowLeft className="size-4" />
-        {provider ? "Back to profile" : "Back to search"}
+        <ArrowLeft className="size-4 rtl:rotate-180" />
+        {provider ? t("page.backToProfile") : t("page.backToSearch")}
       </Button>
 
       {isLoading ? (
@@ -58,16 +63,16 @@ export default function BookingPage() {
       ) : isNotFound ? (
         <EmptyState
           icon={SearchX}
-          title="We couldn't find that provider"
-          description="The link may be out of date. Search again to find a doctor, lab or radiology center near you."
+          title={t("page.notFoundTitle")}
+          description={t("page.notFoundDescription")}
           action={
             <Button className="h-10 rounded-xl px-4" render={<Link href="/search" />}>
-              Browse providers
+              {t("page.browseProviders")}
             </Button>
           }
         />
       ) : error ? (
-        <ErrorState description={error.message} onRetry={refetch} />
+        <ErrorState description={describeError(error)} onRetry={refetch} />
       ) : provider ? (
         <BookingWizard provider={provider} />
       ) : null}

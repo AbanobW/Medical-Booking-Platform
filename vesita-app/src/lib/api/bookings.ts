@@ -7,6 +7,7 @@ import {
   scheduleFor,
   slotsForBranch,
 } from "@/lib/api/availability";
+import { isLiveCapability } from "@/lib/api/capabilities";
 import {
   ApiError,
   db,
@@ -15,9 +16,15 @@ import {
   paginate,
   request,
 } from "@/lib/api/client";
+import * as liveBookings from "@/lib/api/medpoint/bookings";
+import {
+  listOverlayBookings,
+  overlayToBooking,
+  findOverlayBookingById,
+} from "@/lib/api/medpoint/overlay";
 import { SPECIALTIES } from "@/lib/data/egypt";
 import { TODAY, toISODate } from "@/lib/data/seed";
-import { evaluateEligibility } from "@/lib/eligibility";
+import { evaluateEligibilityDetailed } from "@/lib/eligibility";
 import { BUSINESS } from "@/lib/site";
 import {
   branchPriceOf,
@@ -31,6 +38,7 @@ import {
   type BookingStatus,
   type CapacityType,
   type Coupon,
+  type LocalizedText,
   type Paginated,
   type PatientInfo,
   type PaymentMethod,
@@ -40,6 +48,47 @@ import {
 } from "@/lib/types";
 
 const TODAY_ISO = toISODate(TODAY);
+
+function mergeOverlayIntoPage(
+  page: Paginated<Booking>,
+  query: BookingQuery,
+): Paginated<Booking> {
+  if (!query.patientId) return page;
+
+  const overlayItems = listOverlayBookings(query.patientId)
+    .map(overlayToBooking)
+    .filter((b) => {
+      if (query.patientProfileId && b.patientProfileId !== query.patientProfileId) {
+        return false;
+      }
+      if (query.providerId && b.providerId !== query.providerId) return false;
+      if (query.branchId && b.branchId !== query.branchId) return false;
+      if (query.status && b.status !== query.status) return false;
+      if (query.when === "upcoming" && !isUpcoming(b)) return false;
+      if (query.when === "past" && isUpcoming(b)) return false;
+      if (query.q) {
+        const term = query.q.toLowerCase();
+        const haystack = [b.reference, b.providerName, b.serviceName, b.patientInfo.fullName]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(term)) return false;
+      }
+      return true;
+    });
+
+  const seen = new Set<string>();
+  const merged = [...overlayItems, ...page.items].filter((b) => {
+    if (seen.has(b.id)) return false;
+    seen.add(b.id);
+    return true;
+  });
+
+  return {
+    ...page,
+    items: merged.slice(0, page.pageSize),
+    total: page.total + overlayItems.length,
+  };
+}
 
 /** A booking is "upcoming" if it hasn't happened yet and is still alive. */
 export function isUpcoming(booking: Booking): boolean {
@@ -91,8 +140,11 @@ export class CapacityError extends ApiError {
       /** The next place we can actually offer, when this one is full. */
       nextSlot?: TimeSlot;
     },
+    /** Stable identifier the UI translates against `errors.capacity.*`. */
+    code?: string,
+    params?: Record<string, string | number>,
   ) {
-    super(message, 409);
+    super(message, 409, code, params);
     this.name = "CapacityError";
   }
 }
@@ -101,9 +153,19 @@ export class CapacityError extends ApiError {
 export class EligibilityError extends ApiError {
   constructor(
     message: string,
-    readonly violations: { code: string; message: string }[],
+    /**
+     * Each violation carries its own code (`errors.eligibility.violation.*`)
+     * and params, so the UI can translate every line, not just the summary.
+     */
+    readonly violations: {
+      code: string;
+      message: string;
+      params?: Record<string, string | number>;
+    }[],
+    code = "eligibility.failed",
+    params?: Record<string, string | number>,
   ) {
-    super(message, 422);
+    super(message, 422, code, params);
     this.name = "EligibilityError";
   }
 }
@@ -120,33 +182,76 @@ export interface PriceQuote {
   coupon?: Coupon;
 }
 
+/**
+ * The outcome of checking a coupon.
+ *
+ * `message` is the English wording and stays the fallback; `code` resolves
+ * against `errors.coupon.*` so the same outcome can be shown in Arabic.
+ */
+export interface CouponResult {
+  valid: boolean;
+  message: string;
+  /** Resolves against `errors.coupon.<code>`. */
+  code: string;
+  params?: Record<string, string | number>;
+  discount: number;
+  coupon?: Coupon;
+}
+
 /** Validates a coupon against the order and returns the resulting discount. */
 export function validateCoupon(
   code: string,
   price: number,
   providerType: Provider["type"],
-): Promise<{ valid: boolean; message: string; discount: number; coupon?: Coupon }> {
-  return request(() => {
+): Promise<CouponResult> {
+  return request((): CouponResult => {
     const coupon = db().coupons.find(
       (c) => c.code.toUpperCase() === code.trim().toUpperCase(),
     );
 
     if (!coupon) {
-      return { valid: false, message: "This coupon code does not exist.", discount: 0 };
+      return {
+        valid: false,
+        message: "This coupon code does not exist.",
+        code: "coupon.unknown",
+        discount: 0,
+      };
     }
     if (!coupon.isActive) {
-      return { valid: false, message: "This coupon is no longer active.", discount: 0 };
+      return {
+        valid: false,
+        message: "This coupon is no longer active.",
+        code: "coupon.inactive",
+        discount: 0,
+      };
     }
     if (coupon.expiresAt < new Date().toISOString()) {
-      return { valid: false, message: "This coupon has expired.", discount: 0 };
+      return {
+        valid: false,
+        message: "This coupon has expired.",
+        code: "coupon.expired",
+        discount: 0,
+      };
     }
     if (coupon.usageCount >= coupon.usageLimit) {
-      return { valid: false, message: "This coupon has reached its usage limit.", discount: 0 };
+      return {
+        valid: false,
+        message: "This coupon has reached its usage limit.",
+        code: "coupon.usageLimitReached",
+        discount: 0,
+      };
     }
     if (coupon.appliesTo.length > 0 && !coupon.appliesTo.includes(providerType)) {
       return {
         valid: false,
         message: `This coupon only applies to ${coupon.appliesTo.join(", ")} bookings.`,
+        // Naming the one eligible kind is a real next step; listing two or three
+        // of them in a sentence does not survive translation, so we don't try.
+        code:
+          coupon.appliesTo.length === 1
+            ? "coupon.onlyForProviderType"
+            : "coupon.notForThisProviderType",
+        params: { type: coupon.appliesTo[0] },
         discount: 0,
       };
     }
@@ -154,6 +259,8 @@ export function validateCoupon(
       return {
         valid: false,
         message: `Requires a minimum order of EGP ${coupon.minOrderValue}.`,
+        code: "coupon.belowMinimum",
+        params: { amount: coupon.minOrderValue },
         discount: 0,
       };
     }
@@ -172,6 +279,8 @@ export function validateCoupon(
     return {
       valid: true,
       message: `Coupon applied — you saved EGP ${discount}.`,
+      code: "coupon.applied",
+      params: { amount: discount },
       discount,
       coupon,
     };
@@ -220,7 +329,8 @@ export interface BookingQuery {
 }
 
 export function getBookings(query: BookingQuery = {}): Promise<Paginated<Booking>> {
-  return request(() => {
+  const run = () =>
+    request(() => {
     releaseExpiredHolds();
 
     const {
@@ -266,12 +376,20 @@ export function getBookings(query: BookingQuery = {}): Promise<Paginated<Booking
 
     return paginate(sorted, page, pageSize);
   });
+
+  if (!isLiveCapability("bookingWrite")) return run();
+  return run().then((page) => mergeOverlayIntoPage(page, query));
 }
 
 export function getBookingById(id: string): Promise<Booking> {
+  if (isLiveCapability("bookingWrite")) {
+    const overlay = findOverlayBookingById(id);
+    if (overlay) return Promise.resolve(overlayToBooking(overlay));
+  }
+
   return request(() => {
     const booking = db().bookings.find((b) => b.id === id);
-    if (!booking) throw new ApiError("Booking not found", 404);
+    if (!booking) throw new ApiError("Booking not found", 404, "booking.notFound");
     return booking;
   });
 }
@@ -300,11 +418,14 @@ export interface HoldBookingInput {
   acceptOverCapacity?: boolean;
 }
 
+/** Short helper so the notification copy below stays readable. */
+const tx = (en: string, ar: string): LocalizedText => ({ en, ar });
+
 function notify(
   userId: string,
   kind: "booking_confirmed" | "booking_cancelled" | "booking_reminder" | "system",
-  title: string,
-  body: string,
+  title: LocalizedText,
+  body: LocalizedText,
   actionUrl = "/patient/bookings",
 ) {
   db().notifications.unshift({
@@ -316,7 +437,9 @@ function notify(
     title,
     body,
     isRead: false,
-    createdAt: new Date().toISOString(),
+    // Anchor to the dataset clock, not the wall clock — otherwise timeAgo()
+    // renders fresh notifications as coming from the future ("tomorrow").
+    createdAt: TODAY.toISOString(),
     actionUrl,
   });
 }
@@ -330,6 +453,10 @@ function notify(
  * rather than an error.
  */
 export function holdBooking(input: HoldBookingInput): Promise<Booking> {
+  if (isLiveCapability("bookingWrite")) {
+    return liveBookings.holdBooking(input);
+  }
+
   return request(() => {
     const state = db();
 
@@ -337,34 +464,46 @@ export function holdBooking(input: HoldBookingInput): Promise<Booking> {
     releaseExpiredHolds();
 
     const provider = state.providers.find((p) => p.id === input.providerId);
-    if (!provider) throw new ApiError("Provider not found", 404);
+    if (!provider) throw new ApiError("Provider not found", 404, "provider.notFound");
     if (provider.status !== "approved") {
-      throw new ApiError("This provider is not currently accepting bookings.", 409);
+      throw new ApiError(
+        "This provider is not currently accepting bookings.",
+        409,
+        "booking.providerNotAccepting",
+      );
     }
 
     const branch = branchOf(provider, input.branchId);
-    if (!branch || !branch.isActive) throw new ApiError("Branch not found", 404);
+    if (!branch || !branch.isActive) {
+      throw new ApiError("Branch not found", 404, "branch.notFound");
+    }
 
     const service = findService(provider, input.serviceId);
-    if (!service) throw new ApiError("Service not found", 404);
+    if (!service) throw new ApiError("Service not found", 404, "service.notFound");
     if (!branch.serviceIds.includes(service.id)) {
-      throw new ApiError("This service is not offered at the selected branch.", 409);
+      throw new ApiError(
+        "This service is not offered at the selected branch.",
+        409,
+        "booking.serviceNotAtBranch",
+      );
     }
 
     const profile = state.patientProfiles.find(
       (p) => p.id === input.patientProfileId,
     );
     if (!profile || profile.accountId !== input.patientId) {
-      throw new ApiError("Patient profile not found", 404);
+      throw new ApiError("Patient profile not found", 404, "profile.notFound");
     }
 
     // §3 — a booking is never finalized for a profile that fails the rules,
     // nor without the acknowledgement when one is required.
-    const eligibility = evaluateEligibility(service, profile);
+    const eligibility = evaluateEligibilityDetailed(service, profile);
     if (!eligibility.eligible) {
       throw new EligibilityError(
         `${profile.fullName} is not eligible for ${service.name}.`,
         eligibility.violations,
+        "eligibility.failed",
+        { name: profile.fullName, service: service.name },
       );
     }
 
@@ -374,13 +513,18 @@ export function holdBooking(input: HoldBookingInput): Promise<Booking> {
         throw new ApiError(
           "The preparation instructions and eligibility rules must be acknowledged before booking.",
           422,
+          "booking.acknowledgementRequired",
         );
       }
     }
 
     const day = scheduleFor(branch, input.date);
     if (!day) {
-      throw new ApiError("This branch is not open on the selected date.", 409);
+      throw new ApiError(
+        "This branch is not open on the selected date.",
+        409,
+        "booking.branchClosed",
+      );
     }
 
     // -- Capacity ----------------------------------------------------------
@@ -388,7 +532,11 @@ export function holdBooking(input: HoldBookingInput): Promise<Booking> {
       (s) => s.time === input.time,
     );
     if (!slot) {
-      throw new ApiError("That time is no longer offered. Please pick another.", 409);
+      throw new ApiError(
+        "That time is no longer offered. Please pick another.",
+        409,
+        "booking.slotNoLongerOffered",
+      );
     }
 
     const mode = schedulingModeFor(provider.type);
@@ -404,6 +552,7 @@ export function holdBooking(input: HoldBookingInput): Promise<Booking> {
           "This session is now full. Here is the next available time.",
           "strict_full",
           { capacityType: "strict", nextSlot: next },
+          "capacity.strictFull",
         );
       }
 
@@ -419,6 +568,7 @@ export function holdBooking(input: HoldBookingInput): Promise<Booking> {
             estimatedTime: estimatedTimeFor(day, queueNumber),
             nextSlot: next,
           },
+          "capacity.comfortBusy",
         );
       }
     }
@@ -435,6 +585,8 @@ export function holdBooking(input: HoldBookingInput): Promise<Booking> {
       throw new ApiError(
         `${profile.fullName} already has a booking at this time.`,
         409,
+        "booking.duplicateForProfile",
+        { name: profile.fullName },
       );
     }
 
@@ -479,10 +631,12 @@ export function holdBooking(input: HoldBookingInput): Promise<Booking> {
       providerId: provider.id,
       providerType: provider.type,
       providerName: provider.name,
+      providerNameAr: provider.nameAr,
       providerPhoto: provider.photo,
       providerSpecialty: specialtyLabelOf(provider),
       serviceId: service.id,
       serviceName: service.name,
+      serviceNameAr: service.nameAr,
       branchId: branch.id,
       date: input.date,
       time: input.time,
@@ -524,7 +678,7 @@ export function holdBooking(input: HoldBookingInput): Promise<Booking> {
       notify(
         booking.patientId,
         "booking_confirmed",
-        "Booking confirmed",
+        tx("Booking confirmed", "تم تأكيد الحجز"),
         confirmationBody(booking),
       );
     }
@@ -533,13 +687,20 @@ export function holdBooking(input: HoldBookingInput): Promise<Booking> {
   });
 }
 
-function confirmationBody(booking: Booking): string {
-  const who =
+function confirmationBody(booking: Booking): LocalizedText {
+  const who = tx(
     booking.queueNumber !== undefined
       ? `You are number ${booking.queueNumber} in the queue, expected around ${booking.estimatedTime}.`
-      : `Your slot is at ${booking.time}.`;
+      : `Your slot is at ${booking.time}.`,
+    booking.queueNumber !== undefined
+      ? `رقمك في الانتظار ${booking.queueNumber}، والموعد المتوقع حوالي ${booking.estimatedTime}.`
+      : `موعدك الساعة ${booking.time}.`,
+  );
 
-  return `Your booking for ${booking.patientInfo.fullName} with ${booking.providerName} on ${booking.date} is confirmed. ${who}`;
+  return tx(
+    `Your booking for ${booking.patientInfo.fullName} with ${booking.providerName} on ${booking.date} is confirmed. ${who.en}`,
+    `تم تأكيد حجز ${booking.patientInfo.fullName} مع ${booking.providerNameAr} يوم ${booking.date}. ${who.ar}`,
+  );
 }
 
 /**
@@ -553,13 +714,21 @@ export function payBooking(
   bookingId: string,
   outcome: "success" | "failure" = "success",
 ): Promise<Booking> {
+  if (isLiveCapability("bookingWrite")) {
+    return liveBookings.payBooking(bookingId, outcome);
+  }
+
   return request(() => {
     const state = db();
     const booking = state.bookings.find((b) => b.id === bookingId);
-    if (!booking) throw new ApiError("Booking not found", 404);
+    if (!booking) throw new ApiError("Booking not found", 404, "booking.notFound");
 
     if (!isHold(booking.status)) {
-      throw new ApiError("This booking is no longer awaiting payment.", 409);
+      throw new ApiError(
+        "This booking is no longer awaiting payment.",
+        409,
+        "booking.notAwaitingPayment",
+      );
     }
 
     // The window may have lapsed while the patient was on the payment page.
@@ -568,6 +737,8 @@ export function payBooking(
       throw new ApiError(
         "Your reservation window expired and the place was released. Please book again.",
         410,
+        "booking.holdExpired",
+        { minutes: BUSINESS.paymentHoldMinutes },
       );
     }
 
@@ -577,6 +748,7 @@ export function payBooking(
       throw new ApiError(
         "The payment did not go through, so the place was released. Please try booking again.",
         402,
+        "booking.paymentFailed",
       );
     }
 
@@ -590,7 +762,7 @@ export function payBooking(
     notify(
       booking.patientId,
       "booking_confirmed",
-      "Booking confirmed",
+      tx("Booking confirmed", "تم تأكيد الحجز"),
       confirmationBody(booking),
     );
 
@@ -600,12 +772,16 @@ export function payBooking(
 
 /** Moves a hold into `AWAITING_PAYMENT` as the patient enters the payment step. */
 export function beginPayment(bookingId: string): Promise<Booking> {
+  if (isLiveCapability("bookingWrite")) {
+    return liveBookings.beginPayment(bookingId);
+  }
+
   return request(() => {
     const booking = db().bookings.find((b) => b.id === bookingId);
-    if (!booking) throw new ApiError("Booking not found", 404);
+    if (!booking) throw new ApiError("Booking not found", 404, "booking.notFound");
 
     if (booking.status !== "held") {
-      throw new ApiError("This booking is not held.", 409);
+      throw new ApiError("This booking is not held.", 409, "booking.notHeld");
     }
 
     booking.status = "awaiting_payment";
@@ -615,6 +791,10 @@ export function beginPayment(bookingId: string): Promise<Booking> {
 
 /** Abandons a hold and returns the place to capacity immediately. */
 export function releaseHold(bookingId: string): Promise<{ id: string }> {
+  if (isLiveCapability("bookingWrite")) {
+    return liveBookings.releaseHold(bookingId);
+  }
+
   return request(() => {
     const state = db();
     const booking = state.bookings.find((b) => b.id === bookingId);
@@ -645,7 +825,7 @@ export function cancelBooking(id: string, reason: string): Promise<Booking> {
   return request(() => {
     const state = db();
     const booking = state.bookings.find((b) => b.id === id);
-    if (!booking) throw new ApiError("Booking not found", 404);
+    if (!booking) throw new ApiError("Booking not found", 404, "booking.notFound");
 
     // A live hold is simply discarded — there is nothing to cancel.
     if (isHold(booking.status)) {
@@ -657,6 +837,8 @@ export function cancelBooking(id: string, reason: string): Promise<Booking> {
       throw new ApiError(
         `A ${booking.status.replace(/_/g, " ")} booking cannot be cancelled.`,
         409,
+        "booking.cannotCancel",
+        { status: booking.status },
       );
     }
 
@@ -674,17 +856,26 @@ export function cancelBooking(id: string, reason: string): Promise<Booking> {
       // Cancelled very late — the fee is forfeit, per the stated policy. The
       // patient is told plainly rather than left wondering.
       booking.refundAmount = 0;
-      booking.refundNote = `Cancelled less than ${BUSINESS.freeCancellationHours} hours before the appointment, so the booking fee is not refunded.`;
+      booking.refundNote = tx(
+        `Cancelled less than ${BUSINESS.freeCancellationHours} hours before the appointment, so the booking fee is not refunded.`,
+        `تم الإلغاء قبل الموعد بأقل من ${BUSINESS.freeCancellationHours} ساعة، لذا لا تُرد رسوم الحجز.`,
+      );
     }
 
     notify(
       booking.patientId,
       "booking_cancelled",
-      "Booking cancelled",
-      `Your booking with ${booking.providerName} on ${booking.date} has been cancelled.` +
-        (booking.status === "refund_pending"
-          ? ` Your booking fee will be returned within ${BUSINESS.refundWorkingDays} working days.`
-          : ""),
+      tx("Booking cancelled", "تم إلغاء الحجز"),
+      tx(
+        `Your booking with ${booking.providerName} on ${booking.date} has been cancelled.` +
+          (booking.status === "refund_pending"
+            ? ` Your booking fee will be returned within ${BUSINESS.refundWorkingDays} working days.`
+            : ""),
+        `تم إلغاء حجزك مع ${booking.providerNameAr} يوم ${booking.date}.` +
+          (booking.status === "refund_pending"
+            ? ` سيتم رد رسوم الحجز خلال ${BUSINESS.refundWorkingDays} أيام عمل.`
+            : ""),
+      ),
     );
 
     return booking;
@@ -702,12 +893,14 @@ export function cancelByProvider(id: string, reason: string): Promise<Booking> {
   return request(() => {
     const state = db();
     const booking = state.bookings.find((b) => b.id === id);
-    if (!booking) throw new ApiError("Booking not found", 404);
+    if (!booking) throw new ApiError("Booking not found", 404, "booking.notFound");
 
     if (!canTransition(booking.status, "cancelled_by_provider")) {
       throw new ApiError(
         `A ${booking.status.replace(/_/g, " ")} booking cannot be cancelled.`,
         409,
+        "booking.cannotCancel",
+        { status: booking.status },
       );
     }
 
@@ -731,12 +924,15 @@ export function applyProviderCancellation(booking: Booking, reason: string): voi
   notify(
     booking.patientId,
     "booking_cancelled",
-    "Your appointment was cancelled",
-    `${booking.providerName} had to cancel your appointment on ${booking.date}. ${reason} ` +
-      (booking.refundAmount
-        ? `Your booking fee is being refunded in full. `
-        : "") +
-      "You can rebook at a time that suits you.",
+    tx("Your appointment was cancelled", "تم إلغاء موعدك"),
+    tx(
+      `${booking.providerName} had to cancel your appointment on ${booking.date}. ${reason} ` +
+        (booking.refundAmount ? `Your booking fee is being refunded in full. ` : "") +
+        "You can rebook at a time that suits you.",
+      `اضطر ${booking.providerNameAr} إلى إلغاء موعدك يوم ${booking.date}. ${reason} ` +
+        (booking.refundAmount ? `يتم رد رسوم الحجز بالكامل. ` : "") +
+        "يمكنك الحجز مرة أخرى في الوقت المناسب لك.",
+    ),
     `/booking`,
   );
 }
@@ -785,10 +981,14 @@ export function cancelSession(
 export function processRefund(id: string): Promise<Booking> {
   return request(() => {
     const booking = db().bookings.find((b) => b.id === id);
-    if (!booking) throw new ApiError("Booking not found", 404);
+    if (!booking) throw new ApiError("Booking not found", 404, "booking.notFound");
 
     if (!canTransition(booking.status, "refunded")) {
-      throw new ApiError("There is no refund pending on this booking.", 409);
+      throw new ApiError(
+        "There is no refund pending on this booking.",
+        409,
+        "booking.noRefundPending",
+      );
     }
 
     booking.status = "refunded";
@@ -798,9 +998,13 @@ export function processRefund(id: string): Promise<Booking> {
     notify(
       booking.patientId,
       "system",
-      "Refund completed",
-      `Your booking fee for ${booking.providerName} has been refunded to your original payment method. ` +
-        `Your bank may take up to ${BUSINESS.refundWorkingDays} working days to show it.`,
+      tx("Refund completed", "تم رد المبلغ"),
+      tx(
+        `Your booking fee for ${booking.providerName} has been refunded to your original payment method. ` +
+          `Your bank may take up to ${BUSINESS.refundWorkingDays} working days to show it.`,
+        `تم رد رسوم حجزك مع ${booking.providerNameAr} إلى وسيلة الدفع الأصلية. ` +
+          `قد يستغرق ظهورها لدى البنك حتى ${BUSINESS.refundWorkingDays} أيام عمل.`,
+      ),
     );
 
     return booking;
@@ -810,10 +1014,14 @@ export function processRefund(id: string): Promise<Booking> {
 export function markCompleted(id: string): Promise<Booking> {
   return request(() => {
     const booking = db().bookings.find((b) => b.id === id);
-    if (!booking) throw new ApiError("Booking not found", 404);
+    if (!booking) throw new ApiError("Booking not found", 404, "booking.notFound");
 
     if (!canTransition(booking.status, "completed")) {
-      throw new ApiError("Only a confirmed booking can be completed.", 409);
+      throw new ApiError(
+        "Only a confirmed booking can be completed.",
+        409,
+        "booking.notConfirmedForCompletion",
+      );
     }
 
     booking.status = "completed";
@@ -835,16 +1043,21 @@ export function markCompleted(id: string): Promise<Booking> {
 export function markNoShow(id: string): Promise<Booking> {
   return request(() => {
     const booking = db().bookings.find((b) => b.id === id);
-    if (!booking) throw new ApiError("Booking not found", 404);
+    if (!booking) throw new ApiError("Booking not found", 404, "booking.notFound");
 
     if (!canTransition(booking.status, "no_show")) {
-      throw new ApiError("Only a confirmed booking can be marked as missed.", 409);
+      throw new ApiError(
+        "Only a confirmed booking can be marked as missed.",
+        409,
+        "booking.notConfirmedForNoShow",
+      );
     }
 
     if (hoursUntil(booking) > 0) {
       throw new ApiError(
         "A missed visit can only be recorded after the session has ended.",
         409,
+        "booking.noShowTooEarly",
       );
     }
 
@@ -865,12 +1078,13 @@ export function reportLongWait(id: string): Promise<Booking> {
   return request(() => {
     const state = db();
     const booking = state.bookings.find((b) => b.id === id);
-    if (!booking) throw new ApiError("Booking not found", 404);
+    if (!booking) throw new ApiError("Booking not found", 404, "booking.notFound");
 
     if (booking.status === "no_show") {
       throw new ApiError(
         "This visit is recorded as missed. Please contact support to correct it.",
         409,
+        "booking.longWaitOnNoShow",
       );
     }
 
@@ -898,23 +1112,31 @@ export function rescheduleBooking(
     releaseExpiredHolds();
 
     const booking = state.bookings.find((b) => b.id === id);
-    if (!booking) throw new ApiError("Booking not found", 404);
+    if (!booking) throw new ApiError("Booking not found", 404, "booking.notFound");
 
     if (booking.status !== "confirmed" && !isHold(booking.status)) {
-      throw new ApiError("Only a live booking can be rescheduled.", 409);
+      throw new ApiError(
+        "Only a live booking can be rescheduled.",
+        409,
+        "booking.notReschedulable",
+      );
     }
 
     const provider = state.providers.find((p) => p.id === booking.providerId);
-    if (!provider) throw new ApiError("Provider not found", 404);
+    if (!provider) throw new ApiError("Provider not found", 404, "provider.notFound");
 
     const branch = branchOf(provider, booking.branchId);
-    if (!branch) throw new ApiError("Branch not found", 404);
+    if (!branch) throw new ApiError("Branch not found", 404, "branch.notFound");
 
     const day = scheduleFor(branch, date);
     const slot = slotsForBranch(provider, branch, date).find((s) => s.time === time);
 
     if (!day || !slot) {
-      throw new ApiError("That time is not available. Please pick another.", 409);
+      throw new ApiError(
+        "That time is not available. Please pick another.",
+        409,
+        "booking.slotUnavailable",
+      );
     }
 
     // The new place must respect capacity exactly as a fresh booking would.
@@ -926,6 +1148,7 @@ export function rescheduleBooking(
           capacityType: "strict",
           nextSlot: nextAvailableSlot(provider, branch, date),
         },
+        "capacity.strictFullReschedule",
       );
     }
 
@@ -941,8 +1164,11 @@ export function rescheduleBooking(
     notify(
       booking.patientId,
       "booking_confirmed",
-      "Booking rescheduled",
-      `Your appointment with ${booking.providerName} is now on ${date} at ${time}.`,
+      tx("Booking rescheduled", "تم تغيير موعد الحجز"),
+      tx(
+        `Your appointment with ${booking.providerName} is now on ${date} at ${time}.`,
+        `أصبح موعدك مع ${booking.providerNameAr} يوم ${date} الساعة ${time}.`,
+      ),
     );
 
     return booking;
@@ -973,7 +1199,12 @@ export function updateBookingStatus(
       return processRefund(id);
     default:
       return Promise.reject(
-        new ApiError(`A booking cannot be moved to "${status}" directly.`, 409),
+        new ApiError(
+          `A booking cannot be moved to "${status}" directly.`,
+          409,
+          "booking.invalidTransition",
+          { status },
+        ),
       );
   }
 }

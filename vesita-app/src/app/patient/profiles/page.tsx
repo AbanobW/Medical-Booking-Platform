@@ -1,7 +1,8 @@
 "use client";
 
 import { ShieldCheck, UserPlus, Users } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
+import { useMemo, useState, type ReactNode } from "react";
 
 import { PatientProfileCard } from "@/components/patient/patient-profile-card";
 import { PatientProfileDialog } from "@/components/patient/patient-profile-dialog";
@@ -11,12 +12,16 @@ import { Button } from "@/components/ui/button";
 import { useAsync } from "@/hooks/use-async";
 import { getBookings } from "@/lib/api/bookings";
 import { getPatientProfiles } from "@/lib/api/profiles";
+import { useApiError } from "@/lib/i18n/use-api-error";
 import type { PatientProfile } from "@/lib/types";
 
 /** Everything the account has ever booked — enough to count per profile. */
 const ALL_BOOKINGS = 500;
 
 export default function PatientProfilesPage() {
+  const t = useTranslations("patient");
+  const describeError = useApiError();
+
   const { user } = useAuth();
   const accountId = user?.id ?? "";
 
@@ -60,50 +65,50 @@ export default function PatientProfilesPage() {
     setDialogOpen(true);
   }
 
+  const strong = (chunks: ReactNode) => (
+    <span className="font-medium text-foreground">{chunks}</span>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Patient profiles</h2>
+          <h2 className="text-2xl font-bold tracking-tight">
+            {t("profiles.title")}
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Your account, and the family members you book for.
+            {t("profiles.subtitle")}
           </p>
         </div>
 
         <Button onClick={openAdd} className="h-10 rounded-xl px-4">
           <UserPlus className="size-4" />
-          Add a profile
+          {t("profiles.add")}
         </Button>
       </div>
 
       <div className="flex items-start gap-3 rounded-2xl border bg-muted/40 p-4 text-sm text-muted-foreground">
         <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
-        <p>
-          Every booking is made <span className="font-medium text-foreground">for a
-          patient profile</span>, never for the account as a whole — so each person&apos;s
-          booking and medical history stays with them. Profiles are private to this
-          account and are never linked to anyone else&apos;s, even if the name or phone
-          number matches.
-        </p>
+        <p>{t.rich("profiles.notice", { b: strong })}</p>
       </div>
 
       {profiles.isLoading ? (
         <ListSkeleton count={3} />
       ) : profiles.error ? (
         <ErrorState
-          title="Couldn't load your patient profiles"
-          description={profiles.error.message}
+          title={t("profiles.error")}
+          description={describeError(profiles.error)}
           onRetry={profiles.refetch}
         />
       ) : (profiles.data ?? []).length === 0 ? (
         <EmptyState
           icon={Users}
-          title="No patient profiles yet"
-          description="Add yourself and the family members you book for. Bookings, results and history are kept per person."
+          title={t("profiles.emptyTitle")}
+          description={t("profiles.emptyDescription")}
           action={
             <Button onClick={openAdd} className="h-10 rounded-xl px-4">
               <UserPlus className="size-4" />
-              Add a profile
+              {t("profiles.add")}
             </Button>
           }
         />

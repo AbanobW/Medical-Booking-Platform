@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { HeartOff } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { ProviderCard } from "@/components/shared/provider-card";
@@ -13,8 +14,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAsync } from "@/hooks/use-async";
 import { getFavorites } from "@/lib/api/engagement";
+import { useApiError } from "@/lib/i18n/use-api-error";
 
 export default function PatientFavoritesPage() {
+  const t = useTranslations("patient");
+  const describeError = useApiError();
+
   const { user } = useAuth();
   const patientId = user?.id ?? "";
 
@@ -37,11 +42,13 @@ export default function PatientFavoritesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Favorites</h2>
+        <h2 className="text-2xl font-bold tracking-tight">
+          {t("favorites.title")}
+        </h2>
         <p className="text-sm text-muted-foreground">
           {favorites.length > 0
-            ? `${favorites.length} saved provider${favorites.length === 1 ? "" : "s"}.`
-            : "Providers you save appear here for quick rebooking."}
+            ? t("favorites.count", { count: favorites.length })
+            : t("favorites.subtitle")}
         </p>
       </div>
 
@@ -49,21 +56,21 @@ export default function PatientFavoritesPage() {
         <ProviderListSkeleton count={6} />
       ) : error ? (
         <ErrorState
-          title="Couldn't load your favorites"
-          description={error.message}
+          title={t("favorites.error")}
+          description={describeError(error)}
           onRetry={refetch}
         />
       ) : favorites.length === 0 ? (
         <EmptyState
           icon={HeartOff}
-          title="No favorites yet"
-          description="Tap the heart on any provider to save them here."
+          title={t("favorites.emptyTitle")}
+          description={t("favorites.emptyDescription")}
           action={
             <Button
               render={<Link href="/search" />}
               className="h-10 rounded-xl px-4"
             >
-              Browse providers
+              {t("favorites.browse")}
             </Button>
           }
         />

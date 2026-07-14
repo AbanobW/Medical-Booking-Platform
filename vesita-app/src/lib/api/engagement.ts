@@ -1,3 +1,4 @@
+import { isLiveCapability } from "@/lib/api/capabilities";
 import { ApiError, db, makeId, request } from "@/lib/api/client";
 import type {
   AppNotification,
@@ -11,6 +12,11 @@ import type {
 // ---------------------------------------------------------------------------
 
 export function getFavorites(patientId: string): Promise<Provider[]> {
+  // MedPoint has no `/v1/favorites` — capability stays off until it exists.
+  if (isLiveCapability("favorites")) {
+    throw new ApiError("Favorites are not available on the live API yet.", 501);
+  }
+
   return request(() => {
     const ids = new Set(
       db()
@@ -34,6 +40,10 @@ export function toggleFavorite(
   patientId: string,
   providerId: string,
 ): Promise<{ isFavorite: boolean }> {
+  if (isLiveCapability("favorites")) {
+    throw new ApiError("Favorites are not available on the live API yet.", 501);
+  }
+
   return request(() => {
     const state = db();
     const index = state.favorites.findIndex(
@@ -87,12 +97,20 @@ export function createReview(input: CreateReviewInput): Promise<Review> {
   return request(() => {
     const state = db();
     const booking = state.bookings.find((b) => b.id === input.bookingId);
-    if (!booking) throw new ApiError("Booking not found", 404);
+    if (!booking) throw new ApiError("Booking not found", 404, "booking.notFound");
     if (booking.status !== "completed") {
-      throw new ApiError("You can only review a completed appointment.", 409);
+      throw new ApiError(
+        "You can only review a completed appointment.",
+        409,
+        "review.notCompleted",
+      );
     }
     if (booking.hasReview) {
-      throw new ApiError("You have already reviewed this appointment.", 409);
+      throw new ApiError(
+        "You have already reviewed this appointment.",
+        409,
+        "review.alreadyExists",
+      );
     }
 
     const patient = state.users.find((u) => u.id === booking.patientId);
@@ -134,7 +152,7 @@ export function updateReview(
   return request(() => {
     const state = db();
     const review = state.reviews.find((r) => r.id === id);
-    if (!review) throw new ApiError("Review not found", 404);
+    if (!review) throw new ApiError("Review not found", 404, "review.notFound");
 
     const provider = state.providers.find((p) => p.id === review.providerId);
     if (provider && patch.rating !== review.rating) {
@@ -154,7 +172,7 @@ export function deleteReview(id: string): Promise<{ id: string }> {
   return request(() => {
     const state = db();
     const index = state.reviews.findIndex((r) => r.id === id);
-    if (index < 0) throw new ApiError("Review not found", 404);
+    if (index < 0) throw new ApiError("Review not found", 404, "review.notFound");
 
     const [review] = state.reviews.splice(index, 1);
 
@@ -176,7 +194,7 @@ export function deleteReview(id: string): Promise<{ id: string }> {
 export function replyToReview(id: string, comment: string): Promise<Review> {
   return request(() => {
     const review = db().reviews.find((r) => r.id === id);
-    if (!review) throw new ApiError("Review not found", 404);
+    if (!review) throw new ApiError("Review not found", 404, "review.notFound");
 
     review.reply = { comment, createdAt: new Date().toISOString() };
     return review;
@@ -204,7 +222,7 @@ export function getUnreadCount(userId: string): Promise<number> {
 export function markNotificationRead(id: string): Promise<AppNotification> {
   return request(() => {
     const notification = db().notifications.find((n) => n.id === id);
-    if (!notification) throw new ApiError("Notification not found", 404);
+    if (!notification) throw new ApiError("Notification not found", 404, "notification.notFound");
 
     notification.isRead = true;
     return notification;
@@ -228,7 +246,7 @@ export function deleteNotification(id: string): Promise<{ id: string }> {
   return request(() => {
     const state = db();
     const index = state.notifications.findIndex((n) => n.id === id);
-    if (index < 0) throw new ApiError("Notification not found", 404);
+    if (index < 0) throw new ApiError("Notification not found", 404, "notification.notFound");
 
     state.notifications.splice(index, 1);
     return { id };

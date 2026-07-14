@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 
+import { getLocale } from "@/i18n/locale";
 import { JsonLd, findProviderForRoute, providerJsonLd, providerMetadata } from "@/lib/seo";
 import DoctorProfilePage from "./profile-client";
 
@@ -12,7 +14,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const doctor = findProviderForRoute(slug, "doctor");
 
-  if (!doctor) return { title: "Doctor not found" };
+  if (!doctor) {
+    const t = await getTranslations("profile");
+    return { title: t("meta.doctorNotFound") };
+  }
   return providerMetadata(doctor);
 }
 
@@ -27,9 +32,11 @@ export default async function Page({ params }: Props) {
 
   if (!doctor) notFound();
 
+  const locale = await getLocale();
+
   return (
     <>
-      <JsonLd data={providerJsonLd(doctor)} />
+      <JsonLd data={providerJsonLd(doctor, locale)} />
       <DoctorProfilePage />
     </>
   );

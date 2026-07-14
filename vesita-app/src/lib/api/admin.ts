@@ -53,7 +53,7 @@ export function setUserStatus(id: string, status: UserStatus): Promise<User> {
   return request(() => {
     const state = db();
     const user = state.users.find((u) => u.id === id);
-    if (!user) throw new ApiError("User not found", 404);
+    if (!user) throw new ApiError("User not found", 404, "user.notFound");
 
     user.status = status;
 
@@ -114,7 +114,7 @@ export function setProviderStatus(
   return request(() => {
     const state = db();
     const provider = state.providers.find((p) => p.id === id);
-    if (!provider) throw new ApiError("Provider not found", 404);
+    if (!provider) throw new ApiError("Provider not found", 404, "provider.notFound");
 
     provider.status = status;
     if (status !== "suspended") provider.suspension = undefined;
@@ -148,7 +148,7 @@ export function suspendProvider(
   return request(() => {
     const state = db();
     const provider = state.providers.find((p) => p.id === id);
-    if (!provider) throw new ApiError("Provider not found", 404);
+    if (!provider) throw new ApiError("Provider not found", 404, "provider.notFound");
 
     let cancelledBookings = 0;
 
@@ -193,7 +193,7 @@ export function reinstateProvider(id: string): Promise<Provider> {
   return request(() => {
     const state = db();
     const provider = state.providers.find((p) => p.id === id);
-    if (!provider) throw new ApiError("Provider not found", 404);
+    if (!provider) throw new ApiError("Provider not found", 404, "provider.notFound");
 
     provider.status = "approved";
     provider.suspension = undefined;
@@ -224,7 +224,11 @@ export function createCoupon(input: CouponInput): Promise<Coupon> {
     const exists = state.coupons.some(
       (c) => c.code.toUpperCase() === input.code.toUpperCase(),
     );
-    if (exists) throw new ApiError("A coupon with that code already exists.", 409);
+    if (exists) throw new ApiError(
+        "A coupon with that code already exists.",
+        409,
+        "coupon.codeExists",
+      );
 
     const coupon: Coupon = {
       ...input,
@@ -243,13 +247,17 @@ export function updateCoupon(id: string, patch: Partial<CouponInput>): Promise<C
   return request(() => {
     const state = db();
     const coupon = state.coupons.find((c) => c.id === id);
-    if (!coupon) throw new ApiError("Coupon not found", 404);
+    if (!coupon) throw new ApiError("Coupon not found", 404, "coupon.notFound");
 
     if (patch.code) {
       const clash = state.coupons.some(
         (c) => c.id !== id && c.code.toUpperCase() === patch.code!.toUpperCase(),
       );
-      if (clash) throw new ApiError("A coupon with that code already exists.", 409);
+      if (clash) throw new ApiError(
+        "A coupon with that code already exists.",
+        409,
+        "coupon.codeExists",
+      );
     }
 
     Object.assign(coupon, patch, patch.code ? { code: patch.code.toUpperCase() } : {});
@@ -261,7 +269,7 @@ export function deleteCoupon(id: string): Promise<{ id: string }> {
   return request(() => {
     const state = db();
     const index = state.coupons.findIndex((c) => c.id === id);
-    if (index < 0) throw new ApiError("Coupon not found", 404);
+    if (index < 0) throw new ApiError("Coupon not found", 404, "coupon.notFound");
 
     state.coupons.splice(index, 1);
     return { id };
@@ -312,7 +320,7 @@ export function updateCampaign(
 ): Promise<CashbackCampaign> {
   return request(() => {
     const campaign = db().campaigns.find((c) => c.id === id);
-    if (!campaign) throw new ApiError("Campaign not found", 404);
+    if (!campaign) throw new ApiError("Campaign not found", 404, "campaign.notFound");
 
     Object.assign(campaign, patch);
     campaign.status = statusFor(campaign.startsAt, campaign.endsAt);
@@ -324,7 +332,7 @@ export function deleteCampaign(id: string): Promise<{ id: string }> {
   return request(() => {
     const state = db();
     const index = state.campaigns.findIndex((c) => c.id === id);
-    if (index < 0) throw new ApiError("Campaign not found", 404);
+    if (index < 0) throw new ApiError("Campaign not found", 404, "campaign.notFound");
 
     state.campaigns.splice(index, 1);
     return { id };

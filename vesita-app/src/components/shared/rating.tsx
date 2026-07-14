@@ -1,9 +1,11 @@
 "use client";
 
 import { Star } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { Progress } from "@/components/ui/progress";
+import { useFormat } from "@/lib/i18n/use-format";
 import { cn } from "@/lib/utils";
 import type { Review } from "@/lib/types";
 
@@ -27,11 +29,13 @@ export function RatingStars({
   size = "md",
   className,
 }: RatingStarsProps) {
+  const t = useTranslations("common");
+
   return (
     <div
       className={cn("flex items-center gap-0.5", className)}
       role="img"
-      aria-label={`${value.toFixed(1)} out of 5 stars`}
+      aria-label={t("rating.stars", { value: value.toFixed(1) })}
     >
       {[0, 1, 2, 3, 4].map((i) => {
         const fill = precise
@@ -72,14 +76,16 @@ export function RatingBadge({
   size?: keyof typeof SIZES;
   className?: string;
 }) {
+  const { formatNumber } = useFormat();
+
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
       <RatingStars value={rating} size={size} />
       <span className="text-sm font-semibold tabular-nums">
         {rating.toFixed(1)}
       </span>
-      <span className="text-xs text-muted-foreground">
-        ({reviewCount.toLocaleString()})
+      <span className="text-xs text-muted-foreground ltr-nums">
+        ({formatNumber(reviewCount)})
       </span>
     </div>
   );
@@ -97,6 +103,7 @@ export function RatingInput({
   size?: keyof typeof SIZES;
   disabled?: boolean;
 }) {
+  const t = useTranslations("common");
   const [hovered, setHovered] = useState(0);
   const active = hovered || value;
 
@@ -109,7 +116,7 @@ export function RatingInput({
           disabled={disabled}
           onClick={() => onChange(star)}
           onMouseEnter={() => setHovered(star)}
-          aria-label={`Rate ${star} out of 5`}
+          aria-label={t("rating.rate", { star })}
           className="rounded transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Star
@@ -142,6 +149,9 @@ export function RatingCard({
   reviews: Review[];
   className?: string;
 }) {
+  const t = useTranslations("common");
+  const { formatNumber } = useFormat();
+
   // Distribution across 5→1 stars, from the reviews we actually have.
   const distribution = [5, 4, 3, 2, 1].map((star) => {
     const count = reviews.filter((r) => Math.round(r.rating) === star).length;
@@ -158,10 +168,14 @@ export function RatingCard({
       : 0;
 
   const breakdown = [
-    { label: "Waiting time", value: average("waitingTime") },
-    { label: "Staff", value: average("staff") },
-    { label: "Cleanliness", value: average("cleanliness") },
-    { label: "Communication", value: average("communication") },
+    { key: "waitingTime", label: t("rating.waitingTime"), value: average("waitingTime") },
+    { key: "staff", label: t("rating.staff"), value: average("staff") },
+    { key: "cleanliness", label: t("rating.cleanliness"), value: average("cleanliness") },
+    {
+      key: "communication",
+      label: t("rating.communication"),
+      value: average("communication"),
+    },
   ];
 
   return (
@@ -171,13 +185,13 @@ export function RatingCard({
         className,
       )}
     >
-      <div className="flex flex-col items-center justify-center gap-1 text-center sm:pr-8 sm:border-r">
+      <div className="flex flex-col items-center justify-center gap-1 text-center sm:pe-8 sm:border-e">
         <span className="text-5xl font-bold tabular-nums">
           {rating.toFixed(1)}
         </span>
         <RatingStars value={rating} size="md" />
         <span className="text-sm text-muted-foreground">
-          {reviewCount.toLocaleString()} reviews
+          {t("rating.reviewCount", { count: reviewCount })}
         </span>
       </div>
 
@@ -194,16 +208,16 @@ export function RatingCard({
                 style={{ width: `${percent}%` }}
               />
             </div>
-            <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-              {count}
+            <span className="w-8 shrink-0 text-end text-xs tabular-nums text-muted-foreground">
+              {formatNumber(count)}
             </span>
           </div>
         ))}
       </div>
 
       <div className="space-y-3">
-        {breakdown.map(({ label, value }) => (
-          <div key={label} className="space-y-1">
+        {breakdown.map(({ key, label, value }) => (
+          <div key={key} className="space-y-1">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">{label}</span>
               <span className="font-medium tabular-nums">

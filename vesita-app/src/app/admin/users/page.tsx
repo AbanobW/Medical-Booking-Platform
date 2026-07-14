@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Ban, CircleCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,19 +14,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useAsync, useMutation } from "@/hooks/use-async";
 import { getUsers, setUserStatus } from "@/lib/api/admin";
-import { formatDateShort, initialsOf, timeAgo } from "@/lib/format";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
 import { ROLE_LABELS, type Role, type User, type UserStatus } from "@/lib/types";
 
-const ROLE_OPTIONS = (Object.keys(ROLE_LABELS) as Role[]).map((role) => ({
-  value: role,
-  label: ROLE_LABELS[role],
-}));
-
-const STATUS_OPTIONS: { value: UserStatus; label: string }[] = [
-  { value: "active", label: "Active" },
-  { value: "pending", label: "Pending" },
-  { value: "suspended", label: "Suspended" },
-];
+/** The enum key lists — the *words* come from `useLabels()`, never from here. */
+const ROLES = Object.keys(ROLE_LABELS) as Role[];
+const USER_STATUSES: UserStatus[] = ["active", "pending", "suspended"];
 
 /**
  * The server API paginates, but the admin table wants client-side sorting and
@@ -36,6 +32,12 @@ const STATUS_OPTIONS: { value: UserStatus; label: string }[] = [
 const FULL_PAGE = 1000;
 
 export default function AdminUsersPage() {
+  const t = useTranslations("admin");
+  const tCommon = useTranslations("common");
+  const L = useLabels();
+  const describeError = useApiError();
+  const { formatDateShort, initialsOf, timeAgo } = useFormat();
+
   const [role, setRole] = useState<string>("");
   const [status, setStatus] = useState<string>("");
 
@@ -58,22 +60,32 @@ export default function AdminUsersPage() {
       await mutate(user.id, next);
       toast.success(
         next === "suspended"
-          ? `${user.name} has been suspended.`
-          : `${user.name} is active again.`,
+          ? t("users.toast.suspended", { name: user.name })
+          : t("users.toast.activated", { name: user.name }),
       );
       setPendingSuspend(null);
       refetch();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not update the user.");
+      toast.error(describeError(err));
     }
   }
+
+  const roleOptions = useMemo(
+    () => ROLES.map((r) => ({ value: r, label: L.role(r) })),
+    [L],
+  );
+
+  const statusOptions = useMemo(
+    () => USER_STATUSES.map((s) => ({ value: s, label: L.userStatus(s) })),
+    [L],
+  );
 
   const columns = useMemo<ColumnDef<User, unknown>[]>(
     () => [
       {
         id: "name",
         accessorKey: "name",
-        header: "User",
+        header: t("users.columns.user"),
         cell: ({ row }) => {
           const user = row.original;
           return (
@@ -92,7 +104,7 @@ export default function AdminUsersPage() {
       {
         id: "email",
         accessorKey: "email",
-        header: "Email",
+        header: t("users.columns.email"),
         cell: ({ row }) => (
           <span className="text-muted-foreground">{row.original.email}</span>
         ),
@@ -100,9 +112,9 @@ export default function AdminUsersPage() {
       {
         id: "phone",
         accessorKey: "phone",
-        header: "Phone",
+        header: t("users.columns.phone"),
         cell: ({ row }) => (
-          <span className="whitespace-nowrap tabular-nums text-muted-foreground">
+          <span className="ltr-nums whitespace-nowrap tabular-nums text-muted-foreground">
             {row.original.phone}
           </span>
         ),
@@ -110,19 +122,19 @@ export default function AdminUsersPage() {
       {
         id: "role",
         accessorKey: "role",
-        header: "Role",
+        header: t("users.columns.role"),
         cell: ({ row }) => <RoleBadge role={row.original.role} />,
       },
       {
         id: "status",
         accessorKey: "status",
-        header: "Status",
+        header: t("users.columns.status"),
         cell: ({ row }) => <UserStatusBadge status={row.original.status} />,
       },
       {
         id: "joined",
         accessorKey: "createdAt",
-        header: "Joined",
+        header: t("users.columns.joined"),
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-muted-foreground">
             {formatDateShort(row.original.createdAt)}
@@ -132,7 +144,7 @@ export default function AdminUsersPage() {
       {
         id: "lastActive",
         accessorKey: "lastActiveAt",
-        header: "Last active",
+        header: t("users.columns.lastActive"),
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-muted-foreground">
             {timeAgo(row.original.lastActiveAt)}
@@ -155,7 +167,7 @@ export default function AdminUsersPage() {
               onClick={() => changeStatus(user, "active")}
             >
               <CircleCheck className="size-3.5" />
-              Activate
+              {t("users.actions.activate")}
             </Button>
           ) : (
             <Button
@@ -166,7 +178,7 @@ export default function AdminUsersPage() {
               onClick={() => setPendingSuspend(user)}
             >
               <Ban className="size-3.5" />
-              Suspend
+              {t("users.actions.suspend")}
             </Button>
           );
         },
@@ -174,7 +186,7 @@ export default function AdminUsersPage() {
     ],
     // `changeStatus` is stable enough for the cell closure; `isPending` gates it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isPending],
+    [isPending, t, formatDateShort, initialsOf, timeAgo],
   );
 
   const filters = (
@@ -182,17 +194,17 @@ export default function AdminUsersPage() {
       <AppSelect
         value={role}
         onValueChange={setRole}
-        options={ROLE_OPTIONS}
-        emptyOption="All roles"
-        aria-label="Filter by role"
+        options={roleOptions}
+        emptyOption={t("users.filters.allRoles")}
+        aria-label={t("users.filters.roleAria")}
         className="h-10 w-40"
       />
       <AppSelect
         value={status}
         onValueChange={setStatus}
-        options={STATUS_OPTIONS}
-        emptyOption="All statuses"
-        aria-label="Filter by status"
+        options={statusOptions}
+        emptyOption={t("users.filters.allStatuses")}
+        aria-label={t("users.filters.statusAria")}
         className="h-10 w-40"
       />
     </>
@@ -202,17 +214,19 @@ export default function AdminUsersPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Users</h2>
+          <h2 className="text-xl font-semibold tracking-tight">
+            {t("users.title")}
+          </h2>
           <p className="text-sm text-muted-foreground">
             {data
-              ? `${data.total} account${data.total === 1 ? "" : "s"} matching the current filters`
-              : "Patients, providers and administrators"}
+              ? t("users.count", { count: data.total })
+              : t("users.subtitle")}
           </p>
         </div>
         {isPending && (
           <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
-            Saving…
+            {tCommon("states.saving")}
           </span>
         )}
       </div>
@@ -221,28 +235,30 @@ export default function AdminUsersPage() {
         <TableSkeleton rows={8} columns={6} />
       ) : error ? (
         <ErrorState
-          title="Couldn't load users"
-          description={error.message}
+          title={t("users.errorTitle")}
+          description={describeError(error)}
           onRetry={refetch}
         />
       ) : (
         <DataTable
           columns={columns}
           data={data?.items ?? []}
-          searchPlaceholder="Search name, email or phone…"
+          searchPlaceholder={t("users.searchPlaceholder")}
           toolbar={filters}
           pageSize={10}
-          emptyTitle="No users found"
-          emptyDescription="Try a different search term, role or status."
+          emptyTitle={t("users.emptyTitle")}
+          emptyDescription={t("users.emptyDescription")}
         />
       )}
 
       <ConfirmDialog
         open={pendingSuspend !== null}
         onOpenChange={(open) => !open && setPendingSuspend(null)}
-        title={`Suspend ${pendingSuspend?.name ?? "this user"}?`}
-        description="They will be signed out and blocked from booking. If this account owns a provider profile, that listing is pulled from search too. You can reactivate them at any time."
-        confirmLabel="Suspend account"
+        title={t("users.confirm.title", {
+          name: pendingSuspend?.name ?? t("users.confirm.fallbackName"),
+        })}
+        description={t("users.confirm.description")}
+        confirmLabel={t("users.confirm.confirmLabel")}
         isPending={isPending}
         onConfirm={() => {
           if (pendingSuspend) void changeStatus(pendingSuspend, "suspended");

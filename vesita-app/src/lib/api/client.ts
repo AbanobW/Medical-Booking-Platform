@@ -8,20 +8,36 @@ import { DB, type Database } from "@/lib/data/seed";
  * calls is the only change needed to move onto a live API.
  */
 
-// v2 — patient profiles, branch-level scheduling and the 9-state booking
-// lifecycle. A v1 payload cannot be migrated forward, so the key change
-// deliberately drops it and reseeds.
-const STORAGE_KEY = "vesita:db:v2";
+// v4 — bilingual free text *and* Arabic person names. Bios, service descriptions
+// and preparation instructions became `{ en, ar }` objects, and providers gained
+// a real Arabic `nameAr` ("د. هاني درويش" rather than "د. Hany Darwish").
+//
+// A stale payload cannot be migrated forward — it holds bare English strings and
+// transliterated names — and it wins over the seed, so the Arabic UI would render
+// English data with no way for the user to clear it. As with the earlier bumps,
+// the key change deliberately drops the old payload and reseeds.
+const STORAGE_KEY = "vesita:db:v4";
 const LATENCY_MIN = 180;
 const LATENCY_MAX = 620;
 
 /** Set > 0 to exercise error states (0.03 = 3% of calls fail). */
 const FAILURE_RATE = 0;
 
+/**
+ * A failure from the mock backend.
+ *
+ * `message` is the canonical English wording and stays the fallback. `code` is
+ * the stable, language-independent identifier the UI translates against
+ * (`messages/<locale>/errors.json`) — see `translateApiError`. Codes are what
+ * make an error renderable in Arabic; a bare message can only ever be English.
+ */
 export class ApiError extends Error {
   constructor(
     message: string,
     readonly status = 500,
+    readonly code?: string,
+    /** Values interpolated into the translated message, e.g. `{ minutes: 10 }`. */
+    readonly params?: Record<string, string | number>,
   ) {
     super(message);
     this.name = "ApiError";
@@ -129,7 +145,11 @@ export async function request<T>(resolver: () => T): Promise<T> {
   await delay(latency);
 
   if (FAILURE_RATE > 0 && Math.random() < FAILURE_RATE) {
-    throw new ApiError("The service is temporarily unavailable. Please try again.", 503);
+    throw new ApiError(
+      "The service is temporarily unavailable. Please try again.",
+      503,
+      "service.unavailable",
+    );
   }
 
   const result = resolver();

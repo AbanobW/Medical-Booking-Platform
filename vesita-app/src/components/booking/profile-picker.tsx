@@ -2,7 +2,8 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, Loader2, Plus, UserPlus, X } from "lucide-react";
-import { useState } from "react";
+import { useTranslations } from "next-intl";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -29,12 +30,10 @@ import { createPatientProfile } from "@/lib/api/profiles";
 import { CHRONIC_CONDITIONS } from "@/lib/data/clinical";
 import { TODAY, toISODate } from "@/lib/data/seed";
 import { ageOf } from "@/lib/eligibility";
-import {
-  RELATIONSHIP_LABELS,
-  type Gender,
-  type PatientProfile,
-  type Relationship,
-} from "@/lib/types";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useFormat } from "@/lib/i18n/use-format";
+import { useLabels } from "@/lib/i18n/use-labels";
+import type { Gender, PatientProfile, Relationship } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const TODAY_ISO = toISODate(TODAY);
@@ -43,26 +42,16 @@ const EG_PHONE = /^01[0125][0-9]{8}$/;
 /** "self" is created with the account — a family member is one of the other three. */
 const FAMILY_RELATIONSHIPS: Relationship[] = ["child", "spouse", "parent"];
 
-const schema = z.object({
-  relationship: z.enum(["child", "spouse", "parent"], "Choose a relationship."),
-  fullName: z.string().min(3, "Please enter their full name."),
-  gender: z.enum(["male", "female"], "Please select a gender."),
-  dateOfBirth: z
-    .string()
-    .min(1, "Please enter a date of birth.")
-    .refine((value) => value <= TODAY_ISO, {
-      message: "Date of birth can't be in the future.",
-    }),
-  phone: z
-    .string()
-    .refine((value) => value === "" || EG_PHONE.test(value), {
-      message: "Enter a valid Egyptian mobile number, e.g. 01012345678.",
-    }),
-  isPregnant: z.boolean(),
-  chronicConditions: z.array(z.string()),
-});
-
-type ProfileFormValues = z.infer<typeof schema>;
+/** The validation messages are translated, so the schema is built inside the form. */
+interface ProfileFormValues {
+  relationship: "child" | "spouse" | "parent";
+  fullName: string;
+  gender: Gender;
+  dateOfBirth: string;
+  phone: string;
+  isPregnant: boolean;
+  chronicConditions: string[];
+}
 
 /**
  * Step 1 — who is this booking for? (§1)
@@ -89,8 +78,39 @@ export function ProfilePicker({
   onSelect: (id: string) => void;
   onCreated: (profile: PatientProfile) => void;
 }) {
+  const t = useTranslations("booking");
+  const tCommon = useTranslations("common");
+  const L = useLabels();
+  const describeError = useApiError();
+
   const [isAdding, setIsAdding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const schema = useMemo(
+    () =>
+      z.object({
+        relationship: z.enum(
+          ["child", "spouse", "parent"],
+          t("patient.validation.relationship"),
+        ),
+        fullName: z.string().min(3, t("patient.validation.fullName")),
+        gender: z.enum(["male", "female"], t("patient.validation.gender")),
+        dateOfBirth: z
+          .string()
+          .min(1, t("patient.validation.dateOfBirth"))
+          .refine((value) => value <= TODAY_ISO, {
+            message: t("patient.validation.dateOfBirthFuture"),
+          }),
+        phone: z
+          .string()
+          .refine((value) => value === "" || EG_PHONE.test(value), {
+            message: t("patient.validation.phone"),
+          }),
+        isPregnant: z.boolean(),
+        chronicConditions: z.array(z.string()),
+      }),
+    [t],
+  );
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(schema),
@@ -123,13 +143,9 @@ export function ProfilePicker({
       onCreated(profile);
       form.reset();
       setIsAdding(false);
-      toast.success(`${profile.fullName} was added to your account.`);
+      toast.success(t("patient.saved", { name: profile.fullName }));
     } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : "We couldn't add that family member. Please try again.",
-      );
+      toast.error(describeError(err));
     } finally {
       setIsSaving(false);
     }
@@ -138,11 +154,8 @@ export function ProfilePicker({
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold">Who is this booking for?</h2>
-        <p className="text-sm text-muted-foreground">
-          The visit, and the medical history that comes from it, belongs to this
-          person — not to the account.
-        </p>
+        <h2 className="text-lg font-semibold">{t("patient.title")}</h2>
+        <p className="text-sm text-muted-foreground">{t("patient.subtitle")}</p>
       </div>
 
       {isLoading ? (
@@ -152,7 +165,7 @@ export function ProfilePicker({
           ))}
         </div>
       ) : error ? (
-        <ErrorState description={error.message} onRetry={onRetry} />
+        <ErrorState description={describeError(error)} onRetry={onRetry} />
       ) : (
         <>
           {profiles && profiles.length > 0 ? (
@@ -168,8 +181,7 @@ export function ProfilePicker({
             </div>
           ) : (
             <p className="rounded-2xl border border-dashed bg-card/50 px-6 py-8 text-center text-sm text-muted-foreground">
-              This account has no patient profiles yet. Add the person this
-              booking is for below.
+              {t("patient.empty")}
             </p>
           )}
 
@@ -181,10 +193,9 @@ export function ProfilePicker({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-semibold">Add a family member</h3>
+                    <h3 className="font-semibold">{t("patient.addTitle")}</h3>
                     <p className="text-sm text-muted-foreground">
-                      They stay private to your account and are never linked to
-                      anyone else&apos;s.
+                      {t("patient.addSubtitle")}
                     </p>
                   </div>
                   <Button
@@ -192,7 +203,7 @@ export function ProfilePicker({
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => setIsAdding(false)}
-                    aria-label="Cancel adding a family member"
+                    aria-label={t("patient.addCancelAria")}
                   >
                     <X className="size-4" />
                   </Button>
@@ -204,16 +215,16 @@ export function ProfilePicker({
                     name="relationship"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Relationship</FormLabel>
+                        <FormLabel>{t("patient.field.relationship")}</FormLabel>
                         <FormControl>
                           <AppSelect
                             value={field.value}
                             onValueChange={(value) => field.onChange(value)}
                             options={FAMILY_RELATIONSHIPS.map((r) => ({
                               value: r,
-                              label: RELATIONSHIP_LABELS[r],
+                              label: L.relationship(r),
                             }))}
-                            aria-label="Relationship"
+                            aria-label={t("patient.field.relationship")}
                           />
                         </FormControl>
                         <FormMessage />
@@ -226,10 +237,10 @@ export function ProfilePicker({
                     name="fullName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Full name</FormLabel>
+                        <FormLabel>{t("patient.field.fullName")}</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="Mariam Hassan"
+                            placeholder={t("patient.field.fullNamePlaceholder")}
                             className="h-11 rounded-xl"
                             {...field}
                           />
@@ -244,7 +255,7 @@ export function ProfilePicker({
                     name="gender"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Gender</FormLabel>
+                        <FormLabel>{t("patient.field.gender")}</FormLabel>
                         <FormControl>
                           <AppSelect
                             value={field.value}
@@ -255,10 +266,10 @@ export function ProfilePicker({
                               }
                             }}
                             options={[
-                              { value: "male", label: "Male" },
-                              { value: "female", label: "Female" },
+                              { value: "male", label: L.gender("male") },
+                              { value: "female", label: L.gender("female") },
                             ]}
-                            aria-label="Gender"
+                            aria-label={t("patient.field.gender")}
                           />
                         </FormControl>
                         <FormMessage />
@@ -271,7 +282,7 @@ export function ProfilePicker({
                     name="dateOfBirth"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Date of birth</FormLabel>
+                        <FormLabel>{t("patient.field.dateOfBirth")}</FormLabel>
                         <FormControl>
                           <Input
                             type="date"
@@ -290,13 +301,14 @@ export function ProfilePicker({
                     name="phone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Mobile number (optional)</FormLabel>
+                        <FormLabel>{t("patient.field.phone")}</FormLabel>
                         <FormControl>
                           <Input
                             type="tel"
                             inputMode="numeric"
-                            placeholder="01012345678"
+                            placeholder={t("patient.field.phonePlaceholder")}
                             className="h-11 rounded-xl"
+                            dir="ltr"
                             {...field}
                           />
                         </FormControl>
@@ -311,7 +323,7 @@ export function ProfilePicker({
                       name="isPregnant"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Currently pregnant</FormLabel>
+                          <FormLabel>{t("patient.field.pregnant")}</FormLabel>
                           <div className="flex h-11 items-center gap-3 rounded-xl border px-4">
                             <FormControl>
                               <Switch
@@ -322,11 +334,13 @@ export function ProfilePicker({
                               />
                             </FormControl>
                             <span className="text-sm text-muted-foreground">
-                              {field.value ? "Yes" : "No"}
+                              {field.value
+                                ? tCommon("labels.yes")
+                                : tCommon("labels.no")}
                             </span>
                           </div>
                           <FormDescription>
-                            Some scans are not performed during pregnancy.
+                            {t("patient.field.pregnantHint")}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -340,10 +354,9 @@ export function ProfilePicker({
                   name="chronicConditions"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Chronic conditions</FormLabel>
+                      <FormLabel>{t("patient.field.conditions")}</FormLabel>
                       <FormDescription>
-                        We screen these against a test or scan&apos;s eligibility
-                        rules before the booking is taken.
+                        {t("patient.field.conditionsHint")}
                       </FormDescription>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {CHRONIC_CONDITIONS.map((condition) => {
@@ -372,7 +385,7 @@ export function ProfilePicker({
                                 htmlFor={id}
                                 className="cursor-pointer text-sm font-normal"
                               >
-                                {condition}
+                                {L.condition(condition)}
                               </Label>
                             </div>
                           );
@@ -391,7 +404,7 @@ export function ProfilePicker({
                     onClick={() => setIsAdding(false)}
                     disabled={isSaving}
                   >
-                    Cancel
+                    {tCommon("actions.cancel")}
                   </Button>
                   <Button
                     type="submit"
@@ -403,7 +416,7 @@ export function ProfilePicker({
                     ) : (
                       <UserPlus className="size-4" />
                     )}
-                    Save family member
+                    {t("patient.save")}
                   </Button>
                 </div>
               </form>
@@ -412,15 +425,15 @@ export function ProfilePicker({
             <button
               type="button"
               onClick={() => setIsAdding(true)}
-              className="flex w-full items-center gap-3 rounded-2xl border border-dashed bg-card/50 p-4 text-left transition-all hover:border-primary hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className="flex w-full items-center gap-3 rounded-2xl border border-dashed bg-card/50 p-4 text-start transition-all hover:border-primary hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
                 <Plus className="size-5" />
               </span>
               <span>
-                <span className="block font-medium">Add a family member</span>
+                <span className="block font-medium">{t("patient.addCta")}</span>
                 <span className="block text-sm text-muted-foreground">
-                  Book for a child, spouse or parent under your own account.
+                  {t("patient.addCtaHint")}
                 </span>
               </span>
             </button>
@@ -440,6 +453,10 @@ function ProfileCard({
   isSelected: boolean;
   onSelect: () => void;
 }) {
+  const t = useTranslations("booking");
+  const { formatNumber } = useFormat();
+  const L = useLabels();
+
   const age = ageOf(profile.dateOfBirth);
 
   return (
@@ -448,7 +465,7 @@ function ProfileCard({
       onClick={onSelect}
       aria-pressed={isSelected}
       className={cn(
-        "flex w-full flex-col gap-2 rounded-2xl border p-4 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        "flex w-full flex-col gap-2 rounded-2xl border p-4 text-start transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         isSelected
           ? "border-primary bg-primary/5 shadow-glow"
           : "border-border bg-card hover:border-primary/50 hover:shadow-soft",
@@ -463,19 +480,22 @@ function ProfileCard({
             )}
           </p>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {age} years old · {profile.gender === "male" ? "Male" : "Female"}
+            {t("patient.age", {
+              age: formatNumber(age),
+              gender: L.gender(profile.gender),
+            })}
           </p>
         </div>
 
         <Badge variant={isSelected ? "default" : "secondary"} className="shrink-0">
-          {RELATIONSHIP_LABELS[profile.relationship]}
+          {L.relationship(profile.relationship)}
         </Badge>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
         {profile.isPregnant && (
           <Badge variant="outline" className="text-[0.7rem] font-normal">
-            Pregnant
+            {t("patient.pregnantBadge")}
           </Badge>
         )}
         {profile.chronicConditions.length > 0 ? (
@@ -485,12 +505,12 @@ function ProfileCard({
               variant="outline"
               className="text-[0.7rem] font-normal"
             >
-              {condition}
+              {L.condition(condition)}
             </Badge>
           ))
         ) : (
           <span className="text-xs text-muted-foreground">
-            No chronic conditions recorded
+            {t("patient.noConditions")}
           </span>
         )}
       </div>
