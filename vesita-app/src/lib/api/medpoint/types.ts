@@ -45,22 +45,39 @@ export interface WireUser extends WireResource {
   auth_provider: string | null;
 }
 
-/** `POST /v1/auth/login` — note the tokens sit *outside* any `data` envelope. */
+/**
+ * The response every login path returns — `register`, `login`, `phone`, `google`.
+ * The tokens sit *outside* any `data` envelope.
+ *
+ * `refresh_token` is now real on every path (it used to come back `""` on
+ * register/phone/google) and it *rotates*: each one is single-use, so the new
+ * value from every response must replace the stored one. `needs_phone` is `true`
+ * until the account has a verified phone — gate anything requiring a number on it.
+ */
 export interface WireAuthSession {
   access_token: string;
   refresh_token: string | null;
   token_type?: string;
   expires_in?: number;
+  /** First response for a freshly created account. */
+  is_new_user?: boolean;
+  /** `true` until the account has a *verified* phone number. */
+  needs_phone?: boolean;
   user: WireUser;
 }
 
 export interface WirePatientProfile extends WireResource {
   type: "PatientProfile";
   full_name: string;
-  gender: "male" | "female";
-  date_of_birth: string;
+  /** `null` on a freshly auto-created SELF profile the user has not completed. */
+  gender: "male" | "female" | null;
+  /** `null` on a freshly auto-created SELF profile the user has not completed. */
+  date_of_birth: string | null;
   relationship: "self" | "child" | "spouse" | "parent";
   phone: string | null;
+  /** Moved onto the profile from the account; the account no longer carries it. */
+  national_id?: string | null;
+  /** No longer sent to create — the owner is always the authenticated account. */
   user_id?: string;
 }
 

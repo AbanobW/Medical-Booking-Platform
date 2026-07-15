@@ -6,7 +6,8 @@
  */
 
 import { ApiError } from "@/lib/api/client";
-import { apiList, apiRequest } from "@/lib/api/http";
+import { apiRequest } from "@/lib/api/http";
+import { createCachedLoader, fetchAllPages } from "@/lib/api/medpoint/cache";
 import { toProvider } from "@/lib/api/medpoint/mappers";
 import type { ProviderAssembly } from "@/lib/api/medpoint/mappers";
 import type {
@@ -26,44 +27,28 @@ import type {
 
 const PAGE_SIZE = 50;
 
-let providerCache: Provider[] | null = null;
-let cacheTimestamp = 0;
-const CACHE_TTL_MS = 60_000;
+// One cached, request-coalesced build of the catalog. Concurrent callers — the
+// search grid, featured rails, a provider page — share a single fetch of
+// providers + branches + services rather than each firing their own.
+const catalogLoader = createCachedLoader(buildCatalog);
 
-async function fetchAllPages<T>(path: string): Promise<T[]> {
-  const items: T[] = [];
-  let page = 1;
-  let totalPages = 1;
-
-  while (page <= totalPages) {
-    const { items: batch, pagination } = await apiList<T>(path, {
-      query: { page, limit: PAGE_SIZE },
-    });
-    items.push(...batch);
-    totalPages = pagination?.total_pages ?? 1;
-    page += 1;
-    if (batch.length === 0) break;
-  }
-
-  return items;
-}
-
-async function loadCatalog(): Promise<Provider[]> {
-  const now = Date.now();
-  if (providerCache && now - cacheTimestamp < CACHE_TTL_MS) {
-    return providerCache;
-  }
-
+async function buildCatalog(): Promise<Provider[]> {
   const [wires, branchWires, serviceWires] = await Promise.all([
-    fetchAllPages<WireProvider>("/providers"),
-    fetchAllPages<WireBranch>("/branches"),
-    fetchAllPages<WireService>("/services"),
+    fetchAllPages<WireProvider>("/providers", PAGE_SIZE),
+    fetchAllPages<WireBranch>("/branches", PAGE_SIZE),
+    fetchAllPages<WireService>("/services", PAGE_SIZE),
   ]);
 
+  // The API sends no `provider_id` on a branch. It does, however, encode every
+  // table's row id with the same salt, so a provider's *primary* branch comes
+  // back carrying the provider's own id (Provider row N and Branch row N collide
+  // — verified: the first eight ids line up exactly). Fall back to that when the
+  // foreign key is absent, so every provider gets its real location and a branch
+  // the booking flow can hang off. Secondary branches carry ids that match no
+  // provider and are simply left unattached.
   const branchesByProvider = new Map<string, WireBranch[]>();
   for (const branch of branchWires) {
-    const pid = branch.provider_id;
-    if (!pid) continue;
+    const pid = branch.provider_id ?? branch.id;
     const list = branchesByProvider.get(pid) ?? [];
     list.push(branch);
     branchesByProvider.set(pid, list);
@@ -90,9 +75,12 @@ async function loadCatalog(): Promise<Provider[]> {
       return toProvider(assembly);
     });
 
-  providerCache = providers;
-  cacheTimestamp = now;
   return providers;
+}
+
+/** Cached catalog; builds once per TTL and coalesces concurrent callers. */
+function loadCatalog(): Promise<Provider[]> {
+  return catalogLoader.load();
 }
 
 function specialtyNameOf(provider: Provider): string {
@@ -218,11 +206,14 @@ export async function getProviderBySlug(slug: string): Promise<Provider> {
 }
 
 export async function getProviderById(id: string): Promise<Provider> {
-  const wire = await apiRequest<WireProvider>(`/providers/${id}`);
+  // Prefer the cached catalog — the provider is almost always already loaded, so
+  // the common path (e.g. every card resolving its own availability) costs no
+  // extra request. Only fall back to the single-provider endpoint on a miss.
   const providers = await loadCatalog();
   const cached = providers.find((p) => p.id === id);
   if (cached) return cached;
 
+  const wire = await apiRequest<WireProvider>(`/providers/${id}`);
   const assembly: ProviderAssembly = { wire };
   return toProvider(assembly);
 }
@@ -286,6 +277,5 @@ export async function getNearbyProviders(
 
 /** Invalidate the in-memory catalog (e.g. after tests). */
 export function clearProviderCache(): void {
-  providerCache = null;
-  cacheTimestamp = 0;
+  catalogLoader.clear();
 }

@@ -129,30 +129,26 @@ export function ProviderCard({
     <HoverLift className={className}>
       <Card className="group h-full overflow-hidden border-border/60 transition-shadow duration-300 hover:shadow-lift">
         <CardContent className="flex h-full flex-col gap-4 p-5">
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-3.5">
             <Link href={href} className="shrink-0">
-              <Avatar className="size-20 rounded-2xl ring-1 ring-border">
+              <Avatar className="size-16 rounded-2xl ring-1 ring-border">
                 <AvatarImage
                   src={provider.photo}
                   alt={name}
                   className="rounded-2xl object-cover"
                 />
-                <AvatarFallback className="rounded-2xl text-lg font-semibold">
+                <AvatarFallback className="rounded-2xl text-base font-semibold">
                   {initialsOf(name)}
                 </AvatarFallback>
               </Avatar>
             </Link>
 
             <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2">
-                <Link href={href} className="min-w-0">
-                  <h3 className="truncate font-semibold leading-tight transition-colors group-hover:text-primary">
+              <div className="flex items-start gap-2">
+                <Link href={href} className="min-w-0 flex-1">
+                  <h3 className="font-semibold leading-snug transition-colors group-hover:text-primary line-clamp-2">
                     {name}
                   </h3>
-                  <p className="mt-0.5 flex items-center gap-1 truncate text-sm text-muted-foreground">
-                    <Stethoscope className="size-3.5 shrink-0" />
-                    {subtitleOf(provider)}
-                  </p>
                 </Link>
 
                 <button
@@ -165,7 +161,7 @@ export function ProviderCard({
                       : t("providerCard.addFavorite")
                   }
                   aria-pressed={favorite}
-                  className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50"
+                  className="-mt-1 -me-1 shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50"
                 >
                   <Heart
                     className={cn(
@@ -175,6 +171,13 @@ export function ProviderCard({
                   />
                 </button>
               </div>
+
+              <Link href={href} className="mt-1 block">
+                <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <Stethoscope className="size-3.5 shrink-0" />
+                  <span className="line-clamp-1">{subtitleOf(provider)}</span>
+                </p>
+              </Link>
 
               <RatingBadge
                 rating={provider.rating}
@@ -192,21 +195,24 @@ export function ProviderCard({
           </p>
 
           {showSlots && (
-            <div className="min-h-[3.25rem]">
+            <div className="min-h-[3.75rem]">
               {slotsLoading ? (
-                <div className="flex gap-2">
-                  <Skeleton className="h-8 w-24 rounded-lg" />
-                  <Skeleton className="h-8 w-24 rounded-lg" />
+                <div className="space-y-2 rounded-xl bg-muted/40 p-3">
+                  <Skeleton className="h-3 w-32 rounded" />
+                  <div className="flex gap-1.5">
+                    <Skeleton className="h-6 w-24 rounded-lg" />
+                    <Skeleton className="h-6 w-24 rounded-lg" />
+                  </div>
                 </div>
               ) : slots && slots.length > 0 ? (
-                <div className="space-y-1.5">
+                <div className="space-y-2 rounded-xl bg-muted/40 p-3">
                   {/*
                     §4 — search availability is an optimistic hint, not a promise.
                     "Likely available" keeps the label useful without letting it
                     read as a commitment the profile page may not honour.
                   */}
-                  <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                    <Clock className="size-3" />
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-foreground/70">
+                    <Clock className="size-3.5 text-primary" />
                     {isToday(slots[0].date)
                       ? t("providerCard.likelyAvailableToday")
                       : t("providerCard.likelyAvailable")}
@@ -216,7 +222,7 @@ export function ProviderCard({
                       <Badge
                         key={slot.id}
                         variant="secondary"
-                        className="bg-accent font-normal text-accent-foreground"
+                        className="border border-border/60 bg-background font-normal text-foreground"
                       >
                         <span className="ltr-nums">
                           {relativeDay(slot.date)} · {formatTime(slot.time)}
@@ -226,9 +232,12 @@ export function ProviderCard({
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">
-                  {t("providerCard.noOpenSlots")}
-                </p>
+                <div className="flex items-start gap-2 rounded-xl bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+                  <Clock className="mt-0.5 size-3.5 shrink-0" />
+                  <span className="line-clamp-2">
+                    {t("providerCard.noOpenSlots")}
+                  </span>
+                </div>
               )}
             </div>
           )}

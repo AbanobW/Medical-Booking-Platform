@@ -5,7 +5,7 @@
  * speaks `src/lib/types.ts`; everything below speaks JSON from Laravel.
  */
 
-import { GOVERNORATES, slugify } from "@/lib/data/egypt";
+import { GOVERNORATES, SPECIALTIES, slugify } from "@/lib/data/egypt";
 import type {
   WireBranch,
   WireDoctorSession,
@@ -103,8 +103,12 @@ export function toPatientProfile(wire: WirePatientProfile, accountId: string): P
     accountId,
     relationship: wire.relationship,
     fullName: wire.full_name,
-    gender: wire.gender,
-    dateOfBirth: toISODateOnly(wire.date_of_birth) ?? wire.date_of_birth.slice(0, 10),
+    // The backend auto-creates the account's SELF profile at signup with no
+    // gender or date of birth yet. Both are nullable on the wire; default so the
+    // strict domain model holds and the user can complete the profile later. An
+    // empty `dateOfBirth` reads as "unset" — the UI hides age until it is filled.
+    gender: genderOf(wire.gender) ?? "male",
+    dateOfBirth: toISODateOnly(wire.date_of_birth) ?? "",
     phone: toLocalPhone(wire.phone) || undefined,
     chronicConditions: [],
     isPregnant: false,
@@ -135,6 +139,53 @@ function providerTypeOf(raw: string): ProviderRole {
   if (raw === "lab") return "lab";
   if (raw === "radiology") return "radiology";
   return "doctor";
+}
+
+/** British → app (American) spellings and a few common abbreviations. */
+const SPECIALTY_ALIASES: Record<string, string> = {
+  paediatrics: "pediatrics",
+  "obstetrics & gynaecology": "gynecology",
+  gynaecology: "gynecology",
+  "ob/gyn": "gynecology",
+  obgyn: "gynecology",
+  "ear, nose & throat": "ent",
+  otolaryngology: "ent",
+};
+
+/** Resolve a free-text specialty label ("Paediatrics") to a known specialty id. */
+function specialtyIdFromLabel(label: string): string {
+  const norm = label.trim().toLowerCase();
+  if (!norm) return "general";
+
+  const exact = SPECIALTIES.find(
+    (s) => s.id === norm || s.name.toLowerCase() === norm || s.nameAr === label.trim(),
+  );
+  if (exact) return exact.id;
+
+  if (SPECIALTY_ALIASES[norm]) return SPECIALTY_ALIASES[norm];
+
+  const partial = SPECIALTIES.find(
+    (s) => norm.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(norm),
+  );
+  return partial?.id ?? "general";
+}
+
+/**
+ * MedPoint bundles a doctor's title, name and specialty into one string —
+ * `"Dr. Karim Fahmy — Paediatrics"`. Split it back into a display name (kept with
+ * the "Dr." prefix, as the app's own doctors are) and a resolved specialty id.
+ * Labs and radiology centres carry no dash, so their name passes through whole.
+ */
+export function parseProviderName(rawName: string): {
+  name: string;
+  specialtyId: string;
+} {
+  const [head, tail] = rawName.split(/\s+[—–-]\s+/, 2);
+  const name = (head ?? rawName).trim() || rawName;
+  return {
+    name,
+    specialtyId: tail ? specialtyIdFromLabel(tail) : "general",
+  };
 }
 
 function providerStatusOf(raw: string): ProviderStatus {
@@ -243,16 +294,16 @@ export interface ProviderAssembly {
   services?: WireService[];
 }
 
-function baseProviderFields(wire: WireProvider, branches: Branch[]) {
+function baseProviderFields(wire: WireProvider, branches: Branch[], displayName: string) {
   const governorateId = branches[0]?.governorateId ?? "cairo";
   const areaId = branches[0]?.areaId ?? "nasr-city";
 
   return {
     id: wire.id,
-    slug: slugify(wire.name),
-    name: wire.name,
-    nameAr: wire.name,
-    photo: avatarFor(wire.id, wire.name),
+    slug: slugify(displayName),
+    name: displayName,
+    nameAr: displayName,
+    photo: avatarFor(wire.id, displayName),
     coverImage: coverFor(wire.id),
     bio: emptyLocalized(wire.name),
     rating: 0,
@@ -276,6 +327,7 @@ function baseProviderFields(wire: WireProvider, branches: Branch[]) {
 
 export function toProvider(assembly: ProviderAssembly): Provider {
   const type = providerTypeOf(assembly.wire.provider_type);
+  const { name: displayName, specialtyId } = parseProviderName(assembly.wire.name);
   const branches = (assembly.branches ?? []).map((b) =>
     toBranch(b, assembly.wire.id),
   );
@@ -288,7 +340,7 @@ export function toProvider(assembly: ProviderAssembly): Provider {
     }
   }
 
-  const base = baseProviderFields(assembly.wire, branches);
+  const base = baseProviderFields(assembly.wire, branches, displayName);
   const minPrice = services.length
     ? Math.min(...services.map((s) => parseMoney(s.price)))
     : 0;
@@ -300,7 +352,7 @@ export function toProvider(assembly: ProviderAssembly): Provider {
       ...base,
       type: "doctor",
       title: "Dr.",
-      specialtyId: "general",
+      specialtyId,
       subSpecialties: [],
       gender: "male",
       yearsOfExperience: 0,

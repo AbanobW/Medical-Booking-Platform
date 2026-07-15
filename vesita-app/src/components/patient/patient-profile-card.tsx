@@ -67,7 +67,8 @@ export function PatientProfileCard({
   const [refusal, setRefusal] = useState<string>();
   const { mutate, isPending } = useMutation(deletePatientProfile);
 
-  const age = ageOf(profile.dateOfBirth);
+  // A freshly auto-created SELF profile may not have a date of birth yet.
+  const age = profile.dateOfBirth ? ageOf(profile.dateOfBirth) : null;
 
   async function onDelete() {
     setRefusal(undefined);
@@ -117,10 +118,12 @@ export function PatientProfileCard({
                 <UserRound className="size-3.5" />
                 {L.gender(profile.gender)}
               </span>
-              <span className="flex items-center gap-1.5">
-                <CalendarDays className="size-3.5" />
-                {t("profileCard.age", { count: age })}
-              </span>
+              {age !== null && (
+                <span className="flex items-center gap-1.5">
+                  <CalendarDays className="size-3.5" />
+                  {t("profileCard.age", { count: age })}
+                </span>
+              )}
               {profile.bloodType && (
                 <span className="flex items-center gap-1.5">
                   <Droplet className="size-3.5" />

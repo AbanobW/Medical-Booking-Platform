@@ -50,6 +50,9 @@ export interface EligibilityDescriptor {
 
 export function ageOf(dateOfBirth: string, at: Date = TODAY): number {
   const dob = new Date(`${dateOfBirth}T00:00:00.000Z`);
+  // An unset or malformed date of birth (e.g. an auto-created profile the user
+  // has not completed) must not surface as NaN — treat it as no age known.
+  if (Number.isNaN(dob.getTime())) return 0;
   let age = at.getUTCFullYear() - dob.getUTCFullYear();
 
   const monthDelta = at.getUTCMonth() - dob.getUTCMonth();

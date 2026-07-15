@@ -130,10 +130,50 @@ function safeJson(raw: string): unknown {
 }
 
 /**
- * The transport. Returns the parsed body *with its envelope intact* — callers
- * decide whether they want `data` or the whole thing.
+ * MedPoint throttles authenticated calls (30/min per user). A burst — several
+ * screens mounting at once, a dev double-render — can momentarily exceed that
+ * and come back `429`, which is transient: the request was rejected before it
+ * was ever processed, so replaying it is safe for *any* method. Rather than
+ * blank a screen over a throttle that clears within the minute, retry a few
+ * times with a short, capped backoff. A window that is genuinely exhausted
+ * (backoff runs out) still surfaces the error so the user can retry by hand.
  */
-async function send(path: string, options: RequestOptions): Promise<unknown> {
+const MAX_RETRIES = 3;
+/** Never make a page load hang: cap any single wait, even if `Retry-After` is longer. */
+const MAX_BACKOFF_MS = 2000;
+
+function backoffMs(attempt: number, retryAfter: string | null): number {
+  const seconds = retryAfter ? Number.parseInt(retryAfter, 10) : Number.NaN;
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(seconds * 1000, MAX_BACKOFF_MS);
+  }
+  // 500ms → 1s → 2s.
+  return Math.min(500 * 2 ** attempt, MAX_BACKOFF_MS);
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      },
+      { once: true },
+    );
+  });
+}
+
+/** One round trip. Returns `{ parsed }` on success, or `{ retryAfter }` to signal a 429. */
+async function attempt(
+  path: string,
+  options: RequestOptions,
+): Promise<{ parsed: unknown } | { retryAfter: string | null }> {
   const { method = "GET", body, query, anonymous = false, signal } = options;
 
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -173,10 +213,40 @@ async function send(path: string, options: RequestOptions): Promise<unknown> {
       clearTokens();
       notifyUnauthorized();
     }
+    // A throttle: hand the caller the reset hint so it can decide to back off.
+    if (response.status === 429) {
+      return { retryAfter: response.headers.get("Retry-After") };
+    }
     throw toApiError(response.status, parsed);
   }
 
-  return parsed;
+  return { parsed };
+}
+
+/**
+ * The transport. Returns the parsed body *with its envelope intact* — callers
+ * decide whether they want `data` or the whole thing. Transparently retries a
+ * throttled (`429`) request a few times before giving up.
+ */
+async function send(path: string, options: RequestOptions): Promise<unknown> {
+  let lastRetryAfter: string | null = null;
+
+  for (let tries = 0; tries <= MAX_RETRIES; tries++) {
+    const result = await attempt(path, options);
+    if ("parsed" in result) return result.parsed;
+
+    lastRetryAfter = result.retryAfter;
+    if (tries < MAX_RETRIES) {
+      await sleep(backoffMs(tries, lastRetryAfter), options.signal);
+    }
+  }
+
+  // Still throttled after every retry — surface it so the UI can offer "try again".
+  throw new ApiError(
+    "You're doing that a bit too fast. Please wait a moment and try again.",
+    429,
+    "api.rateLimited",
+  );
 }
 
 /**

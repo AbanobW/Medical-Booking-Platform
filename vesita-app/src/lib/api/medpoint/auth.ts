@@ -4,9 +4,9 @@
  * Mirrors the surface of the mock `src/lib/api/auth.ts` so `auth-provider` can
  * pick a backend at runtime without either side knowing about the other.
  *
- * Two endpoints in the collection are broken on the server today and are handled
- * here rather than papered over — see `register()` and `refreshSession()`, and
- * `BACKEND-GAPS.md` for the full write-up.
+ * Every login path now returns a real access + refresh token pair, and the
+ * refresh tokens rotate (single-use), so `adoptSession` stores the fresh pair
+ * from every response — including the one that comes back from a refresh.
  */
 
 import { ApiError } from "@/lib/api/client";
@@ -45,39 +45,24 @@ export interface RegisterInput {
 /**
  * Create an account.
  *
- * `POST /v1/auth/register` currently 500s on the server — Passport has no
- * personal-access client configured, so it creates the user row and then dies
- * issuing the token. The account *does* exist afterwards, so rather than show a
- * "registration failed" error for an account that was in fact created (and which
- * the user then cannot re-register, because the email is now taken), we fall back
- * to logging in with the credentials we just submitted.
- *
- * Delete this fallback the moment the backend is fixed; `signupFailed` below is
- * what the user should see if registration genuinely fails.
+ * `POST /v1/auth/register` returns a real access + refresh token pair, creates
+ * the account's default (SELF) patient profile, and assigns the `patient` role.
+ * A 422 is a genuine, actionable rejection (email taken, weak password) and is
+ * left to propagate so the form can attach it to the offending field.
  */
 export async function register(input: RegisterInput): Promise<User> {
-  const body = {
-    full_name: input.fullName,
-    email: input.email,
-    password: input.password,
-    phone: toE164Phone(input.phone),
-  };
+  const session = await apiRequest<WireAuthSession>("/auth/register", {
+    method: "POST",
+    anonymous: true,
+    body: {
+      full_name: input.fullName,
+      email: input.email,
+      password: input.password,
+      phone: toE164Phone(input.phone),
+    },
+  });
 
-  try {
-    const session = await apiRequest<WireAuthSession>("/auth/register", {
-      method: "POST",
-      anonymous: true,
-      body,
-    });
-    return adoptSession(session);
-  } catch (error) {
-    // A 422 is a real, actionable rejection (email taken, weak password) and
-    // must reach the form. Only the server's own 5xx gets the fallback.
-    if (error instanceof ApiError && error.status >= 500) {
-      return login(input.email, input.password);
-    }
-    throw error;
-  }
+  return adoptSession(session);
 }
 
 /** The signed-in user, re-fetched from the server. */
@@ -98,13 +83,11 @@ export async function logout(): Promise<void> {
 }
 
 /**
- * Exchange the refresh token for a new access token.
+ * Exchange the refresh token for a fresh token pair.
  *
- * `POST /v1/auth/refresh-token` 500s on the server today (it type-hints the
- * framework's base Request instead of its own), so this cannot work yet. It is
- * written out because the moment the endpoint is fixed this is the only place
- * that needs to be believed — and because silently pretending refresh works
- * would hand users a dead session after 24h with no explanation.
+ * Refresh tokens are single-use and rotate: the response carries a *new* refresh
+ * token that `adoptSession` writes over the old one. Replaying a spent token is
+ * rejected with a 400, which lands the caller back at sign-in.
  */
 export async function refreshSession(): Promise<User> {
   const refreshToken = getRefreshToken();

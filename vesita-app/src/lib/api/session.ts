@@ -7,8 +7,9 @@
  * them; live mode slots in underneath.
  *
  * What is real in live mode: sign-in, sign-up, sign-out, session restore,
- * account profile (name/phone/avatar), patient profiles (partial), provider
- * discovery (degraded), availability (degraded), and booking write (partial).
+ * account profile (name/phone/avatar), patient profiles (full CRUD under
+ * `/me/profiles`), provider discovery (degraded), availability (degraded), and
+ * booking write (partial).
  *
  * What stays on the mock in *both* modes, because MedPoint cannot serve it:
  *   • favorites — no `/v1/favorites` resource

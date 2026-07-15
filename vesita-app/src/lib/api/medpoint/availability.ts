@@ -3,7 +3,7 @@
  */
 
 import { ApiError } from "@/lib/api/client";
-import { apiList } from "@/lib/api/http";
+import { createCachedLoader, fetchAllPages } from "@/lib/api/medpoint/cache";
 import { sessionToTimeSlot, slotToTimeSlot } from "@/lib/api/medpoint/mappers";
 import type {
   WireDoctorSession,
@@ -15,22 +15,21 @@ import { getProviderById } from "@/lib/api/medpoint/providers";
 
 const PAGE_SIZE = 100;
 
-async function fetchAllPages<T>(path: string): Promise<T[]> {
-  const items: T[] = [];
-  let page = 1;
-  let totalPages = 1;
+// The API ignores provider/branch filters on these endpoints, so availability is
+// always the whole dataset filtered in the browser. Cache and coalesce it: a
+// search page full of provider cards then shares ONE fetch of slots + sessions
+// instead of one pair per card.
+const slotsLoader = createCachedLoader(() =>
+  fetchAllPages<WireSlot>("/slots", PAGE_SIZE),
+);
+const sessionsLoader = createCachedLoader(() =>
+  fetchAllPages<WireDoctorSession>("/doctor-sessions", PAGE_SIZE),
+);
 
-  while (page <= totalPages) {
-    const { items: batch, pagination } = await apiList<T>(path, {
-      query: { page, limit: PAGE_SIZE },
-    });
-    items.push(...batch);
-    totalPages = pagination?.total_pages ?? 1;
-    page += 1;
-    if (batch.length === 0) break;
-  }
-
-  return items;
+/** Drop cached availability (e.g. after a booking consumes capacity). */
+export function clearAvailabilityCache(): void {
+  slotsLoader.clear();
+  sessionsLoader.clear();
 }
 
 function branchIdsFor(provider: Provider, branchId?: string): Set<string> {
@@ -50,8 +49,8 @@ export async function getAvailability(
   }
 
   const [slots, sessions] = await Promise.all([
-    fetchAllPages<WireSlot>("/slots"),
-    fetchAllPages<WireDoctorSession>("/doctor-sessions"),
+    slotsLoader.load(),
+    sessionsLoader.load(),
   ]);
 
   const start = toISODate(TODAY);

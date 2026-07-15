@@ -1,8 +1,10 @@
 /**
  * Local overlay for data MedPoint returns incompletely.
  *
- * Persists wizard context and profile IDs the API cannot list, so live-mode
- * screens can still render enriched bookings and family profiles.
+ * Persists wizard context the API does not echo back, so live-mode screens can
+ * still render enriched bookings. (Patient profiles used to live here too, back
+ * when `GET /patient-profiles` 500'd; they now come straight from
+ * `GET /me/profiles`, so only bookings remain.)
  */
 
 import type { Booking, BookingStatus } from "@/lib/types";
@@ -10,8 +12,6 @@ import type { Booking, BookingStatus } from "@/lib/types";
 const STORAGE_KEY = "vesita:medpoint:overlay:v1";
 
 interface OverlayState {
-  /** accountId → ordered profile ids (newest last). */
-  profileIds: Record<string, string[]>;
   /** accountId → bookings created in this browser via the live write path. */
   bookings: Record<string, OverlayBooking[]>;
 }
@@ -58,7 +58,7 @@ export interface OverlayBooking extends OverlayBookingContext {
 }
 
 function emptyState(): OverlayState {
-  return { profileIds: {}, bookings: {} };
+  return { bookings: {} };
 }
 
 function readState(): OverlayState {
@@ -68,7 +68,6 @@ function readState(): OverlayState {
     if (!raw) return emptyState();
     const parsed = JSON.parse(raw) as OverlayState;
     return {
-      profileIds: parsed.profileIds ?? {},
       bookings: parsed.bookings ?? {},
     };
   } catch {
@@ -79,31 +78,6 @@ function readState(): OverlayState {
 function writeState(state: OverlayState): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-// ---------------------------------------------------------------------------
-// Patient profiles
-// ---------------------------------------------------------------------------
-
-export function listCachedProfileIds(accountId: string): string[] {
-  return [...(readState().profileIds[accountId] ?? [])];
-}
-
-export function cacheProfileId(accountId: string, profileId: string): void {
-  const state = readState();
-  const ids = state.profileIds[accountId] ?? [];
-  if (!ids.includes(profileId)) {
-    state.profileIds[accountId] = [...ids, profileId];
-    writeState(state);
-  }
-}
-
-export function uncacheProfileId(accountId: string, profileId: string): void {
-  const state = readState();
-  const ids = state.profileIds[accountId];
-  if (!ids) return;
-  state.profileIds[accountId] = ids.filter((id) => id !== profileId);
-  writeState(state);
 }
 
 // ---------------------------------------------------------------------------

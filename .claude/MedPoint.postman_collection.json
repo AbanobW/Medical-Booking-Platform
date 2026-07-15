@@ -1,7 +1,7 @@
 {
     "info": {
         "name": "MedPoint API (v1)",
-        "description": "# MedPoint API — v1\n\nAuto-generated from the application routes and their validation rules.\n\n## Getting started\n1. Set `baseUrl` (defaults to the staging host).\n2. Run **Auth > Login** — the token is captured into `{{accessToken}}` automatically\n   and applied to every other request via collection-level Bearer auth.\n\n## STATUS: SCAFFOLD — NOT PRODUCTION READY\nThese endpoints are CRUD skeletons. In particular:\n- **No ownership scoping.** Any authenticated user can currently read and modify\n  ANY other user's bookings, payments, wallets and patient profiles.\n- **No booking state machine** — `status` is a free-form field.\n- **No capacity/concurrency checks** — overbooking is possible.\n- **`price_snapshot` is taken from the request**, not derived from the Service.\n- **No payment processing** — payments only record intent.\n\nTreat request/response SHAPES as stable enough to build UI against;\ndo not treat the authorization behaviour as final.",
+        "description": "# MedPoint API — v1\n\nAuto-generated from the application routes and their validation rules.\n\n## Getting started\n1. Set `baseUrl` (defaults to the staging host).\n2. Run **Auth > Login** — the token is captured into `{{accessToken}}` automatically\n   and applied to every other request via collection-level Bearer auth.\n\n## What is enforced\n- Every login path returns a real access_token AND refresh_token.\n- Owned resources (bookings, payments, refunds, reviews, wallets, patient profiles)\n  are scoped to the caller. Another account's record answers **404, not 403** —\n  a 403 would confirm it exists. Handle 404 as \"not yours or not there\".\n- A body field is never an authorization source: user_id / patient_profile_id /\n  booking_id in a request body are validated against the caller, not trusted.\n- Audits are read-only and staff-only. Notifications are read-only + mark-read.\n\n## Still NOT implemented (do not build on these)\n- No booking state machine: `status` is a free-form field.\n- No capacity/concurrency checks — overbooking is possible.\n- `price_snapshot` is taken from the request, not derived from the Service.\n- No payment processing: payments only record intent, and `status` is still\n  client-settable on your OWN payment/refund (the gateway webhook lands in Phase 3).",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "auth": {
@@ -222,6 +222,30 @@
                     ]
                 },
                 {
+                    "name": "Logout All",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/auth/logout-all",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "auth",
+                                "logout-all"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
                     "name": "Login With Phone",
                     "request": {
                         "method": "POST",
@@ -269,6 +293,10 @@
                             {
                                 "key": "Accept",
                                 "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
                             }
                         ],
                         "url": {
@@ -285,7 +313,16 @@
                         "auth": {
                             "type": "noauth"
                         },
-                        "description": "Public endpoint."
+                        "description": "Public endpoint.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"refresh_token\": \"string\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
                     },
                     "event": [
                         {
@@ -563,66 +600,6 @@
             "name": "Audits",
             "item": [
                 {
-                    "name": "Create Audit",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Accept",
-                                "value": "application/json"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/v1/audits",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "v1",
-                                "audits"
-                            ]
-                        },
-                        "description": "Requires a Bearer token (run Auth > Login first).",
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"subject_type\": \"string\",\n    \"subject_id\": 1,\n    \"actor_type\": \"string\",\n    \"actor_id\": 1,\n    \"action\": \"string\",\n    \"changes\": []\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        }
-                    }
-                },
-                {
-                    "name": "Delete Audit",
-                    "request": {
-                        "method": "DELETE",
-                        "header": [
-                            {
-                                "key": "Accept",
-                                "value": "application/json"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/v1/audits/:id",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "v1",
-                                "audits",
-                                ":id"
-                            ]
-                        },
-                        "description": "Requires a Bearer token (run Auth > Login first)."
-                    }
-                },
-                {
                     "name": "Find Audit By Id",
                     "request": {
                         "method": "GET",
@@ -664,30 +641,6 @@
                             "path": [
                                 "v1",
                                 "audits"
-                            ]
-                        },
-                        "description": "Requires a Bearer token (run Auth > Login first)."
-                    }
-                },
-                {
-                    "name": "Update Audit",
-                    "request": {
-                        "method": "PATCH",
-                        "header": [
-                            {
-                                "key": "Accept",
-                                "value": "application/json"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/v1/audits/:id",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "v1",
-                                "audits",
-                                ":id"
                             ]
                         },
                         "description": "Requires a Bearer token (run Auth > Login first)."
@@ -1441,10 +1394,10 @@
             ]
         },
         {
-            "name": "Notifications",
+            "name": "Me",
             "item": [
                 {
-                    "name": "Create Notification",
+                    "name": "Change Phone",
                     "request": {
                         "method": "POST",
                         "header": [
@@ -1458,19 +1411,20 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/v1/notifications",
+                            "raw": "{{baseUrl}}/v1/me/phone",
                             "host": [
                                 "{{baseUrl}}"
                             ],
                             "path": [
                                 "v1",
-                                "notifications"
+                                "me",
+                                "phone"
                             ]
                         },
                         "description": "Requires a Bearer token (run Auth > Login first).",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"recipient_type\": \"string\",\n    \"recipient_id\": 1,\n    \"channel\": \"push\",\n    \"template\": \"string\",\n    \"payload\": []\n}",
+                            "raw": "{\n    \"id_token\": \"string\"\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -1480,7 +1434,44 @@
                     }
                 },
                 {
-                    "name": "Delete Notification",
+                    "name": "Create Patient Profile",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/me/profiles",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "me",
+                                "profiles"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"full_name\": \"string\",\n    \"gender\": \"male\",\n    \"date_of_birth\": \"2026-08-01\",\n    \"relationship\": \"self\",\n    \"national_id\": \"string\",\n    \"phone\": \"+201234567890\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Patient Profile",
                     "request": {
                         "method": "DELETE",
                         "header": [
@@ -1490,19 +1481,183 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/v1/notifications/:id",
+                            "raw": "{{baseUrl}}/v1/me/profiles/:id",
                             "host": [
                                 "{{baseUrl}}"
                             ],
                             "path": [
                                 "v1",
-                                "notifications",
+                                "me",
+                                "profiles",
                                 ":id"
                             ]
                         },
                         "description": "Requires a Bearer token (run Auth > Login first)."
                     }
                 },
+                {
+                    "name": "Find Patient Profile By Id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/me/profiles/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "me",
+                                "profiles",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "List Patient Profiles",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/me/profiles",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "me",
+                                "profiles"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Update Patient Profile",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/me/profiles/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "me",
+                                "profiles",
+                                ":id"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"full_name\": \"string\",\n    \"gender\": \"male\",\n    \"date_of_birth\": \"2026-08-01\",\n    \"relationship\": \"self\",\n    \"national_id\": \"string\",\n    \"phone\": \"+201234567890\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "Deactivate Account",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/me/deactivate",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "me",
+                                "deactivate"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Get Authenticated User",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/me",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "me"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                },
+                {
+                    "name": "Request Account Deletion",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/v1/me/delete-request",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "v1",
+                                "me",
+                                "delete-request"
+                            ]
+                        },
+                        "description": "Requires a Bearer token (run Auth > Login first)."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Notifications",
+            "item": [
                 {
                     "name": "Find Notification By Id",
                     "request": {
@@ -1551,189 +1706,28 @@
                     }
                 },
                 {
-                    "name": "Update Notification",
+                    "name": "Mark Notification Read",
                     "request": {
                         "method": "PATCH",
                         "header": [
                             {
                                 "key": "Accept",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/v1/notifications/:id",
+                            "raw": "{{baseUrl}}/v1/notifications/:id/read",
                             "host": [
                                 "{{baseUrl}}"
                             ],
                             "path": [
                                 "v1",
                                 "notifications",
-                                ":id"
-                            ]
-                        },
-                        "description": "Requires a Bearer token (run Auth > Login first).",
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"status\": \"queued\"\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "name": "Patient Profiles",
-            "item": [
-                {
-                    "name": "Create Patient Profile",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Accept",
-                                "value": "application/json"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/v1/patient-profiles",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "v1",
-                                "patient-profiles"
-                            ]
-                        },
-                        "description": "Requires a Bearer token (run Auth > Login first).",
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"user_id\": \"{{user_id}}\",\n    \"full_name\": \"string\",\n    \"gender\": \"male\",\n    \"date_of_birth\": \"2026-08-01\",\n    \"relationship\": \"self\",\n    \"phone\": \"+201234567890\"\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        }
-                    }
-                },
-                {
-                    "name": "Delete Patient Profile",
-                    "request": {
-                        "method": "DELETE",
-                        "header": [
-                            {
-                                "key": "Accept",
-                                "value": "application/json"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/v1/patient-profiles/:id",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "v1",
-                                "patient-profiles",
-                                ":id"
+                                ":id",
+                                "read"
                             ]
                         },
                         "description": "Requires a Bearer token (run Auth > Login first)."
-                    }
-                },
-                {
-                    "name": "Find Patient Profile By Id",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Accept",
-                                "value": "application/json"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/v1/patient-profiles/:id",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "v1",
-                                "patient-profiles",
-                                ":id"
-                            ]
-                        },
-                        "description": "Requires a Bearer token (run Auth > Login first)."
-                    }
-                },
-                {
-                    "name": "List Patient Profiles",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Accept",
-                                "value": "application/json"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/v1/patient-profiles",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "v1",
-                                "patient-profiles"
-                            ]
-                        },
-                        "description": "Requires a Bearer token (run Auth > Login first)."
-                    }
-                },
-                {
-                    "name": "Update Patient Profile",
-                    "request": {
-                        "method": "PATCH",
-                        "header": [
-                            {
-                                "key": "Accept",
-                                "value": "application/json"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/v1/patient-profiles/:id",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "v1",
-                                "patient-profiles",
-                                ":id"
-                            ]
-                        },
-                        "description": "Requires a Bearer token (run Auth > Login first).",
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"full_name\": \"string\",\n    \"gender\": \"male\",\n    \"date_of_birth\": \"2026-08-01\",\n    \"relationship\": \"self\",\n    \"phone\": \"+201234567890\"\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        }
                     }
                 }
             ]
@@ -3322,7 +3316,7 @@
                         "description": "Requires a Bearer token (run Auth > Login first).",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"name\": \"string\",\n    \"full_name\": \"string\",\n    \"phone\": \"+201234567890\",\n    \"national_id\": \"string\"\n}",
+                            "raw": "{\n    \"name\": \"string\",\n    \"full_name\": \"string\",\n    \"phone\": \"+201234567890\"\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"

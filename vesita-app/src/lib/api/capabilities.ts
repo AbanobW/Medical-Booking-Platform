@@ -29,7 +29,7 @@ export type LiveCapability =
  */
 const LIVE_CAPABILITIES: Record<LiveCapability, boolean> = {
   auth: true,
-  /** `GET /v1/patient-profiles` 500s — list uses overlay cache; CRUD is live. */
+  /** Full CRUD live under `/v1/me/profiles`; list includes the auto-created SELF. */
   profiles: true,
   /** Thin Provider payload; filters run client-side on fetched pages. */
   discovery: true,

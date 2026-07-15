@@ -1,48 +1,31 @@
 /**
  * Patient profiles against the real MedPoint API.
  *
- * `GET /v1/patient-profiles` 500s on staging, so listing uses the overlay cache
- * of ids created in this browser and fetches each profile by id.
+ * These live under `/v1/me/profiles` (the old `/v1/patient-profiles` paths are
+ * gone and now 404). The list endpoint works, so profiles come straight from the
+ * server — including the SELF profile the backend creates automatically at
+ * signup, which no client-side cache would ever know about. The owner is always
+ * the authenticated account, so no `user_id` is sent, and another account's
+ * profile answers 404 ("not yours"), not 403.
  */
 
 import { ApiError } from "@/lib/api/client";
-import { apiRequest } from "@/lib/api/http";
+import { apiList, apiRequest } from "@/lib/api/http";
 import { toE164Phone, toPatientProfile } from "@/lib/api/medpoint/mappers";
-import {
-  cacheProfileId,
-  listCachedProfileIds,
-  uncacheProfileId,
-} from "@/lib/api/medpoint/overlay";
 import type { WirePatientProfile } from "@/lib/api/medpoint/types";
 import type { PatientProfile } from "@/lib/types";
 import type { PatientProfileInput } from "@/lib/api/profiles";
 
-async function fetchProfile(id: string, accountId: string): Promise<PatientProfile> {
-  const wire = await apiRequest<WirePatientProfile>(`/patient-profiles/${id}`);
-  const profile = toPatientProfile(wire, accountId);
-  if (wire.user_id && wire.user_id !== accountId) {
-    throw new ApiError("Patient profile not found", 404, "profile.notFound");
-  }
-  return profile;
+/** A 404 here means "not yours or not there" — surface it as a missing profile. */
+function notFound(): ApiError {
+  return new ApiError("Patient profile not found", 404, "profile.notFound");
 }
 
 export async function getPatientProfiles(accountId: string): Promise<PatientProfile[]> {
-  const ids = listCachedProfileIds(accountId);
-  if (ids.length === 0) return [];
+  const { items } = await apiList<WirePatientProfile>("/me/profiles");
 
-  const profiles = await Promise.all(
-    ids.map(async (id) => {
-      try {
-        return await fetchProfile(id, accountId);
-      } catch {
-        uncacheProfileId(accountId, id);
-        return null;
-      }
-    }),
-  );
-
-  return profiles
-    .filter((p): p is PatientProfile => p !== null)
+  return items
+    .map((wire) => toPatientProfile(wire, accountId))
     .sort((a, b) => {
       if (a.relationship === "self") return -1;
       if (b.relationship === "self") return 1;
@@ -54,17 +37,22 @@ export async function getPatientProfile(
   id: string,
   accountId: string,
 ): Promise<PatientProfile> {
-  const cached = listCachedProfileIds(accountId);
-  if (!cached.includes(id)) {
-    throw new ApiError("Patient profile not found", 404, "profile.notFound");
+  try {
+    const wire = await apiRequest<WirePatientProfile>(`/me/profiles/${id}`);
+    return toPatientProfile(wire, accountId);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) throw notFound();
+    throw error;
   }
-  return fetchProfile(id, accountId);
 }
 
 export async function createPatientProfile(
   accountId: string,
   input: PatientProfileInput,
 ): Promise<PatientProfile> {
+  // The backend auto-creates the account's SELF profile at signup and rejects a
+  // second one. Catch it here so the user gets a clear message instead of a
+  // raw validation error.
   if (input.relationship === "self") {
     const existing = await getPatientProfiles(accountId);
     if (existing.some((p) => p.relationship === "self")) {
@@ -76,10 +64,11 @@ export async function createPatientProfile(
     }
   }
 
-  const wire = await apiRequest<WirePatientProfile>("/patient-profiles", {
+  const wire = await apiRequest<WirePatientProfile>("/me/profiles", {
     method: "POST",
     body: {
-      user_id: accountId,
+      // No `user_id`: the owner is the authenticated account (a body field is
+      // never trusted as the owner). Anything sent is ignored server-side.
       full_name: input.fullName,
       gender: input.gender,
       date_of_birth: input.dateOfBirth,
@@ -88,7 +77,6 @@ export async function createPatientProfile(
     },
   });
 
-  cacheProfileId(accountId, wire.id);
   return toPatientProfile(wire, accountId);
 }
 
@@ -97,20 +85,23 @@ export async function updatePatientProfile(
   accountId: string,
   input: Partial<PatientProfileInput>,
 ): Promise<PatientProfile> {
-  await getPatientProfile(id, accountId);
+  try {
+    const wire = await apiRequest<WirePatientProfile>(`/me/profiles/${id}`, {
+      method: "PATCH",
+      body: {
+        full_name: input.fullName,
+        gender: input.gender,
+        date_of_birth: input.dateOfBirth,
+        relationship: input.relationship,
+        phone: input.phone !== undefined ? toE164Phone(input.phone) : undefined,
+      },
+    });
 
-  const wire = await apiRequest<WirePatientProfile>(`/patient-profiles/${id}`, {
-    method: "PATCH",
-    body: {
-      full_name: input.fullName,
-      gender: input.gender,
-      date_of_birth: input.dateOfBirth,
-      relationship: input.relationship,
-      phone: input.phone !== undefined ? toE164Phone(input.phone) : undefined,
-    },
-  });
-
-  return toPatientProfile(wire, accountId);
+    return toPatientProfile(wire, accountId);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) throw notFound();
+    throw error;
+  }
 }
 
 export async function deletePatientProfile(
@@ -119,6 +110,7 @@ export async function deletePatientProfile(
 ): Promise<{ id: string }> {
   const profile = await getPatientProfile(id, accountId);
   if (profile.relationship === "self") {
+    // The SELF profile cannot be removed — the server enforces this with a 422.
     throw new ApiError(
       "Your own profile cannot be removed.",
       409,
@@ -126,7 +118,12 @@ export async function deletePatientProfile(
     );
   }
 
-  await apiRequest<void>(`/patient-profiles/${id}`, { method: "DELETE" });
-  uncacheProfileId(accountId, id);
+  // A soft delete server-side; the record is retained but no longer active.
+  try {
+    await apiRequest<void>(`/me/profiles/${id}`, { method: "DELETE" });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) throw notFound();
+    throw error;
+  }
   return { id };
 }
