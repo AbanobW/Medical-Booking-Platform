@@ -931,53 +931,53 @@ export interface CategoryCount {
 }
 
 export interface ProviderStats {
-  totalBookings: number;
-  bookingsChange: number;
-  revenue: number;
-  revenueChange: number;
-  newPatients: number;
-  newPatientsChange: number;
-  cancellations: number;
-  cancellationsChange: number;
-  averageRating: number;
+  totalBookings: number | null;
+  bookingsChange: number | null;
+  revenue: number | null;
+  revenueChange: number | null;
+  newPatients: number | null;
+  newPatientsChange: number | null;
+  cancellations: number | null;
+  cancellationsChange: number | null;
+  averageRating: number | null;
   monthly: TimeSeriesPoint[];
   /** §15 — how full the provider's sessions and slots actually run, as a %. */
-  utilizationRate: number;
-  utilizationChange: number;
+  utilizationRate: number | null;
+  utilizationChange: number | null;
   /** §15 — average wait, taken from what patients report in their reviews. */
-  averageWaitMinutes: number;
-  cancellationRate: number;
-  noShowRate: number;
+  averageWaitMinutes: number | null;
+  cancellationRate: number | null;
+  noShowRate: number | null;
 }
 
 export interface AdminStats {
-  totalUsers: number;
-  usersChange: number;
-  totalProviders: number;
-  providersChange: number;
-  totalBookings: number;
-  bookingsChange: number;
-  totalRevenue: number;
-  revenueChange: number;
+  totalUsers: number | null;
+  usersChange: number | null;
+  totalProviders: number | null;
+  providersChange: number | null;
+  totalBookings: number | null;
+  bookingsChange: number | null;
+  totalRevenue: number | null;
+  revenueChange: number | null;
   bookingTrends: TimeSeriesPoint[];
   topSpecialties: CategoryCount[];
   topGovernorates: CategoryCount[];
   /** §15 — share of profile views that turn into bookings, as a %. */
-  conversionRate: number;
-  conversionChange: number;
-  cancellationRate: number;
-  cancellationRateChange: number;
-  noShowRate: number;
+  conversionRate: number | null;
+  conversionChange: number | null;
+  cancellationRate: number | null;
+  cancellationRateChange: number | null;
+  noShowRate: number | null;
 }
 
 export interface PatientStats {
-  upcomingCount: number;
-  completedCount: number;
-  cancelledCount: number;
-  totalSpent: number;
-  cashbackEarned: number;
-  favoriteCount: number;
-  reviewCount: number;
+  upcomingCount: number | null;
+  completedCount: number | null;
+  cancelledCount: number | null;
+  totalSpent: number | null;
+  cashbackEarned: number | null;
+  favoriteCount: number | null;
+  reviewCount: number | null;
 }
 
 // ---------------------------------------------------------------------------

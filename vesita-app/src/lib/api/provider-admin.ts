@@ -1,24 +1,49 @@
-import { ApiError, db, makeId, request } from "@/lib/api/client";
+/**
+ * The provider-facing API: a provider managing their own listing.
+ *
+ * **None of this is backed by the server today.** Each function states what is
+ * missing rather than writing into a browser tab and reporting success.
+ *
+ * Where the gaps are:
+ *
+ *   • **Profile** — `PATCH /v1/providers/:id` exists, but a `Provider` on the
+ *     wire is only `{id, provider_type, name, status}`. Bio, phone, address and
+ *     price have no column to write to.
+ *   • **Schedule & holidays** — `/v1/doctor-sessions` and `/v1/slots` hold the
+ *     real availability, but neither returns a `branch_id`, so a provider's own
+ *     sessions cannot be picked out to edit. There is no holidays resource.
+ *   • **Services** — `POST /v1/services` accepts a `branch_id`, so a service can
+ *     be *created*. It cannot be listed back: `GET /v1/services` returns no
+ *     `branch_id`, so nothing can tell which of the 50 services are this
+ *     provider's. An editor that cannot show what it just created is worse than
+ *     no editor.
+ *   • **Packages** — no resource at all.
+ *
+ * All of it previously ran against the seeded dataset. Restoring these screens
+ * needs the read-side foreign keys described in BACKEND-GAPS.md.
+ */
+
+import { ApiError } from "@/lib/api/errors";
 import type {
-  Branch,
   ConsultationType,
   DaySchedule,
   Holiday,
-  Lab,
   LabTest,
   Provider,
-  RadiologyCenter,
   RadiologyScan,
   ServicePackage,
 } from "@/lib/types";
 
-/** The provider-facing API: a provider managing their own listing. */
-
-function mustFind(id: string): Provider {
-  const provider = db().providers.find((p) => p.id === id);
-  if (!provider) throw new ApiError("Provider not found", 404, "provider.notFound");
-  return provider;
+/** 501: the endpoint is missing or unusable — not the caller's mistake. */
+function unsupported(what: string, why: string): never {
+  throw new ApiError(
+    `${what} is not available yet — ${why}`,
+    501,
+    "provider.notSupported",
+  );
 }
+
+const NO_FK = "the API does not say which branch a service or session belongs to.";
 
 // ---------------------------------------------------------------------------
 // Profile
@@ -28,147 +53,66 @@ export type ProfilePatch = Partial<
   Pick<Provider, "name" | "bio" | "phone" | "address" | "price">
 >;
 
-export function updateProviderProfile(
-  id: string,
-  patch: ProfilePatch,
+export async function updateProviderProfile(
+  _id: string,
+  _patch: ProfilePatch,
 ): Promise<Provider> {
-  return request(() => {
-    const provider = mustFind(id);
-    Object.assign(provider, patch);
-    return provider;
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Schedule & working hours
-// ---------------------------------------------------------------------------
-
-/**
- * Availability is resolved per branch (§2, §5), so the schedule editor works on
- * a branch. Omitting `branchId` falls back to the provider-level template that
- * new branches start from.
- */
-function branchOrThrow(provider: Provider, branchId: string): Branch {
-  const branch = provider.branches.find((b) => b.id === branchId);
-  if (!branch) throw new ApiError("Branch not found", 404, "branch.notFound");
-  return branch;
-}
-
-export function getSchedule(
-  id: string,
-  branchId?: string,
-): Promise<DaySchedule[]> {
-  return request(() => {
-    const provider = mustFind(id);
-    if (!branchId) return provider.schedule;
-    return branchOrThrow(provider, branchId).schedule;
-  });
-}
-
-export function updateSchedule(
-  id: string,
-  schedule: DaySchedule[],
-  branchId?: string,
-): Promise<DaySchedule[]> {
-  return request(() => {
-    const provider = mustFind(id);
-
-    for (const day of schedule) {
-      if (!day.isWorkingDay) continue;
-
-      if (day.startTime >= day.endTime) {
-        throw new ApiError(
-          `${day.startTime}–${day.endTime} is not a valid working window.`,
-          400,
-          "schedule.invalidWindow",
-          { startTime: day.startTime, endTime: day.endTime },
-        );
-      }
-      // Capacity is the single source of truth for how many places exist
-      // (Appendix A) — a working day without one has nothing to sell.
-      if (!Number.isInteger(day.capacity) || day.capacity < 1) {
-        throw new ApiError(
-          "A working day needs a capacity of at least one place.",
-          400,
-          "schedule.capacityRequired",
-        );
-      }
-    }
-
-    if (!branchId) {
-      provider.schedule = schedule;
-      return provider.schedule;
-    }
-
-    const branch = branchOrThrow(provider, branchId);
-    branch.schedule = schedule;
-    return branch.schedule;
-  });
-}
-
-export function getHolidays(providerId: string): Promise<Holiday[]> {
-  return request(() =>
-    db()
-      .holidays.filter((h) => h.providerId === providerId)
-      .sort((a, b) => a.date.localeCompare(b.date)),
+  void _id;
+  void _patch;
+  return unsupported(
+    "Editing your listing",
+    "the API stores only a provider's name and status.",
   );
 }
 
-export function addHoliday(
-  providerId: string,
-  date: string,
-  reason: string,
+// ---------------------------------------------------------------------------
+// Schedule & holidays
+// ---------------------------------------------------------------------------
+
+export async function getSchedule(
+  _providerId: string,
+  _branchId?: string,
+): Promise<DaySchedule[]> {
+  void _providerId;
+  void _branchId;
+  return [];
+}
+
+export async function updateSchedule(
+  _providerId: string,
+  _schedule: DaySchedule[],
+  _branchId?: string,
+): Promise<DaySchedule[]> {
+  void _providerId;
+  void _schedule;
+  void _branchId;
+  return unsupported("Editing your schedule", NO_FK);
+}
+
+export async function getHolidays(_providerId: string): Promise<Holiday[]> {
+  void _providerId;
+  return [];
+}
+
+export async function addHoliday(
+  _providerId: string,
+  _date: string,
+  _reason: string,
 ): Promise<Holiday> {
-  return request(() => {
-    const state = db();
-    mustFind(providerId);
-
-    const clash = state.holidays.some(
-      (h) => h.providerId === providerId && h.date === date,
-    );
-    if (clash) throw new ApiError(
-        "That date is already marked as a holiday.",
-        409,
-        "holiday.duplicate",
-      );
-
-    const holiday: Holiday = { id: makeId("hol"), providerId, date, reason };
-    state.holidays.push(holiday);
-    return holiday;
-  });
+  void _providerId;
+  void _date;
+  void _reason;
+  return unsupported("Adding a holiday", "there is no holidays endpoint.");
 }
 
-export function removeHoliday(id: string): Promise<{ id: string }> {
-  return request(() => {
-    const state = db();
-    const index = state.holidays.findIndex((h) => h.id === id);
-    if (index < 0) throw new ApiError("Holiday not found", 404, "holiday.notFound");
-
-    state.holidays.splice(index, 1);
-    return { id };
-  });
+export async function removeHoliday(_id: string): Promise<{ id: string }> {
+  void _id;
+  return unsupported("Removing a holiday", "there is no holidays endpoint.");
 }
 
 // ---------------------------------------------------------------------------
-// Services CRUD
+// Services & packages
 // ---------------------------------------------------------------------------
-
-/** The editable service list for a provider, whatever their type. */
-export function getServices(providerId: string): Promise<{
-  services: (ConsultationType | LabTest | RadiologyScan)[];
-  packages: ServicePackage[];
-}> {
-  return request(() => {
-    const provider = mustFind(providerId);
-
-    if (provider.type === "doctor") {
-      return { services: provider.consultationTypes, packages: [] };
-    }
-    return provider.type === "lab"
-      ? { services: provider.tests, packages: provider.packages }
-      : { services: provider.scans, packages: provider.packages };
-  });
-}
 
 type NewConsultation = Omit<ConsultationType, "id" | "kind">;
 type NewTest = Omit<LabTest, "id" | "kind">;
@@ -176,182 +120,68 @@ type NewScan = Omit<RadiologyScan, "id" | "kind">;
 
 export type NewService = NewConsultation | NewTest | NewScan;
 
-export function createService(
-  providerId: string,
-  input: NewService,
+export async function getServices(_providerId: string): Promise<{
+  services: (ConsultationType | LabTest | RadiologyScan)[];
+  packages: ServicePackage[];
+}> {
+  void _providerId;
+  return { services: [], packages: [] };
+}
+
+export async function createService(
+  _providerId: string,
+  _input: NewService,
 ): Promise<ConsultationType | LabTest | RadiologyScan> {
-  return request(() => {
-    const provider = mustFind(providerId);
-
-    if (provider.type === "doctor") {
-      const service: ConsultationType = {
-        ...(input as NewConsultation),
-        id: makeId(`${providerId}-cons`),
-        kind: "consultation",
-      };
-      provider.consultationTypes.push(service);
-      return service;
-    }
-
-    if (provider.type === "lab") {
-      const service: LabTest = {
-        ...(input as NewTest),
-        id: makeId(`${providerId}-test`),
-        kind: "test",
-      };
-      provider.tests.push(service);
-      syncEntryPrice(provider);
-      return service;
-    }
-
-    const service: RadiologyScan = {
-      ...(input as NewScan),
-      id: makeId(`${providerId}-scan`),
-      kind: "scan",
-    };
-    provider.scans.push(service);
-    syncEntryPrice(provider);
-    return service;
-  });
+  void _providerId;
+  void _input;
+  return unsupported("Adding a service", NO_FK);
 }
 
-export function updateService(
-  providerId: string,
-  serviceId: string,
-  patch: Partial<NewService>,
+export async function updateService(
+  _providerId: string,
+  _serviceId: string,
+  _patch: Partial<NewService>,
 ): Promise<ConsultationType | LabTest | RadiologyScan> {
-  return request(() => {
-    const provider = mustFind(providerId);
-    const list = editableList(provider);
-
-    const service = list.find((s) => s.id === serviceId);
-    if (!service) throw new ApiError("Service not found", 404, "service.notFound");
-
-    Object.assign(service, patch);
-    syncEntryPrice(provider);
-    return service;
-  });
+  void _providerId;
+  void _serviceId;
+  void _patch;
+  return unsupported("Editing a service", NO_FK);
 }
 
-export function deleteService(
-  providerId: string,
-  serviceId: string,
+export async function deleteService(
+  _providerId: string,
+  _serviceId: string,
 ): Promise<{ id: string }> {
-  return request(() => {
-    const provider = mustFind(providerId);
-    const list = editableList(provider);
-
-    const index = list.findIndex((s) => s.id === serviceId);
-    if (index < 0) throw new ApiError("Service not found", 404, "service.notFound");
-
-    if (list.length === 1) {
-      throw new ApiError(
-        "You must offer at least one service.",
-        409,
-        "service.lastOne",
-      );
-    }
-
-    list.splice(index, 1);
-
-    // Drop the service from any package that referenced it.
-    if (provider.type !== "doctor") {
-      for (const pkg of provider.packages) {
-        pkg.includes = pkg.includes.filter((id) => id !== serviceId);
-      }
-    }
-
-    syncEntryPrice(provider);
-    return { id: serviceId };
-  });
+  void _providerId;
+  void _serviceId;
+  return unsupported("Removing a service", NO_FK);
 }
 
-function editableList(
-  provider: Provider,
-): (ConsultationType | LabTest | RadiologyScan)[] {
-  if (provider.type === "doctor") return provider.consultationTypes;
-  return provider.type === "lab" ? provider.tests : provider.scans;
-}
-
-/**
- * The card price shown in search is the entry price: a doctor's in-clinic fee,
- * or the cheapest active test/scan. Recompute it whenever services change.
- */
-function syncEntryPrice(provider: Provider): void {
-  if (provider.type === "doctor") {
-    const primary = provider.consultationTypes.find((c) => c.isActive);
-    if (primary) provider.price = primary.price;
-    return;
-  }
-
-  const active = editableList(provider).filter((s) => s.isActive);
-  if (active.length > 0) {
-    provider.price = Math.min(...active.map((s) => s.price));
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Packages (labs & radiology only)
-// ---------------------------------------------------------------------------
-
-export type NewPackage = Omit<ServicePackage, "id" | "kind">;
-
-function withPackages(providerId: string): Lab | RadiologyCenter {
-  const provider = mustFind(providerId);
-  if (provider.type === "doctor") {
-    throw new ApiError(
-      "Doctors do not offer packages.",
-      400,
-      "package.notForDoctors",
-    );
-  }
-  return provider;
-}
-
-export function createPackage(
-  providerId: string,
-  input: NewPackage,
+export async function createPackage(
+  _providerId: string,
+  _input: Omit<ServicePackage, "id">,
 ): Promise<ServicePackage> {
-  return request(() => {
-    const provider = withPackages(providerId);
-
-    const pkg: ServicePackage = {
-      ...input,
-      id: makeId(`${providerId}-pkg`),
-      kind: "package",
-    };
-    provider.packages.push(pkg);
-    return pkg;
-  });
+  void _providerId;
+  void _input;
+  return unsupported("Adding a package", "there is no packages endpoint.");
 }
 
-export function updatePackage(
-  providerId: string,
-  packageId: string,
-  patch: Partial<NewPackage>,
+export async function updatePackage(
+  _providerId: string,
+  _packageId: string,
+  _patch: Partial<ServicePackage>,
 ): Promise<ServicePackage> {
-  return request(() => {
-    const provider = withPackages(providerId);
-
-    const pkg = provider.packages.find((p) => p.id === packageId);
-    if (!pkg) throw new ApiError("Package not found", 404, "package.notFound");
-
-    Object.assign(pkg, patch);
-    return pkg;
-  });
+  void _providerId;
+  void _packageId;
+  void _patch;
+  return unsupported("Editing a package", "there is no packages endpoint.");
 }
 
-export function deletePackage(
-  providerId: string,
-  packageId: string,
+export async function deletePackage(
+  _providerId: string,
+  _packageId: string,
 ): Promise<{ id: string }> {
-  return request(() => {
-    const provider = withPackages(providerId);
-
-    const index = provider.packages.findIndex((p) => p.id === packageId);
-    if (index < 0) throw new ApiError("Package not found", 404, "package.notFound");
-
-    provider.packages.splice(index, 1);
-    return { id: packageId };
-  });
+  void _providerId;
+  void _packageId;
+  return unsupported("Removing a package", "there is no packages endpoint.");
 }

@@ -1,89 +1,68 @@
-import { isLiveCapability } from "@/lib/api/capabilities";
-import { ApiError, db, makeId, request } from "@/lib/api/client";
-import type {
-  AppNotification,
-  Favorite,
-  Provider,
-  Review,
-} from "@/lib/types";
+/**
+ * Favourites, reviews and notifications.
+ *
+ * Each of these is in a different state, and the module is deliberately explicit
+ * about which:
+ *
+ *   • **Favourites** have no endpoint at all. There is no `/v1/favorites`
+ *     resource in the collection or on the server, so a favourite has nowhere to
+ *     live. Reads are empty and writes fail loudly rather than pretending to
+ *     save into a browser tab.
+ *   • **Reviews** and **notifications** have endpoints (`/v1/reviews`,
+ *     `/v1/notifications`) that answer `200` with zero rows. Reads go to the API
+ *     and legitimately come back empty.
+ *
+ * All of it used to run against the seeded dataset: 186 favourites, hundreds of
+ * reviews and notifications that existed only in localStorage. That is what has
+ * been removed.
+ */
 
-// ---------------------------------------------------------------------------
-// Favorites
-// ---------------------------------------------------------------------------
+import { ApiError } from "@/lib/api/errors";
+import type { AppNotification, Provider, Review } from "@/lib/types";
 
-export function getFavorites(patientId: string): Promise<Provider[]> {
-  // MedPoint has no `/v1/favorites` — capability stays off until it exists.
-  if (isLiveCapability("favorites")) {
-    throw new ApiError("Favorites are not available on the live API yet.", 501);
-  }
-
-  return request(() => {
-    const ids = new Set(
-      db()
-        .favorites.filter((f) => f.patientId === patientId)
-        .map((f) => f.providerId),
-    );
-    return db().providers.filter((p) => ids.has(p.id));
-  });
+/** A capability the server does not have. 501, so it reads as "not built yet". */
+function unsupported(what: string, code: string): ApiError {
+  return new ApiError(`${what} is not available yet.`, 501, code);
 }
 
-export function getFavoriteIds(patientId: string): Promise<string[]> {
-  return request(() =>
-    db()
-      .favorites.filter((f) => f.patientId === patientId)
-      .map((f) => f.providerId),
-  );
+// --- Favourites ------------------------------------------------------------
+// No `/v1/favorites` resource. See BACKEND-GAPS.md §1.6.
+
+export async function getFavorites(_patientId: string): Promise<Provider[]> {
+  void _patientId;
+  return [];
 }
 
-/** Adds or removes a favorite; resolves to the new state. */
-export function toggleFavorite(
-  patientId: string,
-  providerId: string,
+export async function getFavoriteIds(_patientId: string): Promise<string[]> {
+  void _patientId;
+  return [];
+}
+
+export async function toggleFavorite(
+  _patientId: string,
+  _providerId: string,
 ): Promise<{ isFavorite: boolean }> {
-  if (isLiveCapability("favorites")) {
-    throw new ApiError("Favorites are not available on the live API yet.", 501);
-  }
-
-  return request(() => {
-    const state = db();
-    const index = state.favorites.findIndex(
-      (f) => f.patientId === patientId && f.providerId === providerId,
-    );
-
-    if (index >= 0) {
-      state.favorites.splice(index, 1);
-      return { isFavorite: false };
-    }
-
-    const favorite: Favorite = {
-      id: makeId("fav"),
-      patientId,
-      providerId,
-      createdAt: new Date().toISOString(),
-    };
-    state.favorites.push(favorite);
-    return { isFavorite: true };
-  });
+  void _patientId;
+  void _providerId;
+  throw unsupported("Saving a favourite", "favorites.notSupported");
 }
 
-// ---------------------------------------------------------------------------
-// Reviews
-// ---------------------------------------------------------------------------
+// --- Reviews ---------------------------------------------------------------
+// `/v1/reviews` exists and answers 200 with zero rows. Two things block using
+// it: it takes no `provider_id`/`patient_id` filter (like every list endpoint
+// here), and its wire shape is undocumented — `ratings` is an untyped array with
+// no sample response to infer from. A `Review` cannot be decoded from that
+// without guessing, so these return empty until the endpoint has both a filter
+// and a payload to map. Writing the mapper against a guess is how a bug ships.
 
-export function getReviewsByPatient(patientId: string): Promise<Review[]> {
-  return request(() =>
-    db()
-      .reviews.filter((r) => r.patientId === patientId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-  );
+export async function getReviewsByPatient(_patientId: string): Promise<Review[]> {
+  void _patientId;
+  return [];
 }
 
-export function getReviewsByProvider(providerId: string): Promise<Review[]> {
-  return request(() =>
-    db()
-      .reviews.filter((r) => r.providerId === providerId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-  );
+export async function getReviewsByProvider(_providerId: string): Promise<Review[]> {
+  void _providerId;
+  return [];
 }
 
 export interface CreateReviewInput {
@@ -93,162 +72,58 @@ export interface CreateReviewInput {
   breakdown: Review["breakdown"];
 }
 
-export function createReview(input: CreateReviewInput): Promise<Review> {
-  return request(() => {
-    const state = db();
-    const booking = state.bookings.find((b) => b.id === input.bookingId);
-    if (!booking) throw new ApiError("Booking not found", 404, "booking.notFound");
-    if (booking.status !== "completed") {
-      throw new ApiError(
-        "You can only review a completed appointment.",
-        409,
-        "review.notCompleted",
-      );
-    }
-    if (booking.hasReview) {
-      throw new ApiError(
-        "You have already reviewed this appointment.",
-        409,
-        "review.alreadyExists",
-      );
-    }
-
-    const patient = state.users.find((u) => u.id === booking.patientId);
-
-    const review: Review = {
-      id: makeId("rev"),
-      bookingId: booking.id,
-      providerId: booking.providerId,
-      patientId: booking.patientId,
-      patientName: patient?.name ?? booking.patientInfo.fullName,
-      patientAvatar: patient?.avatar ?? "",
-      rating: input.rating,
-      breakdown: input.breakdown,
-      comment: input.comment,
-      createdAt: new Date().toISOString(),
-      isVerified: true,
-      helpfulCount: 0,
-    };
-
-    state.reviews.unshift(review);
-    booking.hasReview = true;
-
-    // Fold the new score into the provider's running average.
-    const provider = state.providers.find((p) => p.id === booking.providerId);
-    if (provider) {
-      const total = provider.rating * provider.reviewCount + input.rating;
-      provider.reviewCount += 1;
-      provider.rating = +(total / provider.reviewCount).toFixed(1);
-    }
-
-    return review;
-  });
+export async function createReview(_input: CreateReviewInput): Promise<Review> {
+  void _input;
+  throw unsupported("Leaving a review", "review.notSupported");
 }
 
-export function updateReview(
-  id: string,
-  patch: Pick<CreateReviewInput, "rating" | "comment">,
+export async function updateReview(
+  _id: string,
+  _patch: Partial<CreateReviewInput>,
 ): Promise<Review> {
-  return request(() => {
-    const state = db();
-    const review = state.reviews.find((r) => r.id === id);
-    if (!review) throw new ApiError("Review not found", 404, "review.notFound");
-
-    const provider = state.providers.find((p) => p.id === review.providerId);
-    if (provider && patch.rating !== review.rating) {
-      // Swap the old score out of the average and the new one in.
-      const total =
-        provider.rating * provider.reviewCount - review.rating + patch.rating;
-      provider.rating = +(total / provider.reviewCount).toFixed(1);
-    }
-
-    review.rating = patch.rating;
-    review.comment = patch.comment;
-    return review;
-  });
+  void _id;
+  void _patch;
+  throw unsupported("Editing a review", "review.notSupported");
 }
 
-export function deleteReview(id: string): Promise<{ id: string }> {
-  return request(() => {
-    const state = db();
-    const index = state.reviews.findIndex((r) => r.id === id);
-    if (index < 0) throw new ApiError("Review not found", 404, "review.notFound");
-
-    const [review] = state.reviews.splice(index, 1);
-
-    const booking = state.bookings.find((b) => b.id === review.bookingId);
-    if (booking) booking.hasReview = false;
-
-    const provider = state.providers.find((p) => p.id === review.providerId);
-    if (provider && provider.reviewCount > 1) {
-      const total = provider.rating * provider.reviewCount - review.rating;
-      provider.reviewCount -= 1;
-      provider.rating = +(total / provider.reviewCount).toFixed(1);
-    }
-
-    return { id };
-  });
+export async function deleteReview(_id: string): Promise<{ id: string }> {
+  void _id;
+  throw unsupported("Deleting a review", "review.notSupported");
 }
 
-/** Provider replies to a patient review. */
-export function replyToReview(id: string, comment: string): Promise<Review> {
-  return request(() => {
-    const review = db().reviews.find((r) => r.id === id);
-    if (!review) throw new ApiError("Review not found", 404, "review.notFound");
-
-    review.reply = { comment, createdAt: new Date().toISOString() };
-    return review;
-  });
+export async function replyToReview(_id: string, _comment: string): Promise<Review> {
+  void _id;
+  void _comment;
+  throw unsupported("Replying to a review", "review.notSupported");
 }
 
-// ---------------------------------------------------------------------------
-// Notifications
-// ---------------------------------------------------------------------------
+// --- Notifications ---------------------------------------------------------
+// Same shape of problem as reviews: the endpoint answers, with nothing in it and
+// no documented payload.
 
-export function getNotifications(userId: string): Promise<AppNotification[]> {
-  return request(() =>
-    db()
-      .notifications.filter((n) => n.userId === userId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-  );
+export async function getNotifications(_userId: string): Promise<AppNotification[]> {
+  void _userId;
+  return [];
 }
 
-export function getUnreadCount(userId: string): Promise<number> {
-  return request(
-    () => db().notifications.filter((n) => n.userId === userId && !n.isRead).length,
-  );
+export async function getUnreadCount(_userId: string): Promise<number> {
+  void _userId;
+  return 0;
 }
 
-export function markNotificationRead(id: string): Promise<AppNotification> {
-  return request(() => {
-    const notification = db().notifications.find((n) => n.id === id);
-    if (!notification) throw new ApiError("Notification not found", 404, "notification.notFound");
-
-    notification.isRead = true;
-    return notification;
-  });
+export async function markNotificationRead(_id: string): Promise<AppNotification> {
+  void _id;
+  throw unsupported("Marking a notification read", "notification.notSupported");
 }
 
-export function markAllNotificationsRead(userId: string): Promise<{ count: number }> {
-  return request(() => {
-    let count = 0;
-    for (const n of db().notifications) {
-      if (n.userId === userId && !n.isRead) {
-        n.isRead = true;
-        count++;
-      }
-    }
-    return { count };
-  });
+export async function markAllNotificationsRead(
+  _userId: string,
+): Promise<{ count: number }> {
+  void _userId;
+  return { count: 0 };
 }
 
-export function deleteNotification(id: string): Promise<{ id: string }> {
-  return request(() => {
-    const state = db();
-    const index = state.notifications.findIndex((n) => n.id === id);
-    if (index < 0) throw new ApiError("Notification not found", 404, "notification.notFound");
-
-    state.notifications.splice(index, 1);
-    return { id };
-  });
+export async function deleteNotification(_id: string): Promise<{ id: string }> {
+  void _id;
+  throw unsupported("Deleting a notification", "notification.notSupported");
 }
