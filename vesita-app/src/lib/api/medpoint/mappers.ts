@@ -419,19 +419,20 @@ export function toProvider(assembly: ProviderAssembly): Provider {
   base.price = prices.length ? Math.min(...prices) : null;
 
   if (type === "doctor") {
-    // Prefer the dedicated `specialty` field when the API has it; every doctor
-    // on staging still has it null, so the name-parsed fallback stays the
-    // load-bearing path today.
+    // Prefer the dedicated `specialty` field when the API has it; fall back to
+    // the name-parsed id when it is absent.
     const wireSpecialty = assembly.wire.specialty?.trim();
     const resolvedSpecialtyId = wireSpecialty
       ? specialtyIdFromLabel(wireSpecialty)
       : specialtyId;
+    const [, nameTail] = assembly.wire.name.split(/\s+[—–-]\s+/, 2);
 
     const doctor: Doctor = {
       ...base,
       type: "doctor",
       title: "Dr.",
       specialtyId: resolvedSpecialtyId,
+      specialtyLabel: wireSpecialty || nameTail?.trim() || null,
       subSpecialties: assembly.wire.subspecialty ? [assembly.wire.subspecialty] : [],
       gender: genderOf(assembly.wire.gender) ?? null,
       yearsOfExperience: null,

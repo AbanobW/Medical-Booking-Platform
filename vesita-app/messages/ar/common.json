@@ -115,6 +115,8 @@
   "providerCard": {
     "labSubtitle": "معمل تحاليل",
     "radiologySubtitle": "مركز أشعة",
+    "verified": "موثّق",
+    "pending": "قيد المراجعة",
     "addFavorite": "إضافة إلى المفضلة",
     "removeFavorite": "إزالة من المفضلة",
     "favoriteAdded": "تمت الإضافة إلى المفضلة",
@@ -126,7 +128,10 @@
     "noOpenSlots": "غالبًا لا توجد مواعيد متاحة خلال الأسبوعين القادمين — راجع الصفحة للتأكد.",
     "consultationFee": "سعر الكشف",
     "startingFrom": "يبدأ من",
-    "book": "احجز"
+    "book": "احجز",
+    "specialty": "التخصص",
+    "subspecialty": "التخصص الدقيق",
+    "noReviewsYet": "لا توجد تقييمات بعد"
   },
   "rating": {
     "stars": "{value} من 5 نجوم",

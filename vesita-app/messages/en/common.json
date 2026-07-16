@@ -115,6 +115,8 @@
   "providerCard": {
     "labSubtitle": "Medical Laboratory",
     "radiologySubtitle": "Radiology Center",
+    "verified": "Verified",
+    "pending": "Pending review",
     "addFavorite": "Add to favorites",
     "removeFavorite": "Remove from favorites",
     "favoriteAdded": "Added to favorites",
@@ -126,7 +128,10 @@
     "noOpenSlots": "Likely nothing open in the next 2 weeks — check the profile to be sure.",
     "consultationFee": "Consultation fee",
     "startingFrom": "Starting from",
-    "book": "Book"
+    "book": "Book",
+    "specialty": "Specialty",
+    "subspecialty": "Subspecialty",
+    "noReviewsYet": "No reviews yet"
   },
   "rating": {
     "stars": "{value} out of 5 stars",

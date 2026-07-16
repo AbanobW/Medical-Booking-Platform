@@ -68,6 +68,8 @@
     "degrees": "Degrees",
     "languages": "Languages",
     "focus": "Areas of focus",
+    "gender": "Gender",
+    "syndicate": "Syndicate registration",
     "catalogue": "Catalogue",
     "catalogueTests": "{tests} tests · {packages} packages",
     "catalogueScans": "{scans} scans · {packages} packages",

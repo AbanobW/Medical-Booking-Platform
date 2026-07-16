@@ -113,9 +113,8 @@ export interface WireProvider extends WireResource {
   /**
    * Added since the provider was first mapped (re-probed 2026-07-16) — a real
    * dedicated field, where before the specialty was only ever glued into
-   * `name` ("Dr. X — Cardiology"). Every provider on staging still has this
-   * `null`, so `parseProviderName`'s split of `name` remains the load-bearing
-   * path; this is read first and preferred once it's populated.
+   * `name` ("Dr. X — Cardiology"). The name split remains a fallback when this
+   * field is absent.
    */
   gender?: "male" | "female" | null;
   specialty?: string | null;

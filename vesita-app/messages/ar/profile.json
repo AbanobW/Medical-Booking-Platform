@@ -68,6 +68,8 @@
     "degrees": "المؤهلات",
     "languages": "اللغات",
     "focus": "مجالات التركيز",
+    "gender": "النوع",
+    "syndicate": "قيد النقابة",
     "catalogue": "الخدمات المتاحة",
     "catalogueTests": "{tests} تحليل · {packages} باقة",
     "catalogueScans": "{scans} أشعة · {packages} باقة",

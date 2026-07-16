@@ -268,11 +268,12 @@ export interface Doctor extends ProviderBase {
   type: "doctor";
   title: string;
   /**
-   * A real `specialty` field on the wire, when the API has it; falls back to
-   * parsing it out of the provider's name ("Dr. X — Cardiology") when not.
-   * Null if neither resolves to a specialty this app recognises.
+   * Resolved id for filtering — from the API's `specialty` field or parsed out of
+   * `name`. Null when neither maps to a known specialty.
    */
   specialtyId: string | null;
+  /** Raw `specialty` string from the API — shown when `specialtyId` is unknown. */
+  specialtyLabel: string | null;
   subSpecialties: string[];
   gender: Gender | null;
   yearsOfExperience: number | null;

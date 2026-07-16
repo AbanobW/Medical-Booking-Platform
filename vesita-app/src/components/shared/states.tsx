@@ -86,23 +86,33 @@ export function ErrorState({
 
 export function ProviderCardSkeleton() {
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="flex-row items-start gap-4">
-        <Skeleton className="size-20 shrink-0 rounded-2xl" />
-        <div className="flex-1 space-y-2">
-          <Skeleton className="h-5 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
-          <Skeleton className="h-4 w-2/3" />
+    <Card className="overflow-hidden border-border/60">
+      <CardContent className="flex flex-col gap-0 p-0">
+        <div className="flex gap-4 p-5">
+          <Skeleton className="size-[4.5rem] shrink-0 rounded-2xl" />
+          <div className="flex-1 space-y-2.5">
+            <Skeleton className="h-5 w-3/4" />
+            <div className="flex gap-1.5">
+              <Skeleton className="h-5 w-24 rounded-lg" />
+              <Skeleton className="h-5 w-28 rounded-lg" />
+            </div>
+            <Skeleton className="h-4 w-32" />
+          </div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <Skeleton className="h-4 w-full" />
-        <div className="flex gap-2">
-          <Skeleton className="h-8 w-20 rounded-lg" />
-          <Skeleton className="h-8 w-20 rounded-lg" />
-          <Skeleton className="h-8 w-20 rounded-lg" />
+        <div className="border-t bg-muted/20 px-5 py-3">
+          <Skeleton className="h-3 w-36" />
+          <div className="mt-2 flex gap-1.5">
+            <Skeleton className="h-7 w-24 rounded-lg" />
+            <Skeleton className="h-7 w-24 rounded-lg" />
+          </div>
         </div>
-        <Skeleton className="h-10 w-full rounded-xl" />
+        <div className="flex items-center justify-between border-t px-5 py-4">
+          <div className="space-y-1">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-7 w-16" />
+          </div>
+          <Skeleton className="h-10 w-24 rounded-xl" />
+        </div>
       </CardContent>
     </Card>
   );
