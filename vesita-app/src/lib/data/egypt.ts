@@ -4,9 +4,24 @@ import type { Governorate, InsurancePlan, Specialty } from "@/lib/types";
  * Static Egyptian reference data: governorates, their areas, and the medical
  * taxonomy.
  *
+ * **This is a lookup table, not a dataset.** It holds no records about anyone —
+ * no doctors, no prices, no availability. It exists because MedPoint has no
+ * geography or taxonomy endpoint, yet answers in their vocabulary: a branch
+ * arrives as `governorate: "Cairo", area: "Maadi"` and a doctor as
+ * `"Dr. X — Cardiology"`. These tables are how those strings are resolved to
+ * ids the app can filter on, and how a filter menu is populated at all. Delete
+ * them and search loses its facets; nothing gains accuracy.
+ *
+ * It is also where fabricated content used to hide, so keep the line clear. The
+ * invented lab-test and scan catalogues (with invented prices), the
+ * consultation templates and the subspecialty taxonomy all lived here as seed
+ * input and are gone. Nothing here may describe a provider, a price or a
+ * service — only the vocabulary the API already speaks.
+ *
  * Governorates are stored in a compact `en:ar` / `|`-delimited encoding and
- * expanded at module load. Coordinates are real approximate centroids, so the
- * map placeholder renders plausible relative positions.
+ * expanded at module load. Coordinates are approximate real centroids, used to
+ * order "nearest" and to place the map — a governorate's centre, never a
+ * provider's position.
  */
 
 /** `[id, en, ar, lat, lng, "areaEn:areaAr|areaEn:areaAr|..."]` */
@@ -143,7 +158,7 @@ export function getAreaName(id: string): string {
 // Specialties
 // ---------------------------------------------------------------------------
 
-/** `[id, en, ar, lucideIcon, descriptionEn, descriptionAr]` — doctorCount is filled by the seed. */
+/** `[id, en, ar, lucideIcon, descriptionEn, descriptionAr]` */
 type RawSpecialty = [string, string, string, string, string, string];
 
 const RAW_SPECIALTIES: RawSpecialty[] = [
@@ -180,7 +195,6 @@ export const SPECIALTIES: Specialty[] = RAW_SPECIALTIES.map(
     nameAr,
     icon,
     description: { en: description, ar: descriptionAr },
-    doctorCount: 0, // populated by the seed once doctors are generated
   }),
 );
 
@@ -191,46 +205,6 @@ export function getSpecialty(id: string): Specialty | undefined {
 export function getSpecialtyName(id: string): string {
   return getSpecialty(id)?.name ?? "General Practice";
 }
-
-// ---------------------------------------------------------------------------
-// Subspecialties (§4 — a search filter that narrows within a specialty)
-// ---------------------------------------------------------------------------
-
-export const SUBSPECIALTIES: Record<string, string[]> = {
-  cardiology: ["Interventional Cardiology", "Heart Failure", "Electrophysiology", "Echocardiography", "Preventive Cardiology"],
-  dermatology: ["Cosmetic Dermatology", "Laser Therapy", "Hair & Scalp", "Pediatric Dermatology", "Skin Cancer Screening"],
-  dentistry: ["Orthodontics", "Endodontics", "Oral Surgery", "Cosmetic Dentistry", "Pediatric Dentistry"],
-  pediatrics: ["Neonatology", "Pediatric Cardiology", "Pediatric Neurology", "Child Nutrition", "Vaccinations"],
-  orthopedics: ["Sports Injuries", "Spine Surgery", "Joint Replacement", "Hand Surgery", "Pediatric Orthopedics"],
-  gynecology: ["Fertility & IVF", "High-Risk Pregnancy", "Laparoscopic Surgery", "Menopause Care", "Ultrasound & Fetal Medicine"],
-  neurology: ["Epilepsy", "Stroke Care", "Movement Disorders", "Headache & Migraine", "Neuromuscular Disease"],
-  psychiatry: ["Anxiety & Depression", "Child Psychiatry", "Addiction Medicine", "Cognitive Behavioural Therapy", "Sleep Disorders"],
-  ophthalmology: ["LASIK & Refractive", "Retina", "Cataract Surgery", "Glaucoma", "Pediatric Ophthalmology"],
-  ent: ["Sinus Surgery", "Hearing & Audiology", "Voice & Throat", "Snoring & Sleep Apnea", "Pediatric ENT"],
-  "internal-medicine": ["Chronic Disease Management", "Preventive Care", "Geriatric Medicine", "Infectious Disease", "Second Opinions"],
-  urology: ["Kidney Stones", "Prostate Care", "Male Infertility", "Urologic Oncology", "Pediatric Urology"],
-  gastroenterology: ["Endoscopy", "Liver Disease", "Inflammatory Bowel Disease", "Colonoscopy", "Pancreatic Disease"],
-  endocrinology: ["Diabetes Management", "Thyroid Disorders", "Obesity Medicine", "Adrenal & Pituitary", "Bone Metabolism"],
-  pulmonology: ["Asthma & Allergy", "Sleep Medicine", "COPD", "Bronchoscopy", "Respiratory Infections"],
-  nutrition: ["Weight Management", "Sports Nutrition", "Clinical Nutrition", "Pediatric Nutrition", "Diabetic Diets"],
-  physiotherapy: ["Sports Rehabilitation", "Post-Surgical Rehab", "Neurological Rehab", "Manual Therapy", "Pain Management"],
-  oncology: ["Breast Cancer", "Chemotherapy", "Radiation Oncology", "Cancer Screening", "Palliative Care"],
-  rheumatology: ["Rheumatoid Arthritis", "Lupus & Autoimmune", "Osteoporosis", "Gout", "Pediatric Rheumatology"],
-  nephrology: ["Dialysis", "Kidney Transplant", "Hypertension", "Glomerular Disease", "Electrolyte Disorders"],
-  "vascular-surgery": ["Varicose Veins", "Arterial Disease", "Diabetic Foot", "Aneurysm Repair", "Dialysis Access"],
-  "general-surgery": ["Laparoscopic Surgery", "Hernia Repair", "Gallbladder Surgery", "Bariatric Surgery", "Breast Surgery"],
-  allergy: ["Food Allergy", "Respiratory Allergy", "Immunotherapy", "Skin Allergy", "Drug Allergy"],
-  andrology: ["Male Infertility", "Erectile Dysfunction", "Hormonal Therapy", "Microsurgery", "Sexual Health"],
-};
-
-export function getSubSpecialtiesFor(specialtyId: string): string[] {
-  return SUBSPECIALTIES[specialtyId] ?? [];
-}
-
-/** Every subspecialty across the taxonomy, de-duplicated and sorted. */
-export const ALL_SUBSPECIALTIES: string[] = [
-  ...new Set(Object.values(SUBSPECIALTIES).flat()),
-].sort((a, b) => a.localeCompare(b));
 
 // ---------------------------------------------------------------------------
 // Insurance networks (§14 — future phase)
@@ -251,137 +225,3 @@ export const INSURANCE_PLANS: InsurancePlan[] = [
 export function getInsurancePlanName(id: string): string {
   return INSURANCE_PLANS.find((p) => p.id === id)?.name ?? id;
 }
-
-// ---------------------------------------------------------------------------
-// Service catalogues
-// ---------------------------------------------------------------------------
-
-/** `[en, ar, category, basePrice, resultHours, fastingRequired]` */
-export type RawTest = [string, string, string, number, number, boolean];
-
-export const LAB_TEST_CATALOG: RawTest[] = [
-  ["Complete Blood Count (CBC)", "صورة دم كاملة", "Hematology", 120, 6, false],
-  ["Fasting Blood Sugar", "سكر صائم", "Diabetes", 60, 4, true],
-  ["HbA1c", "السكر التراكمي", "Diabetes", 220, 12, false],
-  ["Lipid Profile", "دهون الدم", "Cardiac", 250, 12, true],
-  ["Liver Function Tests", "وظائف الكبد", "Chemistry", 280, 12, true],
-  ["Kidney Function Tests", "وظائف الكلى", "Chemistry", 240, 12, true],
-  ["Thyroid Profile (TSH, T3, T4)", "وظائف الغدة الدرقية", "Hormones", 380, 24, false],
-  ["Vitamin D (25-OH)", "فيتامين د", "Vitamins", 420, 24, false],
-  ["Vitamin B12", "فيتامين ب12", "Vitamins", 350, 24, false],
-  ["Serum Iron & Ferritin", "الحديد والفيريتين", "Hematology", 300, 24, true],
-  ["Urine Analysis", "تحليل بول", "Microbiology", 90, 6, false],
-  ["Stool Analysis", "تحليل براز", "Microbiology", 90, 6, false],
-  ["C-Reactive Protein (CRP)", "بروتين سي التفاعلي", "Immunology", 180, 8, false],
-  ["ESR", "سرعة الترسيب", "Hematology", 80, 4, false],
-  ["Uric Acid", "حمض البوليك", "Chemistry", 90, 6, true],
-  ["PCR COVID-19", "تحليل كورونا", "Virology", 600, 24, false],
-  ["Hepatitis B Surface Antigen", "الالتهاب الكبدي ب", "Virology", 200, 24, false],
-  ["Hepatitis C Antibody", "الالتهاب الكبدي سي", "Virology", 220, 24, false],
-  ["Pregnancy Test (Beta HCG)", "تحليل حمل", "Hormones", 180, 6, false],
-  ["Prolactin", "البرولاكتين", "Hormones", 260, 24, true],
-  ["Testosterone", "هرمون الذكورة", "Hormones", 320, 24, true],
-  ["PSA (Prostate)", "دلالات البروستاتا", "Tumor Markers", 400, 24, false],
-  ["Semen Analysis", "تحليل السائل المنوي", "Andrology", 350, 24, false],
-  ["Coagulation Profile (PT/PTT/INR)", "سيولة الدم", "Hematology", 260, 8, false],
-  ["Electrolytes (Na, K, Ca)", "أملاح الدم", "Chemistry", 200, 6, false],
-  ["Food Intolerance Panel", "تحليل حساسية الطعام", "Immunology", 1800, 72, false],
-];
-
-/** `[en, ar, category, basePrice, durationMinutes, contrastRequired]` */
-export type RawScan = [string, string, string, number, number, boolean];
-
-export const RADIOLOGY_SCAN_CATALOG: RawScan[] = [
-  ["Chest X-Ray", "أشعة عادية على الصدر", "X-Ray", 150, 10, false],
-  ["Bone X-Ray", "أشعة عادية على العظام", "X-Ray", 150, 10, false],
-  ["Abdominal Ultrasound", "سونار على البطن", "Ultrasound", 300, 20, false],
-  ["Pelvic Ultrasound", "سونار على الحوض", "Ultrasound", 300, 20, false],
-  ["Obstetric Ultrasound (4D)", "سونار رباعي الأبعاد للحمل", "Ultrasound", 650, 30, false],
-  ["Thyroid Ultrasound", "سونار على الغدة الدرقية", "Ultrasound", 350, 20, false],
-  ["Echocardiography", "إيكو على القلب", "Ultrasound", 700, 30, false],
-  ["Carotid Doppler", "دوبلر على شرايين الرقبة", "Doppler", 800, 30, false],
-  ["Lower Limb Venous Doppler", "دوبلر على أوردة الساق", "Doppler", 850, 40, false],
-  ["CT Brain", "أشعة مقطعية على المخ", "CT Scan", 1200, 20, false],
-  ["CT Chest", "أشعة مقطعية على الصدر", "CT Scan", 1400, 20, false],
-  ["CT Abdomen & Pelvis with Contrast", "مقطعية بطن وحوض بالصبغة", "CT Scan", 2200, 40, true],
-  ["MRI Brain", "رنين مغناطيسي على المخ", "MRI", 2400, 45, false],
-  ["MRI Lumbar Spine", "رنين على الفقرات القطنية", "MRI", 2300, 45, false],
-  ["MRI Knee", "رنين على الركبة", "MRI", 2100, 40, false],
-  ["MRI Abdomen with Contrast", "رنين على البطن بالصبغة", "MRI", 2900, 60, true],
-  ["Mammography", "أشعة على الثدي", "Mammography", 900, 25, false],
-  ["DEXA Bone Density", "قياس كثافة العظام", "DEXA", 700, 25, false],
-  ["Panoramic Dental X-Ray", "أشعة بانوراما للأسنان", "X-Ray", 250, 15, false],
-  ["Barium Swallow", "أشعة بالصبغة على المرئ", "Fluoroscopy", 800, 40, true],
-];
-
-/** Doctor consultation offerings, applied to every doctor. */
-export const CONSULTATION_TEMPLATES = [
-  {
-    name: "In-Clinic Consultation",
-    nameAr: "كشف في العيادة",
-    description: "Face-to-face examination at the clinic.",
-    descriptionAr: "كشف مباشر داخل العيادة.",
-    durationMinutes: 30,
-    priceFactor: 1,
-  },
-  {
-    name: "Follow-Up Visit",
-    nameAr: "إعادة كشف",
-    description: "Discounted revisit within 14 days of your first consultation.",
-    descriptionAr: "إعادة كشف بسعر مخفّض خلال ١٤ يومًا من الكشف الأول.",
-    durationMinutes: 20,
-    priceFactor: 0.5,
-  },
-  {
-    name: "Video Consultation",
-    nameAr: "استشارة بالفيديو",
-    description: "Secure online video call from anywhere in Egypt.",
-    descriptionAr: "مكالمة فيديو آمنة من أي مكان في مصر.",
-    durationMinutes: 25,
-    priceFactor: 0.8,
-  },
-  {
-    name: "Home Visit",
-    nameAr: "زيارة منزلية",
-    description: "The doctor comes to your home. Travel fee included.",
-    descriptionAr: "الطبيب يزورك في منزلك، وسعر الانتقال مشمول.",
-    durationMinutes: 45,
-    priceFactor: 2.2,
-  },
-] as const;
-
-/**
- * Arabic for the service-catalogue grouping keys (`LabTest.category`,
- * `RadiologyScan.category`). The English string stays the identifier — this maps
- * it for display only. Mirrored into the `domain.serviceCategory` messages;
- * keep the two in step.
- */
-export const SERVICE_CATEGORIES_AR: Record<string, string> = {
-  Hematology: "أمراض الدم",
-  Diabetes: "السكري",
-  Cardiac: "القلب",
-  Chemistry: "الكيمياء الحيوية",
-  Hormones: "الهرمونات",
-  Vitamins: "الفيتامينات",
-  Microbiology: "الميكروبيولوجي",
-  Immunology: "المناعة",
-  Virology: "الفيروسات",
-  "Tumor Markers": "دلالات الأورام",
-  Andrology: "الذكورة",
-  "X-Ray": "أشعة عادية",
-  Ultrasound: "الموجات فوق الصوتية",
-  "CT Scan": "أشعة مقطعية",
-  MRI: "رنين مغناطيسي",
-  Mammography: "أشعة الثدي",
-  DEXA: "قياس كثافة العظام",
-  Doppler: "دوبلر",
-  Fluoroscopy: "أشعة تليفزيونية",
-};
-
-/** Arabic for the four doctor titles in `names.ts`. Display-only, as above. */
-export const DOCTOR_TITLES_AR: Record<string, string> = {
-  "Professor Doctor": "أستاذ دكتور",
-  Consultant: "استشاري",
-  Specialist: "أخصائي",
-  "Lecturer Doctor": "مدرس دكتور",
-};

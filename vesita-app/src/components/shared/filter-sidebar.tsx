@@ -17,7 +17,6 @@ import {
   INSURANCE_PLANS,
   SPECIALTIES,
   getAreasFor,
-  getSubSpecialtiesFor,
 } from "@/lib/data/egypt";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import { useLabels } from "@/lib/i18n/use-labels";
@@ -53,15 +52,7 @@ function FilterControls({ filters, onChange, onReset }: Omit<FilterSidebarProps,
 
   const areas = getAreasFor(filters.governorateId ?? "");
   const isDoctorSearch = filters.type === "doctor" || !filters.type;
-  const subSpecialties = getSubSpecialtiesFor(filters.specialtyId ?? "");
 
-  // Subspecialties are stored as their English string (the identifier), so they
-  // are translated at render — falling back to the raw value if a new one lands
-  // in the dataset before its copy does.
-  const subSpecialtyLabel = (value: string): string => {
-    const key = `subSpecialty.${value}`;
-    return t.has(key) ? t(key) : value;
-  };
 
   return (
     <div className="space-y-6">
@@ -104,30 +95,11 @@ function FilterControls({ filters, onChange, onReset }: Omit<FilterSidebarProps,
             />
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">{t("filters.subSpecialty")}</Label>
-            <AppSelect
-              value={filters.subSpecialty ?? ""}
-              onValueChange={(value) => onChange({ subSpecialty: value || undefined })}
-              emptyOption={t("filters.allSubSpecialties")}
-              placeholder={
-                filters.specialtyId
-                  ? t("filters.allSubSpecialties")
-                  : t("filters.pickSpecialtyFirst")
-              }
-              aria-label={t("filters.subSpecialty")}
-              disabled={!filters.specialtyId || subSpecialties.length === 0}
-              options={subSpecialties.map((s) => ({
-                value: s,
-                label: subSpecialtyLabel(s),
-              }))}
-            />
-            {!filters.specialtyId && (
-              <p className="text-xs text-muted-foreground">
-                {t("filters.pickSpecialtyHint")}
-              </p>
-            )}
-          </div>
+          {/*
+            No subspecialty filter. The API sends no subspecialty, so every
+            provider carries none — the control offered a list of options from a
+            local taxonomy, each of which was guaranteed to return zero results.
+          */}
         </>
       )}
 

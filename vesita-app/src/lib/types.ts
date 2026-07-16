@@ -171,7 +171,12 @@ export interface Specialty {
   /** Lucide icon name, resolved at render time. */
   icon: string;
   description: LocalizedText;
-  doctorCount: number;
+  /**
+   * How many doctors practise it — known only where it has been counted, which
+   * is `getPopularSpecialties`. The taxonomy itself does not carry a count; it
+   * used to sit at a hardcoded `0` waiting for the seed to overwrite it.
+   */
+  doctorCount?: number;
 }
 
 // ---------------------------------------------------------------------------
