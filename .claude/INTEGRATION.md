@@ -2,9 +2,9 @@
 
 The state of the frontend↔backend integration, and what it takes to finish it.
 Written to be read cold: an agent resuming this work should not need to re-derive
-the map from `src/lib/api/`.
+the map from `vesita-app/src/lib/api/`.
 
-**Verified against live staging (`https://medpoint.intrazero.org`), last re-probed 2026-07-14.**
+**Verified against live staging (`https://medpoint.intrazero.org`), last re-probed 2026-07-16.**
 Re-probe before you trust it — see [Verify before you trust](#verify-before-you-trust).
 
 **Companion documents**
@@ -15,356 +15,271 @@ Re-probe before you trust it — see [Verify before you trust](#verify-before-yo
 
 ---
 
-## ⚠️ Staging moved — read this before anything else
+## There is no mock. This is a rewrite, not an update.
 
-The last re-probe found the backend had shifted under the app. **Two of these are not yet
-reflected in the code**, so the code and this table disagree until someone acts.
+Earlier revisions of this document described a hybrid: a seeded localStorage dataset
+(`src/lib/data/seed.ts`) alongside MedPoint, with per-domain routing decided by
+`src/lib/api/capabilities.ts` and a global `NEXT_PUBLIC_API_MODE` switch. **All of that is
+deleted.** There is no mock, no seed, no capability flags, no mode switch, and no
+localStorage overlay reconstructing a booking from wizard context. Every function in
+`src/lib/api/*` talks to MedPoint or nothing.
 
-| What | Was | Is now | Consequence |
-|---|---|---|---|
-| `POST /v1/auth/register` | 500 (Passport client missing) | ✅ **`201` + a real token pair** | **Workaround #1's trigger has fired. Delete the login-fallback** (`medpoint/auth.ts:66-80`). |
-| `/v1/patient-profiles` | `GET` 500s, `POST` works | 🔴 **`404` on `GET` *and* `POST` — the route is gone entirely** | **Regression, and the worst item on this page.** `profiles: true` is now wholly broken, not partially. A booking needs a `patient_profile_id` (§1), so **the live booking flow is dead**, not degraded. |
-| `GET /v1/services` | unknown | `prep_instructions: null`, **`eligibility_rules` absent from the payload entirely** | The §3 gate is **not** a cheap frontend fix after all — the data genuinely is not on the wire. |
+Two consequences follow directly:
 
-Still exactly as documented: no CORS headers, `refresh-token` 500s, hashids collide across
-*every* resource (`providers`, `services`, `slots` and `doctor-sessions` all return
-`W6V1Y2Pn83Q7mDEK` as their first id), list filters are ignored (`?provider_type=lab` and
-unfiltered return byte-identical payloads), and `Provider` is still
-`{type, id, provider_type, name, status}` with the specialty glued into the name string.
+- **Unknown is `null`, and `null` renders as an em dash.** A field the API cannot answer
+  is never coerced to `0`, `""`, or a plausible constant — that coercion (a `0` rating
+  indistinguishable from an unrated provider, `"09:00 – 21:00"` opening hours nobody set,
+  a doctor's gender defaulting to male) is exactly what got removed. See `formatEGP`,
+  `formatNumber`, `DASH`, `orDash` in `src/lib/i18n/format.ts`.
+- **A capability with no endpoint throws, it does not pretend.** Where the mock used to
+  quietly serve a plausible response, the live function now throws a `501 ApiError`
+  ("… is not available yet — <why>") or returns an empty list. The UI surfaces that
+  through the ordinary error/empty-state path rather than through a silent fallback.
 
-Not re-verified: the `Booking` payload's missing FKs. `GET /v1/bookings` is scoped to the
-caller and a fresh probe account has none, so the list came back empty. `meta.include` was
-still `[]`. Treat §1.2 as unchanged until someone probes it with a seeded account.
+The result is an app that is honest about a genuinely thin backend. Read
+`vesita-app/CLAUDE.md`'s opening section before touching any screen — it states this
+rule for the build itself.
+
+---
+
+## ⚠️ Staging facts still true as of the last re-probe
+
+| What | Status | Consequence |
+|---|---|---|
+| `POST /v1/auth/register` | ✅ `201` + a real token pair | Fixed; the old login-fallback workaround is deleted, not just retired |
+| `/v1/me/profiles` (the profiles route moved off `/v1/patient-profiles`) | ✅ full CRUD works | Live, direct — no client-side reconstruction needed |
+| `GET /v1/services`, `/v1/slots`, `/v1/doctor-sessions` | 🔴 **no `branch_id` on read** | Nothing can be attributed to a provider or branch. **The keystone gap** — see below |
+| `GET /v1/branches` | 🔴 **no `provider_id` on read** | Same problem one level up |
+| List endpoints (`providers`, `services`, `slots`, …) | 🔴 filters ignored; `per_page` ignored, pinned at 10 rows/page | `/services` is 5 pages of 10 for 49 rows; `/slots` is 105 pages of 10 for 1044 rows |
+| `GET /v1/bookings` | 🔴 no relations, no appointment datetime | A booking cannot be rendered once created |
+| `POST /v1/auth/refresh-token` | 🔴 500s | Session dies 24h after sign-in with no renewal |
+| Hashids | 🔴 collide across every model | Provider row 1, Branch row 1, Service row 1 all encode to the same string |
+| CORS | 🔴 no `Access-Control-*` headers at all | Proxied same-origin through `next.config.ts`; see below |
+
+Re-probe commands for all of these are in [Verify before you trust](#verify-before-you-trust).
 
 ---
 
 ## The one-paragraph summary
 
-The **writes line up with the spec; the reads do not.** MedPoint's schema was clearly
-designed against the business doc — `POST /v1/bookings` takes `patient_profile_id`,
-`branch_id`, a polymorphic `bookable_type`/`bookable_id` and `price_snapshot`;
-`doctor-sessions` carries `max_tickets` and `capacity_type`; `services` carries
-`prep_instructions`, `eligibility_rules` and `home_collection`. Every concept the
-platform needs exists in the request bodies. The failure is entirely on the response
-side: **`GET` drops every relation and the appointment datetime**, list endpoints ignore
-every filter, and the `Provider` payload is too thin to render a card. So the app writes
-to MedPoint and reads from a local overlay plus a seeded mock. Fixing this is a small,
-local backend change — not a redesign.
+**The writes line up with the spec; the reads do not.** `POST /v1/bookings` takes
+`patient_profile_id`, `branch_id`, a polymorphic `bookable_type`/`bookable_id` and
+`price_snapshot`; `POST /v1/services` takes `branch_id`; `POST /v1/slots` takes
+`branch_id` + `service_id`; `POST /v1/branches` takes `provider_id`. Every relation the
+platform needs is accepted on write. **None of it comes back on read.** `GET` on any of
+these resources omits the foreign key it just accepted, so a service can never be
+attributed to the branch it was created under, a branch never to its provider. Combined
+with list endpoints that ignore every filter and a `Booking` payload with no relations or
+datetime, the result is: real prices exist in the database, but no client can attribute
+one to a provider — so there is no price, no availability and nothing bookable, and the
+UI says so rather than inventing an attribution. This is a small, local backend fix
+(populate the columns on read), not a redesign.
 
 ---
 
 ## Orientation
 
-App root is **`vesita-app/`**. The integration layer is `vesita-app/src/lib/api/`.
+App root is **`vesita-app/`**. The integration layer is `vesita-app/src/lib/api/`:
 
-Two backends coexist:
-
-- **The mock** — a seeded localStorage dataset (`src/lib/data/seed.ts` + `client.ts`).
-  56 doctors, 22 labs, 22 radiology centres, 620 bookings. Fully implements the business
-  rules, including capacity, holds and the 9-state machine.
-- **MedPoint** — the real Laravel API, reached through `src/lib/api/medpoint/*`.
-
-Routing is decided by **two AND-ed gates**:
-
-1. The global mode. `NEXT_PUBLIC_API_MODE` is read in exactly one place —
-   `src/lib/api/config.ts:19-21`:
-   ```ts
-   /** `NEXT_PUBLIC_*` is inlined at build time, so this must not be destructured. */
-   function readMode(): ApiMode {
-     return process.env.NEXT_PUBLIC_API_MODE === "live" ? "live" : "mock";
-   }
-   ```
-   **Only `"live"` and `"mock"` are accepted, and anything else silently becomes `mock`.**
-   There is no validation and no warning. `"LIVE"`, a trailing space, or a typo costs you
-   an hour of wondering why nothing hits the network. Current state: `.env.local` is
-   `live`, `.env.example` is `mock`.
-2. The per-capability flag in `src/lib/api/capabilities.ts`.
-
-A capability is live only when **both** are true. In mock mode nothing is ever live.
-Live mode *widens* what is real — it never takes a screen away; anything MedPoint cannot
-serve falls back to the mock rather than going blank.
-
-The browser never talks to MedPoint directly. `apiBaseUrl()` is the relative constant
-`/api/medpoint` (`config.ts:43-47`), and `next.config.ts:41-48` rewrites that upstream
-server-to-server. See workaround #2.
-
----
-
-## Capability state
-
-Verbatim from `src/lib/api/capabilities.ts:30-46`:
-
-```ts
-const LIVE_CAPABILITIES: Record<LiveCapability, boolean> = {
-  auth: true,
-  /** `GET /v1/patient-profiles` 500s — list uses overlay cache; CRUD is live. */
-  profiles: true,
-  /** Thin Provider payload; filters run client-side on fetched pages. */
-  discovery: true,
-  /** Slots + doctor-sessions fetched and filtered client-side. */
-  availability: true,
-  /** `POST /bookings` + `POST /payments`; enriched via overlay. */
-  bookingWrite: true,
-  /** Booking responses lack FKs and appointment datetime — read stays mock. */
-  bookingRead: false,
-  /** No `/v1/favorites` resource on MedPoint. */
-  favorites: false,
-  reviews: false,
-  notifications: false,
-};
+```
+src/lib/api/
+  config.ts        — apiBaseUrl()/apiUpstream() only; no mode switch
+  errors.ts        — ApiError (was in the now-deleted client.ts)
+  http.ts          — the fetch transport; envelope unwrapping, error mapping, 401 handling
+  tokens.ts        — access/refresh token storage (localStorage, deliberately — see below)
+  session.ts       — the seam auth-provider talks to; sequences the two account-write endpoints
+  auth.ts          — HOME_FOR_ROLE + RegisterInput only; no demo accounts, no OTP
+  providers.ts, availability.ts, bookings.ts, profiles.ts,
+  engagement.ts, stats.ts, admin.ts, provider-admin.ts
+                   — thin seams re-exporting medpoint/* (real) or refusing what has no endpoint
+  medpoint/
+    types.ts       — wire DTOs, exactly as Laravel sends them
+    mappers.ts     — the one file that knows MedPoint's field names
+    cache.ts       — fetchAllPages() (page-walks a list), createCachedLoader() (TTL + coalescing)
+    auth.ts, profile.ts, profiles.ts, providers.ts, availability.ts, bookings.ts, admin.ts
+                   — one file per resource, calling MedPoint directly
 ```
 
-| Capability | Live | Dispatcher | Live module | Why it's where it is | Flip it when |
-|---|---|---|---|---|---|
-| `auth` | ✅ | `session.ts` | `medpoint/auth.ts`, `medpoint/profile.ts` | Login/logout/profile/avatar all work | — (already live) |
-| `profiles` | 🔴 **broken** | `profiles.ts` | `medpoint/profiles.ts` | Was: CRUD live, list 500s → reconstructed from overlay-cached ids. **Now: the whole `/v1/patient-profiles` route 404s.** The flag still says `true`, so live mode calls a route that no longer exists | the route comes back |
-| `discovery` | ✅ | `providers.ts` | `medpoint/providers.ts` | Degraded: fetches *all* providers + branches + services, assembles them, filters in the browser | server-side filter/sort/search lands |
-| `availability` | ✅ | `providers.ts` | `medpoint/availability.ts` | Degraded: fetches *all* slots + doctor-sessions, filters client-side against `TODAY` | a per-provider date-range availability endpoint lands |
-| `bookingWrite` | ✅ | `bookings.ts` | `medpoint/bookings.ts` | `POST /bookings` + `POST /payments`; every created booking is enriched from wizard context into the overlay | — (live, but see workaround #6) |
-| `bookingRead` | ❌ | `bookings.ts` | — | **The keystone gap.** Wire `Booking` has no FKs and no appointment datetime, so a booking cannot be rendered | `Booking` carries relations + datetime |
-| `favorites` | ❌ | `engagement.ts` | — | No `/v1/favorites` resource exists at all | the resource ships |
-| `reviews` | ❌ | `engagement.ts` | — | Deferred; `/v1/reviews` exists but is unwired | MVP scope allows |
-| `notifications` | ❌ | `engagement.ts` | — | Deferred; `/v1/notifications` exists but is unwired | MVP scope allows |
+The browser never talks to MedPoint directly: no CORS headers are sent (see below), so
+`apiBaseUrl()` returns the relative constant `/api/medpoint` and `next.config.ts` rewrites
+that upstream server-to-server.
 
-### Two traps in this table
+### No CORS — the one infrastructural workaround that's still standing
 
-**`bookingRead` is declared but never consulted.** Grep it: the flag appears in the type
-and the record, and nowhere else. Booking *reads* actually go through the mock plus an
-overlay merge, gated on `bookingWrite` (`bookings.ts` `mergeOverlayIntoPage`). Flipping
-`bookingRead` to `true` today would change nothing. When the backend is fixed, you must
-wire the flag up as well as flip it.
+MedPoint sends no `Access-Control-Allow-*` header on any response, success or failure. A
+browser therefore discards every response to a direct cross-origin call. `next.config.ts`
+rewrites `/api/medpoint/*` upstream, so the browser makes a same-origin call and Next
+proxies it server-to-server, where CORS does not apply. This costs a hop and is the reason
+`apiBaseUrl()` can't just point at `https://medpoint.intrazero.org` directly.
 
-**`stats.ts`, `admin.ts` and `provider-admin.ts` have no capability check at all.** They
-are unconditionally mock in both modes. That is correct for the patient MVP — provider
-and admin portals are out of scope — but do not mistake their silence for "live".
-Relatedly, `roleOf()` hard-codes `"patient"` (workaround #11), so a provider or admin
-cannot sign in against MedPoint anyway.
+**Ask:** send CORS headers for the web origins. Then the rewrite can be deleted and
+`config.ts` simplified to one constant.
 
 ---
 
-## Workaround registry
+## Current status, by domain
 
-Every hack currently standing between the app and the API. Each one exists for a reason,
-and each one has an exact removal trigger. **Do not delete one without checking its
-trigger has actually fired.**
-
-| # | Workaround | Location | Delete when |
+| Domain | Status | Module | Why |
 |---|---|---|---|
-| 1 | ✅ **TRIGGER FIRED — DELETE THIS.** register-500 → `login()` fallback. `POST /auth/register` used to 500 (no Passport personal-access client) while still creating the user row, stranding the user with a real account they were never told about — so a 5xx fell back to logging in with the credentials just submitted. **Register now returns `201` with a token pair.** The fallback is dead code that would mask a genuine future 5xx. Remove the `catch` at `:73-80`, keep the 422 path. | `medpoint/auth.ts:45-81` | ~~register returns a token pair~~ **done — go delete it** |
-| 2 | **CORS rewrite proxy.** MedPoint sends no `Access-Control-Allow-*` header on any response, so a browser discards every cross-origin call. `/api/medpoint/*` is rewritten upstream by Next, server-to-server, where CORS does not apply. Costs a hop; the API is only reachable through our own origin. | `next.config.ts:41-48`, `config.ts:32-47` | the API sends CORS headers for the web origins |
-| 3 | **`refreshSession()` is written but never called.** `POST /auth/refresh-token` 500s (it type-hints the framework's base `Request`). The function exists so that the moment the endpoint works, there is exactly one place to believe. Consequence today: **a session dies hard 24h after sign-in** — the 401 clears the token and bounces the user to `/login`. | `medpoint/auth.ts:100-122` (defined, zero call sites) | refresh-token stops 500ing — then wire it into a 401-retry interceptor in `http.ts:169-177` |
-| 4 | 🔴 **NOW WORSE THAN THE WORKAROUND.** Patient-profile list is N fan-out `GET`s: `GET /patient-profiles` 500'd, so `getPatientProfiles` reads ids from the overlay and fetches each one by id, un-caching any that 404s (so profiles created in another browser are invisible). **But the entire route now 404s on every verb** — the by-id fetches this workaround depends on fail too, and every id gets silently un-cached. Live profile CRUD is dead, which kills the live booking flow with it. | `medpoint/profiles.ts:29-51` | the route exists again *and* `GET /v1/patient-profiles` lists |
-| 5 | **The entire overlay cache.** localStorage store (`vesita:medpoint:overlay:v1`) holding profile ids and the full wizard context of every booking — provider name/photo/specialty, service, branch, date, time, pricing, acknowledgement — because `GET /bookings` returns none of it. `overlayToBooking()` reconstitutes a domain `Booking` from it. | `medpoint/overlay.ts` (whole file) | wire `Booking` carries FKs + appointment datetime |
-| 6 | ⚠️ **A failed `POST /payments` is swallowed and the booking is confirmed locally anyway.** `catch { /* Scaffold API may reject payment shape — overlay still confirms locally. */ }`. The patient sees a confirmed, paid booking while the server has **no payment row**. This is the highest-risk hack in the codebase — it is a live divergence on the money path. Treat removing it as urgent. | `medpoint/bookings.ts:209-221` | `POST /v1/payments` accepts the shape; then let the error propagate and fail the booking |
-| 7 | **Hashids collide across models.** `Provider` row 1, `Service` row 1 and `Booking` row 1 all encode to the *same* string — the salt is not per-model. An id is meaningful **only together with its type**. Never use a bare id as a cross-resource cache key, a React key on a mixed collection, or a URL slug. Use `wireKey(type, id)`. | `medpoint/types.ts:14-31`, `:144-147` | ids are salted per model, or globally unique |
-| 8 | **Tokens in `localStorage`** (`vesita:medpoint:access:v1` / `…:refresh:v1`). Readable by any XSS. Accepted deliberately: the app is a client-rendered SPA with no server session. The right shape is an httpOnly `SameSite` refresh cookie plus a short-lived in-memory access token. | `tokens.ts:1-16` | an httpOnly refresh cookie ships — **needs #2 (CORS + `Allow-Credentials`) first** |
-| 9 | **Discovery and availability fetch every page and filter in the browser.** `loadCatalog()` pulls all `/providers` + `/branches` + `/services` (60s in-memory TTL) and `searchProviders` applies all twelve filter dimensions client-side. Availability pulls all `/slots` + `/doctor-sessions`. Correct today; will not survive a real dataset. | `medpoint/providers.ts:51-96`, `:146-211`; `medpoint/availability.ts:18-34` | server-side filtering, sorting and search land |
-| 10 | **`PUT /profile` silently drops unknown fields**, so the profile form hides four of them in live mode. `GET /profile` returns `gender` and `birth`, but `PUT` accepts neither; `governorate` and `blood_type` have no column at all. Unsaveable fields are deliberately **not** merged into the returned user — that would look like a save and then vanish on reload. | `medpoint/profile.ts:19-31`, `session.ts:106-110` | `PUT /profile` accepts `gender` + `birth`, and `governorate`/`blood_type` columns exist |
-| 11 | **`roleOf()` hard-codes `"patient"`.** MedPoint ships full RBAC (`/v1/roles`, `/v1/permissions`) but a new signup gets no role and `WireUser` carries none. **Provider and admin sign-in are impossible in live mode.** | `medpoint/mappers.ts:68-70` | a role appears on the user payload |
+| Auth (login/register/logout/session restore) | ✅ live | `session.ts` → `medpoint/auth.ts` | Works end to end. Refresh is written (`medpoint/auth.ts#refreshSession`) but has zero call sites — `POST /auth/refresh-token` 500s, so wiring it into a 401-retry would just turn every expired session into a 500 |
+| Account profile (name/phone/gender/DOB/avatar) | ✅ live | `session.ts` → `medpoint/profile.ts` | Two writers: `PUT /v1/profile` (name, phone), `PATCH /v1/users/:id` (gender, birth). `session.ts#updateProfile` sequences both — name/phone first, so a partial failure leaves the visible identity correct |
+| Patient profiles (CRUD) | ✅ live | `profiles.ts` → `medpoint/profiles.ts` | Full CRUD under `/v1/me/profiles`, including the auto-created SELF profile. This was the worst regression in the previous revision of this doc (route 404s on every verb) — **it is fixed and confirmed working** |
+| Provider discovery | 🟡 **live, but nothing is bookable** | `providers.ts` → `medpoint/providers.ts` | Providers, branches and services are all real, fetched and paginated correctly (§ cache.ts fix below) — but no service can be attributed to a branch (no `branch_id` on read), so every provider has zero services, `price` is `null`, and the search/sort/filter fields that depend on service or rating data (price range, rating) can only ever exclude everything |
+| Availability | 🟡 same root cause | `medpoint/availability.ts` | Slots and doctor-sessions are real and correctly paginated, but carry no `branch_id` on read either, so none can be attached to the provider being viewed |
+| Booking — create | ✅ live | `bookings.ts` → `medpoint/bookings.ts#holdBooking` | `POST /v1/bookings` succeeds and the server records it. The response is assembled from what was sent and accepted — it is a receipt for one request, not something that can be read back later |
+| Booking — pay | 🔴 **refuses on purpose** | `medpoint/bookings.ts#beginPayment`/`#payBooking` | Both throw a `501`. They used to swallow a failed `POST /v1/payments` and mark the booking confirmed-and-paid locally regardless — the single most dangerous line in the old codebase. Removed rather than fixed: there is nothing to confirm the payment against once it succeeds, since bookings can't be read back either. **Consequence: only a `cash` booking (fee = 0, confirmed immediately) can complete the wizard today** — any online-fee payment method is blocked at the payment step |
+| Booking — read/cancel/reschedule/refund | 🔴 refuses | `bookings.ts` | `getBookings` always returns an empty page; everything else throws `501`. `GET /v1/bookings` returns `{type, id, status, price_snapshot, booking_fee, payment_status, queue_number, source, …}` — no provider, no service, no branch, no date, no time. "Dr. Hala Mansour — Cardiology, Tue 16 Jul, 10:00" is not derivable from that response, on the list endpoint or the detail one |
+| Favourites | 🔴 refuses | `engagement.ts` | No `/v1/favorites` resource exists at all. Reads are empty; `toggleFavorite` throws |
+| Reviews | 🔴 refuses on write, empty on read | `engagement.ts` | `/v1/reviews` exists and answers `200` with zero rows, but takes no `provider_id`/`patient_id` filter and its wire shape is undocumented (`ratings` is an untyped array with no sample response). Nothing is decoded from a guess |
+| Notifications | 🔴 refuses on write, empty on read | `engagement.ts` | Same shape of gap as reviews |
+| Admin — users, providers | 🟡 live, admin-gated | `admin.ts` → `medpoint/admin.ts` | `GET /v1/users` / `/v1/providers` are real; a non-admin token gets `403`, which is surfaced rather than swallowed. Client-side filtering (no server-side filters, as everywhere else) |
+| Admin — coupons | ✅ live (read + delete) | `admin.ts` → `medpoint/admin.ts` | `/v1/coupons` lists 5 real coupons and deletes work. Create/update refuse: the wire coupon has no description, minimum-order or applies-to column to write |
+| Admin — campaigns, commission | 🔴 refuses | `admin.ts` | No endpoint exists for either |
+| Admin — suspension | 🔴 refuses | `admin.ts` | A hard suspension must cancel and refund every upcoming booking (§13) — impossible while bookings can't be listed or refunded |
+| Provider-admin (schedule/services/packages) | 🔴 refuses | `provider-admin.ts` | Same `branch_id` gap as discovery: a service can be *created* (`POST` accepts `branch_id`) but not listed back, so an editor that cannot show what it just created isn't one |
+| Stats & analytics (patient/provider/admin dashboards) | 🔴 null/empty, always | `stats.ts` | No analytics endpoint exists, and `Booking` carries no foreign keys to aggregate even client-side. Every metric is `null`; every chart series is `[]` |
 
 ---
 
-## Business rules the live path currently violates
+## What used to be a "workaround registry" — now mostly permanent decisions
 
-The join nobody had written down. Each row is a rule from the business doc that the
-**mock honours and live mode does not** — because the wire cannot carry it.
+The previous revision of this document tracked eleven numbered hacks with removal
+triggers, on the assumption the mock was temporary scaffolding around them. Several of
+those hacks are now simply **deleted** rather than retired, because the thing they
+patched over (the mock, the overlay) is gone too. What's left is a shorter list of
+decisions the code actually still embodies:
 
-### §3 — the mandatory preparation/eligibility gate is empty in live mode
+| # | Decision | Where | Reconsider when |
+|---|---|---|---|
+| 1 | **Never join two resources by id.** Every model's row index hashes to the same string with the same salt — `Provider` row 1, `Branch` row 1, `Service` row 1 are all `W6V1Y2Pn83Q7mDEK`. This looks exactly like a foreign key and is not one: joining on it pairs row N with row N regardless of what they actually are (a lab would get a doctor's consultation). `medpoint/providers.ts#buildCatalog` attaches a branch to a provider **only** via the real `provider_id`/`branch_id` fields, and explicitly documents why not to "fix" the resulting empty-services problem by matching ids instead. | `medpoint/providers.ts` (`buildCatalog`) | ids are salted per model, or globally unique |
+| 2 | **`fetchAllPages` trusts the reported total, not the batch size.** The server pins every page at 10 rows regardless of what's requested (`limit`/`per_page` both ignored) — the old version sent `limit` and stopped on the first page shorter than requested, which meant *every* page was "short" and the catalog silently saw 10 of 49 services, 10 of 1044 slots. Fixed to walk pages until `items.length >= pagination.total`, capped at `MAX_PAGES = 40` with a console warning if that cap is hit before the total is reached (currently true for `/slots`, at 105 pages for 1044 rows). | `medpoint/cache.ts` | the API honours `per_page`, or exposes a filter so whole tables stop needing a full walk |
+| 3 | **Payment is refused, not attempted-then-swallowed.** `beginPayment`/`payBooking` throw a `501` instead of calling `POST /v1/payments` and ignoring a rejection. This blocks online-fee bookings entirely rather than risk showing a confirmed-paid booking the server never recorded. | `medpoint/bookings.ts` | `POST /v1/payments` has a confirmed accepted shape **and** bookings can be read back (so a payment can be reconciled against something) |
+| 4 | **Tokens in `localStorage`** (`vesita:medpoint:access:v1` / `…:refresh:v1`). Readable by any XSS. Accepted deliberately: the app is a client-rendered SPA with no server session. | `tokens.ts` | an httpOnly `SameSite` refresh cookie ships — needs CORS + `Allow-Credentials` first |
+| 5 | **`refreshSession()` is written but has zero call sites.** `POST /auth/refresh-token` 500s (`RefreshToken::createFrom()` type-hints the framework's base `Request`), so wiring it into a 401-retry today would turn every expired session into a 500 instead of a clean sign-out. | `medpoint/auth.ts` (defined, unused) | refresh-token stops 500ing — then wire it into `http.ts`'s 401 handling |
+| 6 | **`roleOf()` hard-codes `"patient"`.** MedPoint ships full RBAC (`/v1/roles`, `/v1/permissions`) but a new signup gets no role and `WireUser` carries none. Provider and admin sign-in are impossible against MedPoint as a result — the admin screens that do work (users, providers, coupons) are reached with a manually-issued admin token, not through the app's own sign-in. | `medpoint/mappers.ts#roleOf` | a role appears on the user payload |
+| 7 | **Location data is `null` rather than a fuzzy-matched guess.** `governorateIdOf`/`areaIdOf` (`medpoint/mappers.ts`) resolve the wire's free-text governorate/area against `GOVERNORATES`/areas and return `null` on a miss — this used to default to `"cairo"`/`"nasr-city"`, silently relocating an unrecognised branch to the capital. A wrong location is worse than an unknown one. | `medpoint/mappers.ts` | the backend offers a controlled vocabulary, or ids instead of free text |
 
-The rule: *"A booking cannot be finalized until the patient has confirmed they have read
-the preparation instructions and that the selected patient profile meets the eligibility
-rules."* `holdBooking` in the mock enforces it — it rejects a booking with no
-acknowledgement, or whose profile fails `evaluateEligibility`.
+---
 
-In live mode there is nothing to acknowledge. `wireServiceToLabTest`
-(`mappers.ts:194-215`) and `wireServiceToScan` (`:217-238`) **synthesize empty blocks**:
+## Business rules the live path currently cannot honour
 
-```ts
-preparation: {
-  fastingRequired: false,
-  waterAllowed: true,
-  medicationRestrictions: [],
-  arrivalInstructions: emptyLocalized(""),
-  documentsRequired: [],
-},
-eligibility: { pregnancySafe: true, excludedConditions: [] },
-```
+Rules from the business doc that the code is written to enforce, but that the API gives
+it nothing to enforce them *against*:
 
-Compounding it, `toPatientProfile` (`:100-113`) hard-codes `chronicConditions: []` and
-`isPregnant: false` because MedPoint has no such columns — so even a real eligibility
-rule would have nothing to screen against.
+### §3 — the mandatory preparation/eligibility gate is real, but partial
 
-**Probed, and it is a backend fix, not a mapper fix.** `WireService` declares
-`prep_instructions` and `eligibility_rules` (`medpoint/types.ts:86-95`) and `POST
-/v1/services` accepts both — but a live `GET /v1/services` returns
-`"prep_instructions": null` and **omits `eligibility_rules` from the payload entirely**:
+The rule: a booking cannot be finalized until the patient has acknowledged preparation
+instructions and the profile's eligibility. This is still enforced in code
+(`requiresAcknowledgement`, the booking-wizard gate) — but the screening itself is
+narrower than the business doc describes, because the wire only carries two of the four
+signals it needs:
 
-```json
-{ "type": "Service", "id": "W6V1Y2Pn83Q7mDEK", "name": "Initial Consultation",
-  "category": "consultation", "price": "449.00", "prep_instructions": null,
-  "home_collection": false, … }
-```
+- **Gender and age** screen for real — a `PatientProfile` stores both, so
+  `evaluateEligibilityDetailed` can genuinely block a booking on them.
+- **Pregnancy and excluded-condition rules** are declared on a service (when
+  `prep_instructions`/`eligibility_rules` are populated — see the gap below) and are
+  *shown and acknowledged*, but never *auto-screened*, because a `PatientProfile` has no
+  pregnancy or chronic-condition column to check against. This was a deliberate scope
+  decision (see `.claude/BACKEND-GAPS.md` §1.7), not an oversight: collecting a field the
+  server cannot store would mean asking the patient twice.
 
-So the data genuinely is not on the wire, and no mapper change can conjure it. This is a
-*safety* rule — a patient who ate before a fasting test, or who is ineligible for a scan —
-so it needs a real ask: populate both fields on read, and add `chronic_conditions` /
-`is_pregnant` to the patient profile so there is something to screen against.
+`GET /v1/services` returns `"prep_instructions": null` and omits `eligibility_rules` from
+the payload entirely — so even the "shown and acknowledged" half is currently empty in
+practice. `WireService` declares both fields and `POST /v1/services` accepts them; the
+gap is read-side only.
 
-### §5, §9, Appendix A — capacity and holds are client-side fiction in live mode
+### §5, §9, Appendix A — capacity and holds have no server enforcement
 
-There is **no server hold or expiry concept at all**. The 10-minute payment window is
-enforced entirely in the browser: `beginPayment` and `releaseHold`
-(`medpoint/bookings.ts:159-171`, `:231-237`) do **no HTTP** — they mutate the overlay.
-Appendix A's guarantee that "exactly one succeeds" when two patients race for the last
-place has no server enforcement behind it in live mode.
+There is no server-side hold or expiry concept at all. `holdBooking` sets a client-side
+`holdExpiresAt`, but nothing on the server tracks or enforces it — and since a booking
+can't be read back, there is no way to even check whether it lapsed. Appendix A's
+guarantee ("exactly one succeeds" when two patients race for the last place) has no
+server-side mechanism behind it.
 
-There is also a **vocabulary mismatch**: the domain says `CapacityType = "comfort" |
-"strict"` (`types.ts:509`); the wire sends `capacity_type: "soft"`.
-`capacityTypeOf` (`mappers.ts:358-360`) maps anything that isn't `"strict"` to
-`"comfort"`, so `"soft"` lands correctly by accident. Pin the vocabulary down with the
-backend rather than relying on that.
+### §1 — profile isolation holds
 
-Note also `slotToTimeSlot` (`:398-412`) hard-codes `"strict"` for lab/radiology slots —
-correct per §5, but it is an assumption, not something the wire tells us.
+This one *does* work correctly: `medpoint/profiles.ts` checks `wire.user_id`/ownership
+and 404s on a mismatch (never 403 — see API-CHANGES.md §5), and the SELF-profile
+uniqueness rule is enforced both client-side and by the server (a second SELF profile is
+a 422).
 
-### §1 — profile isolation holds, eligibility screening does not
+### §13 — suspension cannot be enforced as specified
 
-The account→profile ownership boundary is correctly enforced: `fetchProfile`
-(`medpoint/profiles.ts:20-27`) 404s if `wire.user_id` doesn't match the account, and
-`createPatientProfile` blocks a second `self` profile client-side. Good.
-
-But the clinical fields the profile exists to carry (`chronicConditions`, `isPregnant`)
-are hard-coded empty, so the profile cannot do the one job §3 gives it.
-
-### Location data is confidently wrong rather than absent
-
-`governorateIdOf` and `areaIdOf` (`mappers.ts:115-132`) fuzzy-match the wire's free-text
-governorate/area against `GOVERNORATES` and **default to `"cairo"` / `"nasr-city"` on a
-miss**. A provider in Alexandria with an unrecognised spelling is silently shown in
-Cairo. A wrong location is worse than an unknown one — this needs either a controlled
-vocabulary on the backend or an explicit "unknown" branch in the mapper.
-
-### Everything a live `Provider` shows is invented
-
-`baseProviderFields` (`mappers.ts:246-275`) and `toProvider` (`:277-348`) hard-code
-`rating: 0`, `reviewCount: 0`, `bookingCount: 0`, `waitingTimeMinutes: 30`,
-`isFeatured: false`, and for a doctor: `title: "Dr."`, `specialtyId: "general"`,
-`gender: "male"`, `yearsOfExperience: 0`. The specialty is currently glued into the
-provider's `name` string on the wire ("Dr. Hala Mansour — Cardiology") rather than being
-its own field. So live-mode search-by-specialty and filter-by-gender match against
-constants — they cannot work.
+A hard suspension must cancel and refund every upcoming booking. With no way to list a
+provider's bookings, this is not implementable today regardless of the suspension
+endpoint's existence.
 
 ---
 
 ## Path to full-live
 
-Ordered by *unblocks-the-most-per-unit-of-backend-work*. Each step names the backend
-prerequisite, the flag to flip, and the workaround it retires.
+Ordered by unblocks-the-most-per-unit-of-backend-work.
 
-0. 🔴 **Restore the `/v1/patient-profiles` route.** *Do this before anything else — it is a
-   regression, not a gap.* Every verb 404s. A booking belongs to a patient profile (§1) and
-   the wizard opens by choosing one, so **the live booking flow cannot run at all** until
-   the route is back. Everything below is moot while this is broken. (Then also fix the
-   original `ListPatientProfilesTask` list bug — its closure type-hints `PatientProfile`
-   where it means `Eloquent\Builder` — which retires workaround #4.)
-
-0b. ✅ **Delete the register fallback** (`medpoint/auth.ts:73-80`). Frontend-only, no
-   backend work needed: register already returns `201` + a token pair. Free.
-
-1. **CORS headers** → retires workaround #2 (delete the `next.config.ts` rewrite and point
-   `apiBaseUrl()` at the upstream). Also a hard prerequisite for #8 (httpOnly cookies).
-   Cheapest remaining backend change; unblocks the security story.
-
-2. 🔑 **Give `Booking` its relations and its appointment datetime.** *The keystone.*
-   Either make `?include=provider|service|branch|slot` actually work (it is accepted with
-   a 200 today but changes nothing, and `meta.include` is always `[]`), or at minimum
-   expose `provider_id`, `service_id`, `branch_id`, `patient_profile_id`, `slot_id` and
-   the appointment date/time.
-   → flip `bookingRead: true` **and wire the flag up** (it is currently never consulted)
-   → **retire the whole overlay** (workaround #5)
-   → `/patient/bookings`, the patient dashboard, cancel and reschedule all come off the mock.
-   This one change is worth more than the rest of the list combined.
-
-3. **Make `POST /v1/payments` accept the shape** → **delete workaround #6**, the swallowed
-   payment failure. Do this *early* despite its position — it is a correctness bug on the
-   money path, not a feature gap. Until it lands, a booking can read as paid while the
-   server has no payment row.
-
-4. **Populate `prep_instructions` / `eligibility_rules` on `GET /v1/services`** (today the
-   first is `null` and the second is absent from the payload), and add `chronic_conditions`
-   / `is_pregnant` to the patient profile → restores the §3 acknowledgement gate. A safety
-   rule, not a feature.
-
-5. **Fatten `Provider`** (rating, review count, photo, price, specialty as its own field,
-   sub-specialty, governorate/area, gender, bio) **and add server-side filtering, sorting
-   and full-text search** to `/v1/providers` and `/v1/services` — today `provider_type=`,
-   `search=`, `q=` and `filter=` are all silently ignored, and only `page`/`limit` work
-   (`per_page` does not). → retires workaround #9 and makes `/search`'s twelve filter
-   dimensions real.
-
-6. **Ship a `/v1/favorites` resource** → flip `favorites: true`; `/patient/favorites` is a
-   built, working screen with nothing to talk to.
-
-7. **Fix `POST /v1/auth/refresh-token`** → wire `refreshSession()` into a 401-retry in
-   `http.ts` → retires workaround #3 and stops sessions dying at 24h.
-
-8. **Salt hashids per model** → retires workaround #7 and the `wireKey` discipline.
-
-9. **Turn off debug mode in staging.** Responses currently carry full PHP stack traces and
-   file paths (`/var/www/MedPoint/…`); an `OPTIONS` request returns the whole PHP Debugbar
-   HTML payload. `http.ts:84-88` already replaces any 5xx body with a generic message, so
-   users never see them — but they should not be on the wire.
-
-10. **Emit machine-readable error codes.** Laravel sends prose only, so `codeForStatus`
-    (`http.ts:60-68`) derives a code from the HTTP status and a business rejection keeps
-    the server's English sentence. **Arabic users therefore see English** for exactly the
-    errors that matter most. Stable codes fix it.
-
-**Two of these need no backend work at all** and are available right now: 0b (delete the
-register fallback) and, once #0 is unblocked, wiring `bookingRead` up so the flag it
-declares actually does something.
+1. **Populate `branch_id` on `GET /v1/services`, `/v1/slots`, `/v1/doctor-sessions`, and
+   `provider_id` on `GET /v1/branches`.** *The keystone — bigger than everything else
+   combined.* These are already accepted on `POST`; they are simply not returned. This one
+   fix makes discovery, availability and pricing real, unblocks booking end-to-end (cash
+   and online), and is the prerequisite for provider-admin ever working.
+2. **Give `Booking` its relations and its appointment datetime**, or make
+   `?include=provider,service,branch,slot` actually do something (it's accepted with `200`
+   today and changes nothing; `meta.include` is always `[]`). Unblocks booking read,
+   cancel, reschedule, refund, reviews-after-a-visit, and every dashboard stat.
+3. **Confirm the accepted shape for `POST /v1/payments`** and make it return a
+   deterministic success or a 4xx. Combined with #2, this lets online-fee bookings
+   complete and be reconciled — today they're blocked at the payment step by design.
+4. **CORS headers** for the web origins → deletes the `next.config.ts` rewrite, and is a
+   hard prerequisite for httpOnly refresh cookies.
+5. **Server-side filtering, sorting and search** on `/v1/providers` and `/v1/services`
+   (`provider_type=`, `search=`, `q=`, `filter=` are all currently ignored) plus honouring
+   `per_page` — makes `/search`'s filter dimensions real and retires the page-cap warning
+   in `medpoint/cache.ts`.
+6. **Ship a `/v1/favorites` resource.**
+7. **Fix `POST /v1/auth/refresh-token`** (500s on a bad type-hint) → wire
+   `refreshSession()` into `http.ts`'s 401 handling → sessions stop dying at 24h.
+8. **Salt hashids per model**, or return globally unique ids.
+9. **A role on the user payload** → provider/admin sign-in becomes possible without a
+   manually-issued token.
+10. **Turn off debug mode in staging** — full PHP stack traces and file paths currently
+    ride on every 5xx body (`http.ts` already replaces them with a generic message before
+    the user sees anything, but they shouldn't be on the wire).
+11. **Machine-readable error codes.** Laravel sends prose only; a business rejection keeps
+    the server's English sentence verbatim, so Arabic users see English for exactly the
+    errors that matter most (why their booking or code was rejected).
 
 ---
 
 ## Verify before you trust
 
-This document was true on **2026-07-14**. Before acting on it, re-probe — a fixed gap is
-immediately available work, and a stale doc is worse than none.
+This document was true on **2026-07-16**. Re-probe before acting on it.
 
 ```bash
-# 1.1 — CORS. Expect: no output (no Access-Control-* header at all).
+# CORS. Expect: no output (no Access-Control-* header at all).
 curl -sI -X POST https://medpoint.intrazero.org/v1/auth/login \
   -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
   -d '{"email":"x@y.z","password":"nope"}' | grep -i access-control
 
-# 2.1 — register. Expect: 201 + a token pair (FIXED — was a 500). If it regresses to
-#        "Personal access client not found", the login-fallback is needed again.
+# Register. Expect: 201 + a token pair.
 curl -s -X POST https://medpoint.intrazero.org/v1/auth/register \
   -H 'Content-Type: application/json' \
   -d '{"full_name":"Probe","email":"probe+'"$(date +%s)"'@example.com","password":"password","phone":"+201234567890"}' \
   | head -c 300
 
-# 2.2 — refresh-token. Expect: 500, "RefreshToken::createFrom(): Argument #1".
+# Refresh-token. Expect: 500.
 curl -s -X POST https://medpoint.intrazero.org/v1/auth/refresh-token \
   -H 'Content-Type: application/json' -d '{}' | head -c 300
 
 # The rest need a bearer token:
-TOKEN=...   # from POST /v1/auth/login
+TOKEN=...   # from POST /v1/auth/login or /v1/auth/register
 
-# 2.3 — patient-profiles. Expect: 404 "The route ... could not be found" on EVERY verb.
-#        A 500 ("ListPatientProfilesTask::{closure}") would actually be progress — it
-#        would mean the route is back and only the list query is broken.
-for m in GET POST; do
-  printf '%-5s ' "$m"
-  curl -s -o /dev/null -w 'HTTP %{http_code}\n' -X $m -H 'Accept: application/json' \
-    -H "Authorization: Bearer $TOKEN" https://medpoint.intrazero.org/v1/patient-profiles
-done
+# Patient profiles. Expect: 200 with a list, including a "self" relationship.
+curl -s https://medpoint.intrazero.org/v1/me/profiles -H "Authorization: Bearer $TOKEN" | head -c 400
 
-# 1.2 — Booking payload. Expect: no *_id fields, no date/time. THE keystone check.
-curl -s 'https://medpoint.intrazero.org/v1/bookings?include=provider,service,branch,slot' \
-  -H "Authorization: Bearer $TOKEN" | head -c 600
+# THE keystone check — does a service carry branch_id yet?
+curl -s https://medpoint.intrazero.org/v1/services -H "Authorization: Bearer $TOKEN" | head -c 400
+# Expect today: no "branch_id" key at all. The day it appears, discovery/availability/
+# booking all become fixable in one pass — re-read this document's "Path to full-live" #1.
 
-# 1.3 — hashid collision. Expect: the three lists share their first ids.
+# Hashid collision. Expect: the three lists share their first ids.
 for r in providers services bookings; do
   echo -n "$r: "
   curl -s "https://medpoint.intrazero.org/v1/$r" -H "Authorization: Bearer $TOKEN" \
@@ -372,15 +287,15 @@ for r in providers services bookings; do
   echo
 done
 
-# 1.4 — filters ignored. Expect: identical payloads.
+# Filters ignored. Expect: identical payloads.
 curl -s 'https://medpoint.intrazero.org/v1/providers?provider_type=lab' -H "Authorization: Bearer $TOKEN" | md5
 curl -s 'https://medpoint.intrazero.org/v1/providers'                   -H "Authorization: Bearer $TOKEN" | md5
 
-# §3 check — does GET /services return prep_instructions populated? If yes, cheap win.
-curl -s https://medpoint.intrazero.org/v1/services -H "Authorization: Bearer $TOKEN" | head -c 600
-```
+# Page size. Expect: "per_page": 10 regardless of what you ask for.
+curl -s 'https://medpoint.intrazero.org/v1/services?per_page=100' -H "Authorization: Bearer $TOKEN" \
+  | grep -o '"per_page":[0-9]*'
 
-One more, worth knowing: **staging's seed data is dated in the past** relative to the
-app's fixed `TODAY` (2026-07-13, `src/lib/data/seed.ts` — used instead of `new Date()` so
-server and client hydration agree). Live availability can therefore look empty for
-reasons that have nothing to do with the code.
+# Booking payload. Expect: no *_id fields, no date/time.
+curl -s 'https://medpoint.intrazero.org/v1/bookings?include=provider,service,branch,slot' \
+  -H "Authorization: Bearer $TOKEN" | head -c 600
+```

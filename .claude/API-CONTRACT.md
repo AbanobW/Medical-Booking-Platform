@@ -7,15 +7,17 @@ example responses** — that is why every response below was verified by probing
 staging on 2026-07-14), and `vesita-app/src/lib/api/` for what the app actually does with
 them.
 
-Read `.claude/INTEGRATION.md` first for the capability state and the workaround registry.
+Read `.claude/INTEGRATION.md` first for the current per-domain status and the registry of
+decisions the code embodies around what the API can't do.
 
 ---
 
 ## 1. Endpoint catalogue
 
 Base: `https://medpoint.intrazero.org/v1` — but **the browser never calls it directly**.
-`http.ts:111-122` builds `/api/medpoint/v1/<path>`, and `next.config.ts:41-48` rewrites
-that upstream. See workaround #2.
+`http.ts:113` builds `${apiBaseUrl()}/v1<path>`, and `next.config.ts`'s `rewrites()` sends
+`/api/medpoint/:path*` upstream server-to-server (no CORS headers exist on any MedPoint
+response, so a direct browser call would be silently discarded). See INTEGRATION.md.
 
 MedPoint is Apiato-flavoured Laravel, so most of this is generated 5-verb CRUD scaffolding.
 **Twenty folders, ~120 requests, and the app uses about twenty of them.** Marking the rest
@@ -26,9 +28,9 @@ MedPoint is Apiato-flavoured Laravel, so most of this is generated 5-verb CRUD s
 | Endpoint | Status | Body |
 |---|---|---|
 | `POST /v1/auth/login` | **used** | `{ email, password }` → `WireAuthSession` |
-| `POST /v1/auth/register` | **used, ✅ now fixed** | `{ full_name, email, password, phone }` → `201` + a token pair. It used to 500 *after* creating the row; **workaround #1 is now dead code — delete it** (`medpoint/auth.ts:73-80`). |
+| `POST /v1/auth/register` | **used, ✅ fixed** | `{ full_name, email, password, phone }` → `201` + a token pair. It used to 500 *after* creating the row, so the frontend fell back to logging in with the credentials just submitted; that fallback is deleted (`medpoint/auth.ts` has no `catch` around `register` any more) — a failure now propagates as a genuine 422/5xx. |
 | `POST /v1/logout` | **used** | — |
-| `POST /v1/auth/refresh-token` | **broken (500)** | — · `RefreshToken::createFrom()` type-hints the base `Request`. Workaround #3. |
+| `POST /v1/auth/refresh-token` | **broken (500)** | — · `RefreshToken::createFrom()` type-hints the base `Request`. `refreshSession()` is written (`medpoint/auth.ts`) but has zero call sites — see INTEGRATION.md's decision #5. |
 | `POST /v1/auth/forgot-password` | **used** | `{ email }` — step 1 of password reset |
 | `POST /v1/auth/verify-otp` | **used** | `{ email, otp }` — step 2 |
 | `POST /v1/auth/reset-password` | **used** | `{ email, otp, password, password_confirmation }` — step 3 |
@@ -38,21 +40,21 @@ MedPoint is Apiato-flavoured Laravel, so most of this is generated 5-verb CRUD s
 | `POST /v1/auth/admin/reset-password` · `…/confirm` | unused | admin-only |
 | `POST /v1/email/verify/:id/:hash` | unused | link target |
 
-The OTP endpoints serve **password reset only**. A live signup already returns a token pair
-and the account is immediately usable, so it skips `/verify` entirely
-(`session.ts:141-143`, `requiresOtpAfterSignup()` → `!isLive()`).
+The OTP endpoints serve **password reset only**. Signup returns a token pair and the
+account is immediately usable — there is no post-signup OTP screen in the app at all any
+more (`/verify` was mock-only and is deleted, not merely bypassed).
 
 ### Users & profile — `medpoint/profile.ts`
 
 | Endpoint | Status | Notes |
 |---|---|---|
 | `GET /v1/profile` | **used** | The signed-in user. Returns `gender` and `birth`… |
-| `PUT /v1/profile` | **used** | …but **accepts neither**. Only `name` and `phone` round-trip — `gender`/`birth` go via `PATCH /v1/users/:id`, so the account needs both writers. Workaround #10 is no longer lossy. |
+| `PUT /v1/profile` | **used** | …but **accepts neither**. Only `name` and `phone` round-trip — `gender`/`birth` go via `PATCH /v1/users/:id`, so the account needs both writers (`session.ts#updateProfile` sequences them). No longer lossy: both fields are genuinely writable, just not through this endpoint. |
 | `POST /v1/profile/avatar` · `DELETE /v1/profile/avatar` | **used** | |
 | `PATCH /v1/users/:id/password` | **used** | `{ current_password, new_password, new_password_confirmation }`; a wrong password is a 422 on `current_password` |
 | `PATCH /v1/users/:id` | **used** | `{ name, gender, birth, current_password, new_password, new_password_confirmation }`. The app sends only `gender` and `birth`: `name` is left to `PUT /v1/profile` so each field has one writer, and the password trio belongs to the endpoint above, which reports a wrong password as a 422 a form can attach to. |
 | `GET /v1/users` · `GET|DELETE /v1/users/:id` | unused | admin surface |
-| `/v1/users/:id/roles` · `/v1/users/:id/permissions` (GET/POST/PUT/DELETE) | unused | Full RBAC exists on the server; **no role reaches `WireUser`**, so the app can't use it. Workaround #11. |
+| `/v1/users/:id/roles` · `/v1/users/:id/permissions` (GET/POST/PUT/DELETE) | unused | Full RBAC exists on the server; **no role reaches `WireUser`**, so the app can't use it — see INTEGRATION.md's decision #6 (`roleOf()` hard-codes `"patient"`). |
 
 ### Roles & permissions
 
@@ -65,10 +67,10 @@ payload carries none.
 
 | Endpoint | Status | Notes |
 |---|---|---|
-| `GET /v1/providers` | **used, degraded** | All pages pulled at `limit=50`. **Every filter param is silently ignored** — `provider_type=`, `search=`, `q=`, `filter=` all return the same unfiltered page. Only `page` and `limit` work; `per_page` does not. |
+| `GET /v1/providers` | **used, degraded** | Every page walked (`medpoint/cache.ts#fetchAllPages`). **Every filter param is silently ignored** — `provider_type=`, `search=`, `q=`, `filter=` all return the same unfiltered page. `page` is the only param that works: **neither `limit` nor `per_page` changes the page size** — the server pins every page at 10 rows regardless, so this is 1 page for 8-9 providers today but will be many more as the dataset grows. |
 | `GET /v1/providers/:id` | **used** | |
-| `GET /v1/branches` | **used** | All pages; joined to providers by `provider_id` in the browser |
-| `GET /v1/services` | **used** | All pages; joined to branches by `branch_id` |
+| `GET /v1/branches` | **used, but not joinable to a provider by id** | Joined to a provider **only** via the real `provider_id` field on the wire (`medpoint/providers.ts#buildCatalog`) — a branch with no `provider_id` is left unattached. Matching by shared/adjacent id is explicitly disallowed in that function's own comment: ids collide across resources (§1.3), so id-matching pairs row N with row N regardless of what they actually are. |
+| `GET /v1/services` | **used, but not attributable to a branch at all** | 🔴 **No `branch_id` on read.** `POST /v1/services` accepts `branch_id`; `GET` never returns it. Every live service today is therefore unattached — no provider has a price, and nothing is bookable. This is the single biggest open gap; see BACKEND-GAPS.md §1.2/§1.7. |
 | `POST /v1/providers` | unused | `{ type, name, status }` |
 | `POST /v1/branches` | unused | `{ provider_id, governorate, area, address, lat, lng, phones[] }` |
 | `POST /v1/services` | unused | `{ branch_id, name, category, price, prep_instructions, eligibility_rules[], home_collection }` — **note the spec-shaped fields the GET does not surface** |
@@ -78,47 +80,60 @@ payload carries none.
 
 | Endpoint | Status | Notes |
 |---|---|---|
-| `GET /v1/slots` | **used, degraded** | All pages at `limit=100`, then filtered client-side by branch and date. Lab/radiology places. |
-| `GET /v1/doctor-sessions` | **used, degraded** | Same. Doctor sessions (queue-number model). |
+| `GET /v1/slots` | **used, but not attributable** | Every page walked; 1044 rows across 105 ten-row pages as of the last count (`medpoint/cache.ts`'s `MAX_PAGES = 40` cap logs a warning if a list this large is ever hit before its total is reached). No `branch_id` on read — same gap as services. |
+| `GET /v1/doctor-sessions` | **used, but not attributable** | Same. Doctor sessions (queue-number model); no `branch_id` either. |
 | `POST /v1/slots` | unused | `{ branch_id, service_id, start_datetime, capacity }` |
 | `POST /v1/doctor-sessions` | unused | `{ branch_id, provider_id, date, start_time, end_time, max_tickets, capacity_type }` |
 | `PATCH`/`DELETE`/`GET :id` on both | unused | |
 
 **There is no endpoint to query availability for a provider over a date range**, and no
-hold/expiry concept anywhere. That is why availability is "fetch everything, filter here".
+hold/expiry concept anywhere. That is why availability is "fetch everything, filter here" —
+and today "filter here" finds nothing to attach to any given provider regardless.
 
 ### Booking & money — `medpoint/bookings.ts`
 
 | Endpoint | Status | Notes |
 |---|---|---|
 | `POST /v1/bookings` | **used** | `{ patient_profile_id, branch_id, bookable_type, bookable_id, price_snapshot, booking_fee, source }` — **the request shape is right**; the response is the problem |
-| `GET /v1/bookings` · `GET /v1/bookings/:id` | **unusable** | Returns no FKs and no datetime. §3 below. The keystone gap. |
-| `POST /v1/payments` | **used, failure swallowed** | `{ booking_id, amount, purpose, gateway }` — ⚠️ a rejection is caught and ignored (`bookings.ts:209-221`). Workaround #6. |
-| `PATCH`/`DELETE /v1/bookings/:id` | unused | cancel/reschedule stay on the mock |
+| `GET /v1/bookings` · `GET /v1/bookings/:id` | **unusable** | Returns no FKs and no datetime. §3 below. The keystone gap. `getBookings` always returns an empty page; `getBookingById` throws. |
+| `POST /v1/payments` | **not called** | `{ booking_id, amount, purpose, gateway }` — its accepted shape has never been confirmed. `beginPayment`/`payBooking` (`medpoint/bookings.ts`) throw a `501` rather than call it, because even success couldn't be reconciled against an unreadable booking. Consequence: only a `cash` (fee-free) booking can complete today. |
+| `PATCH`/`DELETE /v1/bookings/:id` | unused | cancel/reschedule throw a `501` — no mechanism handles them |
 | `/v1/refunds` (5 verbs) | unused | `{ booking_id, payment_id, amount, reason }` — §8/§9 refunds not wired |
 | `/v1/payments` GET/PATCH/DELETE | unused | |
 
 ### Patient profiles — `medpoint/profiles.ts`
 
-🔴 **The whole route now 404s on every verb** — `{"message": "The route v1/patient-profiles
-could not be found."}`. This is a regression against the documented behaviour below, and it
-kills the live booking flow: a booking belongs to a patient profile (§1) and the wizard
-opens by choosing one. Fix this before anything else on the roadmap.
+✅ **Fixed.** The route lived at `/v1/patient-profiles`, was moved to `/v1/me/profiles`
+(API-CHANGES.md §3), and 404'd entirely for a period after the move before the redirect
+landed. As of this writing it works end to end.
 
 | Endpoint | Status | Notes |
 |---|---|---|
-| `POST /v1/patient-profiles` | 🔴 **404** (was: used) | `{ user_id, full_name, gender, date_of_birth, relationship, phone }` |
-| `GET /v1/patient-profiles/:id` | 🔴 **404** (was: used) | Was the only way the app could read a profile — the basis of workaround #4 |
-| `PATCH` · `DELETE /v1/patient-profiles/:id` | 🔴 **404** (was: used) | |
-| `GET /v1/patient-profiles` | 🔴 **404** (was: 500) | Previously `ListPatientProfilesTask::{closure}(): Argument #1 ($query) must be of type Eloquent\Builder, PatientProfile given`. Both bugs need fixing: the route, then the list. |
+| `POST /v1/me/profiles` | **used** | `{ full_name, gender, date_of_birth, relationship, national_id, phone }` — no `user_id`: the owner is always the authenticated account |
+| `GET /v1/me/profiles/:id` | **used** | 404s (not 403) if the profile belongs to another account |
+| `PATCH` · `DELETE /v1/me/profiles/:id` | **used** | Delete is soft; the account's own SELF profile can't be deleted (422) |
+| `GET /v1/me/profiles` | **used** | Lists every profile the account owns, including the auto-created SELF profile |
+
+### Admin — `medpoint/admin.ts`
+
+| Endpoint | Status | Notes |
+|---|---|---|
+| `GET /v1/users` | **used, admin-gated** | 403 for a non-admin token, surfaced rather than swallowed. No filters (same pattern as `/v1/providers`) |
+| `GET /v1/providers` (admin listing) | **used, admin-gated** | Same endpoint discovery reads; admin screens reuse it with a wider status filter applied client-side |
+| `GET /v1/coupons` | **used** | Lists real coupons (5 on staging) |
+| `DELETE /v1/coupons/:id` | **used** | |
+| `POST`/`PATCH /v1/coupons` | unused | The wire coupon (`code`, `coupon_type`, `value`, `scope`, `max_uses`, `used_count`, `expires_at`) has no description, minimum-order or applies-to column — the admin form collects fields this endpoint cannot store |
+| `/v1/campaigns`, commission settings | **no endpoint** | Not part of the collection at all |
 
 ### Unused entirely
 
-`/v1/reviews`, `/v1/notifications`, `/v1/coupons`, `/v1/insurances`, `/v1/wallets`,
-`/v1/audits` — each a full 5-verb CRUD folder. Reviews and notifications are deferred MVP
-scope; coupons/insurances/wallets are later-phase per the business doc (§12, §14); audits
-is scaffolding. **There is no `/v1/favorites` resource at all**, which is why
-`/patient/favorites` — a built, working screen — has nothing to talk to.
+`/v1/reviews`, `/v1/notifications`, `/v1/insurances`, `/v1/wallets`, `/v1/audits` — each a
+full 5-verb CRUD folder. Reviews and notifications answer `200` with zero rows but take no
+`provider_id`/`patient_id` filter and their wire shape has never been observed populated, so
+nothing is decoded from a guess (`engagement.ts`). Insurances/wallets are later-phase per
+the business doc (§12, §14); audits is scaffolding. **There is no `/v1/favorites` resource
+at all**, which is why `/patient/favorites` — a built, working screen — has nothing to talk
+to; `getFavorites`/`getFavoriteIds` return empty and `toggleFavorite` throws.
 
 ---
 
@@ -517,13 +532,15 @@ export interface PatientProfile {
 ```ts
 export type Service =
   | ConsultationType   // id, kind:"consultation", name, nameAr, description, price, durationMinutes, isActive
-  | LabTest            // + category, resultTimeHours, fastingRequired, preparation, eligibility
-  | RadiologyScan      // + durationMinutes, contrastRequired, preparation, eligibility
+  | LabTest            // + category, resultTimeHours, fastingRequired, preparation?, eligibility?
+  | RadiologyScan      // + durationMinutes, contrastRequired, preparation?, eligibility?
   | ServicePackage;    // + includes[], originalPrice
 ```
 
-`preparation: PreparationInstructions` and `eligibility: EligibilityRules` are the §3
-acknowledgement gate. **In live mode both are synthesized empty** — see §5.
+`preparation?: PreparationInstructions` and `eligibility?: EligibilityRules` are the §3
+acknowledgement gate — both now genuinely **optional** on the domain type. **Neither is
+fabricated when absent** — see §5. `requiresAcknowledgement`/`hasPreparation` in
+`types.ts` already treat `undefined` as "nothing to show", not "nothing to worry about".
 
 ---
 
@@ -536,27 +553,27 @@ Domain field the UI needs → wire field that supplies it → what fills the hol
 `WireBooking` supplies **six fields**. The domain `Booking` needs forty. Nothing that
 identifies *who*, *where*, *what* or *when*.
 
-| Domain field | Wire | Filled by |
+There is no overlay any more reconstructing the rest from wizard context — that
+localStorage cache was per-browser and is deleted along with the mock. What's left:
+`holdBooking` (`medpoint/bookings.ts`) assembles a one-time confirmation from the request
+it just sent and the server accepted, and returns it — but this is a **receipt for that
+one call**, not a stored record. Nothing else can read a booking back:
+
+| Domain field | Wire | Status |
 |---|---|---|
-| `status` | `status` | direct |
-| `price` / `total` | `price_snapshot` | `parseMoney` |
-| `bookingFee` | `booking_fee` | `parseMoney` |
-| `paymentStatus` | `payment_status` | direct |
-| `queueNumber` | `queue_number` | direct |
-| `id` | `id` | direct (but see hashids, workaround #7) |
-| **`date`** | ✗ | **overlay** (wizard input) |
-| **`time`** | ✗ | **overlay** |
-| **`providerId`** | ✗ | **overlay** |
-| **`serviceId`** | ✗ | **overlay** |
-| **`branchId`** | ✗ | **overlay** |
-| **`patientProfileId`** | ✗ | **overlay** |
-| `providerName` / `NameAr` / `Photo` / `Specialty` | ✗ | overlay |
-| `serviceName` / `serviceNameAr` | ✗ | overlay |
-| `patientInfo`, `address`, `capacityType`, `overCapacity` | ✗ | overlay |
-| `holdExpiresAt` | ✗ | overlay (client-side 10-min timer) |
-| `reference` | ✗ | derived: `` `BK-${wireId.slice(-6).toUpperCase()}` `` |
-| `discount`, `cashback`, `couponCode` | ✗ | overlay (always `0` / undefined live) |
-| `refund*`, `completedAt`, `noShowAt`, `longWaitReported`, `hasReview` | ✗ | not modelled live |
+| `status` | `status` | direct, on the receipt only |
+| `price` / `total` | `price_snapshot` | `parseMoney`, receipt only |
+| `bookingFee` | `booking_fee` | `parseMoney`, receipt only |
+| `paymentStatus` | `payment_status` | direct, receipt only |
+| `queueNumber` | `queue_number` | direct, receipt only |
+| `id` | `id` | direct (but see the hashid collision above) |
+| `date`, `time`, `providerId`, `serviceId`, `branchId`, `patientProfileId` | ✗ | known only at creation time, from the request itself — **unrecoverable on any later read** |
+| `providerName`/`NameAr`/`Photo`/`Specialty`, `serviceName`/`serviceNameAr` | ✗ | same — assembled once from the `Provider`/`Service` already in hand when `holdBooking` ran |
+| `patientInfo`, `address`, `capacityType`, `overCapacity` | ✗ | same |
+| `holdExpiresAt` | ✗ | client-side timer, receipt only, nothing server-side enforces it |
+| `reference` | ✗ | the wire `id` itself — no separate reference field exists |
+| `discount`, `cashback`, `couponCode` | ✗ | always `0`/undefined — coupons cannot be validated against a booking (see `validateCoupon` below) |
+| `refund*`, `completedAt`, `noShowAt`, `longWaitReported`, `hasReview` | ✗ | not modelled at all — `getBookings` always returns an empty page, and every lifecycle function (`cancelBooking`, `processRefund`, `markCompleted`, `markNoShow`, `rescheduleBooking`, …) throws a `501` |
 
 The full staging payload, identical on list and detail:
 
@@ -570,45 +587,55 @@ The full staging payload, identical on list and detail:
 `meta.include` is always `[]`.
 
 **"Dr. Hala Mansour — Cardiology, Tue 16 Jul, 10:00" is not derivable from that response.**
-That single sentence is why `bookingRead: false`, why `overlay.ts` exists, and why
-`/patient/bookings`, the patient dashboard, cancel and reschedule all stay on the mock.
+That single sentence is why `/patient/bookings`, the patient dashboard, cancel and
+reschedule are all empty-state/refuse — not degraded, genuinely empty, because there is no
+fallback dataset behind them any more.
 
 ### `Provider`
 
-| Domain field | Wire | Filled by |
+| Domain field | Wire | Status |
 |---|---|---|
 | `id`, `name`, `type`, `status` | `id`, `name`, `provider_type`, `status` | direct |
 | `slug` | ✗ | `slugify(name)` |
-| `photo` / `coverImage` | ✗ | generated `/api/avatar?seed=…`, `/api/cover?seed=…` |
-| `governorateId` / `areaId` / `address` / `location` / `phone` | via `WireBranch` | joined client-side; **fuzzy-matched, defaults to `cairo`/`nasr-city`** |
-| `price` | via `WireService` | `min(services.price)` |
-| `rating`, `reviewCount`, `bookingCount`, `isFeatured` | ✗ | **hard-coded `0` / `false`** |
-| `waitingTimeMinutes` | ✗ | hard-coded `30` |
-| `bio`, `schedule`, `acceptedInsurancePlanIds` | ✗ | empty |
-| Doctor: `specialtyId` | ✗ (glued into `name`) | **hard-coded `"general"`** |
-| Doctor: `gender` | ✗ | **hard-coded `"male"`** |
-| Doctor: `title` / `yearsOfExperience` / `degrees` / `subSpecialties` | ✗ | `"Dr."` / `0` / `[]` / `[]` |
-| Lab: `homeSampleCollection` | `home_collection` on services | `services.some(...)` |
-| Lab/Radiology: `accreditation`, `packages` | ✗ | empty |
+| `photo` / `coverImage` / `bio` | ✗ | **`null`** — no generated placeholder any more; the UI renders nothing (or falls back to initials) rather than a fabricated avatar |
+| `governorateId` / `areaId` / `address` / `location` / `phone` | via `WireBranch` | joined client-side through the real `provider_id`/`branch_id` fields (not id-matching — see the hashid warning above); **`null` on a fuzzy-match miss**, never a default location |
+| `price` | via `WireService` | `min(services.price)` **where a service can be attributed to this provider's branch — which today is none of them** (§1.2/§1.7 in BACKEND-GAPS.md), so `price` is `null` for every live provider |
+| `rating`, `reviewCount`, `bookingCount`, `waitingTimeMinutes` | ✗ | **`null`** — no reviews/analytics endpoint exists; distinct from a genuine `0` |
+| `isFeatured` | ✗ | `false` (a real default — "not featured" is a fact, not a gap) |
+| `schedule`, `acceptedInsurancePlanIds` | ✗ | empty array |
+| Doctor: `specialtyId` | parsed out of `name` | `parseProviderName`/`specialtyIdFromLabel` — `null` if the name carries no recognisable specialty (never `"general"` as a silent default) |
+| Doctor: `gender`, `yearsOfExperience` | ✗ | **`null`** |
+| Doctor: `clinicName` | ✗ | falls back to the branch name, or `null` |
+| Doctor: `title` | ✗ | `"Dr."` — this one *is* a real constant, not a gap; every doctor genuinely carries the title |
+| Doctor: `degrees` / `subSpecialties` / `languages` | ✗ | empty array |
+| Lab: `homeSampleCollection` | `home_collection` on services | `services.some(...)` — vacuously `false` today since no service attributes to this provider |
+| Lab/Radiology: `accreditation`, `packages` | ✗ | empty array |
 
-Consequence: **live-mode filter-by-specialty, filter-by-gender and sort-by-rating all
-match against constants.** They cannot work. That is not a mapper bug — the data is not
-on the wire.
+Consequence: filter-by-specialty and filter-by-gender now correctly exclude everything
+they can't confirm (`null !== filterValue`), rather than the previous version's
+constants matching every doctor. That's more correct, but the practical result is the
+same: the filters can't usefully narrow anything, because the underlying field is unknown
+for every provider.
 
 ### `Service`
 
-| Domain field | Wire | Filled by |
+| Domain field | Wire | Status |
 |---|---|---|
-| `id`, `name`, `price`, `category` | direct | `parseMoney` for price |
-| `nameAr` | ✗ | falls back to `name` (English shown to Arabic readers) |
-| `description` | ✗ | `{ en: name, ar: name }` |
-| **`preparation`** | `prep_instructions` **exists on the wire type but is not read** | **synthesized empty** |
-| **`eligibility`** | `eligibility_rules` **exists but is not read** | **synthesized empty** |
-| `durationMinutes` / `resultTimeHours` / `fastingRequired` / `contrastRequired` | ✗ | `30` / `24` / `false` / `false` |
+| `id`, `name`, `price`, `category` | direct | `parseMoney` for price; `category` is `null` if absent |
+| `nameAr` | ✗ | falls back to `name` (English shown to Arabic readers — a real, acknowledged gap, not fixable client-side) |
+| `description` | ✗ | **`null`** |
+| **`preparation`** | `prep_instructions` — a free-text string, not the structured shape the domain wants | Mapped only when non-empty: the text becomes the arrival instruction, nothing else is claimed. `undefined` when absent — never a synthesized "no fasting required, no restrictions" block |
+| **`eligibility`** | `eligibility_rules` — **absent from the payload entirely, shape never observed** | `undefined`, unconditionally. Guessing a shape from an array the API has never actually sent would be worse than declaring it unknown |
+| `durationMinutes` / `resultTimeHours` / `fastingRequired` / `contrastRequired` | ✗ | **`null`** |
 
 ⚠️ The §3 gate depends on `preparation` and `eligibility`, and **the data is not on the
 wire.** Probed: `GET /v1/services` returns `"prep_instructions": null` and omits
-`eligibility_rules` from the payload entirely.
+`eligibility_rules` from the payload entirely. What survives of §3 today: gender and
+age screening run for real off the `PatientProfile` (both persist); pregnancy and
+excluded-condition rules are declared per-service *when present* and are shown +
+acknowledged, never auto-checked, because there is no profile column to check them
+against. See BACKEND-GAPS.md §1.7 for why that split is a deliberate scope decision, not
+an oversight.
 
 ```json
 { "type": "Service", "id": "W6V1Y2Pn83Q7mDEK", "name": "Initial Consultation",
@@ -661,22 +688,24 @@ if the wire format drifts, this is the only file that changes.
 
 | Function | Line | Transform |
 |---|---|---|
-| `toISODateOnly` | `:39` | `"2026-08-01T00:00:00.000000Z"` → `"2026-08-01"` |
-| `parseMoney` | `:45` | `"449.00"` → `449`; `null`/NaN → `0` |
-| `toLocalPhone` | `:52` | `+20…` or `0020…` → `0…`; `null` → `""` |
-| `toE164Phone` | `:60` | `0…` → `+20…`; already-`+` passes through |
-| `roleOf` | `:68` | ⚠️ takes no argument, returns `"patient"`. Workaround #11. |
-| `toUser` | `:80` | `birth` → `dateOfBirth`; avatar falls back to a generated URL |
-| `toPatientProfile` | `:100` | defaults a null `gender`/`date_of_birth` — the auto-created SELF profile has neither |
-| `governorateIdOf` / `areaIdOf` | `:115` / `:124` | fuzzy string match; ⚠️ **defaults to `"cairo"` / `"nasr-city"` on a miss** |
-| `toBranch` | `:159` | lat/lng parsed from string-or-number; defaults to `30.04, 31.24` (Cairo) |
-| `wireServiceToConsultation` | `:181` | |
-| `wireServiceToLabTest` | `:194` | ⚠️ synthesizes empty `preparation` + `eligibility` |
-| `wireServiceToScan` | `:217` | ⚠️ same |
-| `toProvider` | `:277` | discriminates on `provider_type`; hard-codes most of the card |
-| `slotToTimeSlot` | `:398` | prefixes `s:`; forces `capacityType: "strict"` |
-| `sessionToTimeSlot` | `:414` | prefixes `d:` |
-| `parseBookableId` | `:428` | ⚠️ **the reverse** — strips the prefix back into `{ bookableType: "Slot" \| "DoctorSession", bookableId }` for the `POST /bookings` body |
+| `toISODateOnly` | `:42` | `"2026-08-01T00:00:00.000000Z"` → `"2026-08-01"` |
+| `parseMoney` | `:48` | `"449.00"` → `449`; `null`/NaN → `0` (the one place `0` is a real fallback, not an unknown-value marker — a genuinely absent price is handled by the *caller* returning `null`, not by this function) |
+| `toLocalPhone` | `:55` | `+20…` or `0020…` → `0…`; `null` → `""` |
+| `toE164Phone` | `:63` | `0…` → `+20…`; already-`+` passes through |
+| `roleOf` | `:71` | ⚠️ takes no argument, returns `"patient"` unconditionally. See decision #6 in INTEGRATION.md |
+| `toUser` | `:83` | `birth` → `dateOfBirth`; **`avatar_url` is `null` if the account has none — no generated identicon** |
+| `toPatientProfile` | `:105` | **`null` `gender`/`date_of_birth`/`national_id` pass straight through as `null`** — no default; the auto-created SELF profile may genuinely have neither yet |
+| `governorateIdOf` / `areaIdOf` | `:130` / `:140` | fuzzy string match against the known governorate/area list; **`null` on a miss** — no longer defaults to `"cairo"`/`"nasr-city"` |
+| `toCoord` | `:216` | string-or-number lat/lng → `number \| null`; **`null` unless both coordinates are usable — never a Cairo fallback** |
+| `toBranch` | `:222` | `openingHours` is always `null` (no such field on the wire; it used to read `"09:00 – 21:00"`) |
+| `toPreparation` | `:253` | `prep_instructions` (free text) → the arrival-instruction line of a `PreparationInstructions`; `undefined` when the text is empty — never a synthesized "no restrictions" block |
+| `toEligibility` | `:274` | **always `undefined`** — `eligibility_rules` has never been observed populated on the wire, so nothing is guessed from its shape |
+| `wireServiceToConsultation` / `Lab` / `Test` / `Scan` | `:279`/`:292`/`:309` | `price`/`description`/`category`/`durationMinutes`/etc. are `null` where the wire has nothing, never a plausible constant (`30`, `24`, `"General"`) |
+| `baseProviderFields` / `toProvider` | `:342`/`:373` | discriminates on `provider_type`; `rating`/`reviewCount`/`photo`/`bio`/`price`/`waitingTimeMinutes` are `null`; `price` is `Math.min` over attributable services **with a `> 0` guard**, so a provider with zero attributable services (every live provider today) gets `null`, not `0` |
+| `capacityTypeOf` | `:446` | `"soft"` (or anything except the literal `"strict"`) → `"comfort"` — used for doctor sessions |
+| `slotToTimeSlot` | `:486` | prefixes `s:`; hard-codes `capacityType: "strict"` for lab/radiology slots (an assumption per §5 of the business doc, not something the wire states) |
+| `sessionToTimeSlot` | `:502` | prefixes `d:`; capacity type via `capacityTypeOf(wire.capacity_type)` |
+| `parseBookableId` | `:516` | ⚠️ **the reverse** — strips the prefix back into `{ bookableType: "Slot" \| "DoctorSession", bookableId }` for the `POST /bookings` body |
 
 ### The phone round-trip matters
 
@@ -698,9 +727,11 @@ unprefixed id, which would book the wrong thing.
 
 ## 6. Error model
 
-`http.ts` throws the *same* `ApiError` the mock throws, carrying the same stable `code`,
-so `useApiError()`, `errors.json` and every toast in the app work without knowing which
-backend answered.
+`http.ts` throws `ApiError` (now defined in `src/lib/api/errors.ts`, the sole survivor of
+the deleted `client.ts`), carrying a stable `code` that `useApiError()`, `errors.json` and
+every toast in the app read the same way regardless of which function raised it — a real
+`4xx`/`5xx` from MedPoint, or a domain function refusing outright with a `501` because no
+endpoint exists for what was asked.
 
 Laravel sends **no machine-readable error code**, so one is derived from the HTTP status
 (`http.ts:60-68`):
@@ -735,7 +766,8 @@ Three more rules:
 - **A 401 clears the tokens *and* fires `notifyUnauthorized()`** (`:169-177`). Dropping the
   token alone is not enough — React still holds the signed-in user, so the app would keep
   rendering a dashboard whose every request now fails. `AuthProvider` subscribes and sends
-  the user to sign in. **There is no refresh-and-retry** (workaround #3).
+  the user to sign in. **There is no refresh-and-retry** — see INTEGRATION.md's decision
+  #5 (`refreshSession()` is written but has zero call sites, because the endpoint 500s).
 
 ### The open i18n consequence
 
