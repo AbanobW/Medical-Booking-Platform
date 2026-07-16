@@ -181,7 +181,7 @@ export function DashboardShell({
         <SidebarFooter className="p-3">
           <div className="flex items-center gap-3 rounded-xl border bg-sidebar-accent/40 p-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0">
             <Avatar className="size-8 shrink-0">
-              <AvatarImage src={user.avatar} alt={user.name} />
+              <AvatarImage src={user.avatar ?? undefined} alt={user.name} />
               <AvatarFallback className="text-xs">
                 {initialsOf(user.name)}
               </AvatarFallback>

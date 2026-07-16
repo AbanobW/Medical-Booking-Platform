@@ -21,7 +21,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { ValidationError } from "@/lib/api/http";
 import { requestPasswordReset } from "@/lib/api/medpoint/auth";
-import { supportsPasswordReset } from "@/lib/api/session";
 import { useApiError } from "@/lib/i18n/use-api-error";
 
 /**
@@ -37,7 +36,7 @@ export default function ForgotPasswordPage() {
   const describeError = useApiError();
   const router = useRouter();
 
-  const isAvailable = supportsPasswordReset();
+  const isAvailable = true;
 
   const schema = z.object({
     email: z.email(tCommon("validation.invalidEmail")),

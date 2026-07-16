@@ -92,7 +92,7 @@ export function SiteHeader() {
                     aria-label={t("header.accountMenu")}
                   >
                     <Avatar className="size-8">
-                      <AvatarImage src={user.avatar} alt={user.name} />
+                      <AvatarImage src={user.avatar ?? undefined} alt={user.name} />
                       <AvatarFallback className="text-xs">
                         {initialsOf(user.name)}
                       </AvatarFallback>

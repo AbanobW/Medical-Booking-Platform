@@ -346,7 +346,8 @@
     "noCap": "No cap",
     "usage": {
       "used": "{used} / {limit} used",
-      "aria": "Coupon usage"
+      "aria": "Coupon usage",
+      "unlimited": "{used} used · no limit"
     },
     "editAria": "Edit {code}",
     "deleteAria": "Delete {code}",
@@ -356,7 +357,8 @@
       "fallbackName": "this coupon",
       "description": "The code stops working immediately. Bookings that already used it keep their discount. This cannot be undone.",
       "confirmLabel": "Delete coupon"
-    }
+    },
+    "neverExpires": "Never"
   },
   "couponDialog": {
     "titleNew": "New coupon",

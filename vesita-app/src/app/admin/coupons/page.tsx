@@ -16,14 +16,30 @@ import { useAsync, useMutation } from "@/hooks/use-async";
 import { deleteCoupon, getCoupons } from "@/lib/api/admin";
 import { now } from "@/lib/time";
 import { useApiError } from "@/lib/i18n/use-api-error";
+import { DASH } from "@/lib/i18n/format";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import type { Coupon } from "@/lib/types";
 
 const NOW = now().toISOString();
 
-/** A slim usage meter — the number carries the value, the bar carries the shape. */
-function UsageMeter({ used, limit }: { used: number; limit: number }) {
+/**
+ * A slim usage meter — the number carries the value, the bar carries the shape.
+ *
+ * `limit` is null when the coupon is unlimited (the API's null `max_uses`).
+ * There is no proportion to draw against infinity, so the bar gives way to the
+ * count alone rather than showing a full or empty track that means neither.
+ */
+function UsageMeter({ used, limit }: { used: number; limit: number | null }) {
   const t = useTranslations("admin");
+
+  if (limit === null) {
+    return (
+      <p className="min-w-32 text-xs tabular-nums text-muted-foreground">
+        {t("coupons.usage.unlimited", { used })}
+      </p>
+    );
+  }
+
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   const exhausted = limit > 0 && used >= limit;
 
@@ -123,9 +139,9 @@ export default function AdminCouponsPage() {
         header: t("coupons.columns.minOrder"),
         cell: ({ row }) => (
           <span className="whitespace-nowrap tabular-nums text-muted-foreground">
-            {row.original.minOrderValue > 0
+            {row.original.minOrderValue
               ? formatEGP(row.original.minOrderValue)
-              : "—"}
+              : DASH}
           </span>
         ),
       },
@@ -152,7 +168,9 @@ export default function AdminCouponsPage() {
         header: t("coupons.columns.expires"),
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-muted-foreground">
-            {formatDateShort(row.original.expiresAt)}
+            {row.original.expiresAt
+              ? formatDateShort(row.original.expiresAt)
+              : t("coupons.neverExpires")}
           </span>
         ),
       },
@@ -203,7 +221,7 @@ export default function AdminCouponsPage() {
 
   const coupons = data ?? [];
   const activeCount = coupons.filter(
-    (c) => c.isActive && c.expiresAt >= NOW,
+    (c) => c.isActive && (c.expiresAt === null || c.expiresAt >= NOW),
   ).length;
 
   const newButton = (

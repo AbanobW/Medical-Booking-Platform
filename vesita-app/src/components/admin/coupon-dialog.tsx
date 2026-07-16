@@ -102,16 +102,25 @@ function emptyValues(): CouponFormValues {
   };
 }
 
+/**
+ * The form edits more than `/v1/coupons` stores.
+ *
+ * Description, minimum-order and the usage limit have no column on the wire, so
+ * an existing coupon opens with them blank rather than at a `0` the admin never
+ * set — a "0 EGP minimum" they did not choose and cannot see is worse than an
+ * empty field. Saving is refused anyway (`admin.updateCoupon` throws a 501)
+ * until those columns exist.
+ */
 function valuesOf(coupon: Coupon): CouponFormValues {
   return {
     code: coupon.code,
-    description: coupon.description,
+    description: coupon.description ?? "",
     discountType: coupon.discountType,
     discountValue: coupon.discountValue,
-    minOrderValue: coupon.minOrderValue,
+    minOrderValue: coupon.minOrderValue ?? 0,
     maxDiscount: coupon.maxDiscount,
-    usageLimit: coupon.usageLimit,
-    expiresAt: toDateInput(coupon.expiresAt),
+    usageLimit: coupon.usageLimit ?? 0,
+    expiresAt: coupon.expiresAt ? toDateInput(coupon.expiresAt) : "",
     isActive: coupon.isActive,
     appliesTo: coupon.appliesTo,
   };

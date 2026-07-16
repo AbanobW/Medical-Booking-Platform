@@ -91,7 +91,7 @@ export default function AdminUsersPage() {
           return (
             <div className="flex items-center gap-3">
               <Avatar className="size-9 shrink-0">
-                <AvatarImage src={user.avatar} alt="" />
+                <AvatarImage src={user.avatar ?? undefined} alt="" />
                 <AvatarFallback className="text-xs">
                   {initialsOf(user.name)}
                 </AvatarFallback>

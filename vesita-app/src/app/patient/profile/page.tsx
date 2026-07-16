@@ -123,7 +123,7 @@ export default function PatientProfilePage() {
         <CardContent className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center">
           <Avatar className="size-24 shrink-0 rounded-2xl ring-1 ring-border">
             <AvatarImage
-              src={user.avatar}
+              src={user.avatar ?? undefined}
               alt={user.name}
               className="rounded-2xl object-cover"
             />

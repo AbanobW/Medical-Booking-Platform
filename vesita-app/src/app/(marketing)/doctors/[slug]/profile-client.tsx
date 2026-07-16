@@ -30,6 +30,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAsync } from "@/hooks/use-async";
 import { getProviderBySlug } from "@/lib/api/providers";
+import { DASH, orDash } from "@/lib/i18n/format";
 import { useDomain, useFormat, useIsRtl } from "@/lib/i18n/use-format";
 import { useLabels } from "@/lib/i18n/use-labels";
 import { BUSINESS } from "@/lib/site";
@@ -94,6 +95,22 @@ export default function DoctorProfilePage() {
 
   const doctor: Doctor = data;
   const consultations = doctor.consultationTypes.filter((c) => c.isActive);
+  const specialtyName = doctor.specialtyId
+    ? getSpecialtyName(doctor.specialtyId)
+    : null;
+
+  /** Street address, area and governorate — as much of each as the API answered. */
+  const place = [
+    doctor.address,
+    [
+      doctor.areaId ? getAreaName(doctor.areaId) : null,
+      doctor.governorateId ? getGovernorateName(doctor.governorateId) : null,
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join(", "),
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(" — ");
 
   const about = (
     <Card>
@@ -116,9 +133,7 @@ export default function DoctorProfilePage() {
               <dt className="text-xs text-muted-foreground">
                 {t("about.specialty")}
               </dt>
-              <dd className="text-sm font-medium">
-                {getSpecialtyName(doctor.specialtyId)}
-              </dd>
+              <dd className="text-sm font-medium">{orDash(specialtyName)}</dd>
             </div>
           </div>
 
@@ -129,7 +144,11 @@ export default function DoctorProfilePage() {
                 {t("about.experience")}
               </dt>
               <dd className="text-sm font-medium">
-                {t("about.experienceValue", { years: doctor.yearsOfExperience })}
+                {doctor.yearsOfExperience === null
+                  ? DASH
+                  : t("about.experienceValue", {
+                      years: doctor.yearsOfExperience,
+                    })}
               </dd>
             </div>
           </div>

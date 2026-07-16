@@ -112,7 +112,7 @@ function Wizard({ provider, account }: { provider: Provider; account: User }) {
   const t = useTranslations("booking");
   const tCommon = useTranslations("common");
   const { named } = useDomain();
-  const { formatDate, formatTime, formatEGP, formatNumber, locale } = useFormat();
+  const { formatDate, formatEGP, formatNumber, locale } = useFormat();
   const describeError = useApiError();
 
   const [stepIndex, setStepIndex] = useState(0);
@@ -365,16 +365,25 @@ function Wizard({ provider, account }: { provider: Provider; account: User }) {
       setHeld(awaiting);
     } catch (error) {
       if (error instanceof CapacityError) {
+        // §6 — a strict limit is genuinely full, a comfort limit merely busy.
+        // `nextSlot` is deliberately dropped: the error carries a date and a
+        // time, and the dialog's "take it" step needs a real slot to claim.
         setConflict({
-          kind: error.kind,
+          kind: error.capacityType === "strict" ? "strict_full" : "comfort_busy",
           message: error.message,
-          detail: error.detail,
+          detail: {
+            capacityType: error.capacityType,
+            queueNumber: error.queuePosition,
+            estimatedTime: error.estimatedTime,
+          },
         });
         return;
       }
 
       if (error instanceof EligibilityError) {
-        setViolations(error.violations);
+        // The API sends prose, not codes — the dialog falls back to the message
+        // for a code it cannot translate.
+        setViolations(error.violations.map((message) => ({ code: "", message })));
         return;
       }
 
@@ -469,7 +478,7 @@ function Wizard({ provider, account }: { provider: Provider; account: User }) {
         capacity: formatNumber(slot.capacity),
       });
     },
-    [mode, branch, t, formatNumber, formatTime],
+    [mode, t, formatNumber],
   );
 
   // ---------------------------------------------------------------------
@@ -808,9 +817,7 @@ function ProviderSummary({ provider }: { provider: Provider }) {
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="truncate text-lg font-bold sm:text-xl">
-            {named(provider)}
-          </h1>
+          <h1 className="truncate text-lg font-bold sm:text-xl">{name}</h1>
           {provider.status === "approved" && (
             <Badge variant="secondary" className="gap-1">
               <ShieldCheck className="size-3" />
@@ -819,37 +826,47 @@ function ProviderSummary({ provider }: { provider: Provider }) {
           )}
         </div>
 
+        {/* Each stat is its own icon + claim: a star beside a dash, or a
+            "~— min wait", asserts something the API never told us. */}
         <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <Star className="size-3.5 fill-warning text-warning" />
-            <span className="font-medium text-foreground ltr-nums">
-              {provider.rating.toFixed(1)}
+          {provider.rating !== null && (
+            <span className="inline-flex items-center gap-1">
+              <Star className="size-3.5 fill-warning text-warning" />
+              <span className="font-medium text-foreground ltr-nums">
+                {provider.rating.toFixed(1)}
+              </span>
+              <span className="ltr-nums">({formatNumber(provider.reviewCount)})</span>
             </span>
-            <span className="ltr-nums">({formatNumber(provider.reviewCount)})</span>
-          </span>
+          )}
           <span className="inline-flex items-center gap-1">
             <MapPin className="size-3.5" />
-            {getGovernorateName(provider.governorateId)}
+            {orDash(
+              provider.governorateId && getGovernorateName(provider.governorateId),
+            )}
           </span>
-          <span className="inline-flex items-center gap-1">
-            <Clock className="size-3.5" />
-            {t("provider.wait", {
-              minutes: formatNumber(provider.waitingTimeMinutes),
-            })}
-          </span>
+          {provider.waitingTimeMinutes !== null && (
+            <span className="inline-flex items-center gap-1">
+              <Clock className="size-3.5" />
+              {t("provider.wait", {
+                minutes: formatNumber(provider.waitingTimeMinutes),
+              })}
+            </span>
+          )}
         </p>
       </div>
 
       <div className="shrink-0 text-start sm:text-end">
         <p className="text-xs text-muted-foreground">{t("provider.startsFrom")}</p>
         <p className="text-lg font-bold text-primary">{formatEGP(provider.price)}</p>
-        <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
-          <CalendarDays className="size-3" />
-          {t("provider.bookings", {
-            count: provider.bookingCount,
-            n: formatNumber(provider.bookingCount),
-          })}
-        </p>
+        {provider.bookingCount !== null && (
+          <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <CalendarDays className="size-3" />
+            {t("provider.bookings", {
+              count: provider.bookingCount,
+              n: formatNumber(provider.bookingCount),
+            })}
+          </p>
+        )}
       </div>
     </div>
   );

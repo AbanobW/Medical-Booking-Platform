@@ -160,12 +160,13 @@ export function CouponStateBadge({
   now,
 }: {
   isActive: boolean;
-  expiresAt: string;
+  /** Null = never expires, so it can never be in the expired state. */
+  expiresAt: string | null;
   now: string;
 }) {
   const t = useTranslations("admin");
 
-  if (expiresAt < now) {
+  if (expiresAt !== null && expiresAt < now) {
     return (
       <ToneBadge
         tone="muted"

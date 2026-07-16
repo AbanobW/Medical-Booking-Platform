@@ -24,7 +24,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { HOME_FOR_ROLE } from "@/lib/api/auth";
 import { ValidationError } from "@/lib/api/http";
-import { requiresOtpAfterSignup } from "@/lib/api/session";
 import { useApiError } from "@/lib/i18n/use-api-error";
 
 /** Egyptian mobile numbers: 010/011/012/015 followed by eight digits. */
@@ -124,11 +123,6 @@ export default function RegisterPage() {
         role: "patient",
       });
 
-      if (requiresOtpAfterSignup()) {
-        toast.success(t("register.created"));
-        router.push("/verify");
-        return;
-      }
 
       toast.success(t("login.welcomeBack", { name: user.name.split(" ")[0] }));
       router.push(HOME_FOR_ROLE[user.role]);

@@ -261,11 +261,15 @@ export async function cancelByProvider(_id: string, _reason: string): Promise<Bo
 
 export async function cancelSession(
   _providerId: string,
+  _branchId: string,
   _date: string,
+  _time: string,
   _reason: string,
-): Promise<{ count: number }> {
+): Promise<{ cancelled: number }> {
   void _providerId;
+  void _branchId;
   void _date;
+  void _time;
   void _reason;
   throw notSupported("Cancelling a session");
 }
@@ -285,9 +289,8 @@ export async function markNoShow(_id: string): Promise<Booking> {
   throw notSupported("Recording a missed visit");
 }
 
-export async function reportLongWait(_id: string, _minutes: number): Promise<Booking> {
+export async function reportLongWait(_id: string): Promise<Booking> {
   void _id;
-  void _minutes;
   throw notSupported("Reporting a long wait");
 }
 

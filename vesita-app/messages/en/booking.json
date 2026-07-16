@@ -16,12 +16,13 @@
     "progress": "Step {current} of {total}"
   },
   "wizard": {
-    "guestNotice": "You're booking as a guest. Sign in to keep this appointment on your account.",
     "continueTo": "Continue to {step}",
     "reserving": "Reserving your place…",
     "holdAndPay": "Hold my place · pay {fee}",
     "confirmBooking": "Confirm booking",
     "fallbackServiceName": "Appointment",
+    "signInTitle": "Sign in to book",
+    "signInBody": "Appointments are kept on your account, against the patient they're for. Sign in or create an account to continue.",
     "blocked": {
       "patient": "Please choose who this booking is for.",
       "branch": "Please choose a branch first.",
