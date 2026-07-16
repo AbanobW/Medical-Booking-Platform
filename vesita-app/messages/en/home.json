@@ -4,24 +4,6 @@
     "title": "Find the right doctor, lab or scan — and book it in a minute.",
     "subtitle": "Search, compare and book verified doctors, medical labs and radiology centers across Egypt. Instant confirmation, transparent pricing, and cashback on every visit."
   },
-  "trust": {
-    "providers": {
-      "label": "Verified providers",
-      "suffix": "+"
-    },
-    "bookings": {
-      "label": "Bookings completed",
-      "suffix": "M"
-    },
-    "governorates": {
-      "label": "Governorates covered",
-      "suffix": ""
-    },
-    "rating": {
-      "label": "Average patient rating",
-      "suffix": "/5"
-    }
-  },
   "valueProps": {
     "verified": {
       "title": "Every provider is verified",
@@ -88,43 +70,6 @@
     "visit": {
       "title": "Visit & earn cashback",
       "description": "Pay cash at the clinic or online, then collect cashback in your Vesita wallet after the visit."
-    }
-  },
-  "testimonials": {
-    "eyebrow": "Patient stories",
-    "title": "What patients across Egypt say",
-    "description": "Every review on Vesita comes from a patient who completed a real booking.",
-    "items": {
-      "mariam": {
-        "name": "Mariam Abdelrahman",
-        "location": "Nasr City, Cairo",
-        "quote": "“I booked a paediatrician for my daughter at 11pm and had a 9am slot the next morning. The fee on the site was exactly what we paid at the clinic — no extra pounds at the reception desk.”"
-      },
-      "ahmed": {
-        "name": "Ahmed El-Sayed",
-        "location": "Smouha, Alexandria",
-        "quote": "“The lab sent someone to draw blood at my flat and the results were on WhatsApp the next afternoon. I used to lose half a day queuing for a CBC.”"
-      },
-      "nourhan": {
-        "name": "Nourhan Farouk",
-        "location": "Sheikh Zayed, Giza",
-        "quote": "“I compared five MRI centers in Giza in about two minutes. The reviews were honest about waiting times, which is exactly what I needed to pick one.”"
-      },
-      "karim": {
-        "name": "Karim Mostafa",
-        "location": "Mansoura, Dakahlia",
-        "quote": "“My father needed a cardiologist urgently. The ‘available today’ filter found one 10 minutes from the house and we were seen that same evening.”"
-      },
-      "salma": {
-        "name": "Salma Hegazy",
-        "location": "Maadi, Cairo",
-        "quote": "“The cashback is small but it adds up. After three visits I had enough in the wallet to cover most of a follow-up consultation.”"
-      },
-      "youssef": {
-        "name": "Youssef Ibrahim",
-        "location": "Port Said",
-        "quote": "“I live outside Cairo and always assumed these platforms ignore us. Vesita had eleven verified doctors in my own city, with prices listed.”"
-      }
     }
   },
   "faq": {

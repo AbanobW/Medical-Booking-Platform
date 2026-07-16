@@ -13,9 +13,13 @@ const API_UPSTREAM = (
 const nextConfig: NextConfig = {
   images: {
     /*
-     * Provider photos and covers are SVG served from our own route handlers
-     * (/api/avatar, /api/cover). Next's optimizer rejects SVG by default, and
-     * there is nothing to optimize anyway — so pass them through untouched.
+     * A provider's photo, when the API has one, is whatever URL MedPoint's
+     * `avatar_url` returns — a host we don't control and haven't configured
+     * `remotePatterns` for. Next's optimizer refuses to fetch from an
+     * unconfigured host at runtime, so this stays `true` until that host is
+     * known and added. There is no local placeholder-image route generating
+     * avatars any more; a missing photo renders initials instead (see
+     * `initialsOf` at each call site), not a fabricated image.
      */
     unoptimized: true,
   },

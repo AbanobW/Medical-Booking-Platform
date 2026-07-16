@@ -5,7 +5,6 @@ import {
   BadgeCheck,
   CalendarCheck,
   CreditCard,
-  Quote,
   Search,
   ShieldCheck,
   Sparkles,
@@ -20,7 +19,6 @@ import { ProviderRail } from "@/components/marketing/provider-rail";
 import { SectionHeading } from "@/components/marketing/section-heading";
 import { SpecialtiesGrid } from "@/components/marketing/specialties-grid";
 import { Reveal, RevealItem } from "@/components/shared/motion";
-import { RatingStars } from "@/components/shared/rating";
 import {
   Accordion,
   AccordionContent,
@@ -43,15 +41,6 @@ const VALUE_PROPS = [
   { key: "verified", icon: ShieldCheck },
   { key: "pricing", icon: CreditCard },
   { key: "reviews", icon: Sparkles },
-] as const;
-
-const TESTIMONIALS = [
-  { key: "mariam", rating: 5 },
-  { key: "ahmed", rating: 5 },
-  { key: "nourhan", rating: 4 },
-  { key: "karim", rating: 5 },
-  { key: "salma", rating: 5 },
-  { key: "youssef", rating: 4 },
 ] as const;
 
 const FAQS = [
@@ -154,44 +143,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* -------------------------------------------------------- Testimonials */}
-      <section className="bg-muted/40 py-14 sm:py-20">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-          <SectionHeading
-            align="center"
-            eyebrow={t("testimonials.eyebrow")}
-            title={t("testimonials.title")}
-            description={t("testimonials.description")}
-          />
-
-          <Reveal className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {TESTIMONIALS.map(({ key, rating }) => (
-              <RevealItem key={key}>
-                <Card className="h-full border-border/60">
-                  <CardContent className="flex h-full flex-col gap-4">
-                    <Quote
-                      className="size-6 text-primary/30 rtl:-scale-x-100"
-                      aria-hidden
-                    />
-                    <p className="flex-1 text-sm leading-relaxed text-foreground/90">
-                      {t(`testimonials.items.${key}.quote`)}
-                    </p>
-                    <div className="border-t pt-4">
-                      <RatingStars value={rating} size="sm" precise={false} />
-                      <p className="mt-2 text-sm font-semibold">
-                        {t(`testimonials.items.${key}.name`)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {t(`testimonials.items.${key}.location`)}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </RevealItem>
-            ))}
-          </Reveal>
-        </div>
-      </section>
+      {/*
+        No testimonials section. It used to render six invented patient quotes
+        under copy that claimed "every review on Vesita comes from a patient who
+        completed a real booking" — none had. There is no reviews endpoint the
+        app can read yet (see BACKEND-GAPS.md), so there is nothing genuine to
+        show here; a fabricated one is worse than an absent one.
+      */}
 
       {/* ----------------------------------------------------------------- FAQ */}
       <section className="py-14 sm:py-20">

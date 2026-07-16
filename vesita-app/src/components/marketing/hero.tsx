@@ -7,51 +7,31 @@ import { useEffect, useState } from "react";
 
 import Aurora from "@/components/reactbits/Aurora";
 import BlurText from "@/components/reactbits/BlurText";
-import CountUp from "@/components/reactbits/CountUp";
 import { Reveal, RevealItem } from "@/components/shared/motion";
 import { SearchBar } from "@/components/shared/search-bar";
 import { Badge } from "@/components/ui/badge";
-import { useIsRtl } from "@/lib/i18n/use-format";
 
 /**
  * The landing hero.
  *
  * The moving parts are React Bits components (reactbits.dev): an `Aurora` WebGL
- * field behind the brand gradient, `BlurText` for the headline, and `CountUp`
- * for the trust figures.
+ * field behind the brand gradient, `BlurText` for the headline.
  *
- * Three things constrain how they can be used here:
+ * Two things constrain how they can be used here:
  *
  *  - **Arabic is cursive.** `BlurText` can split by word or by letter; letters
  *    would cut each word into unjoined glyphs and render Arabic as nonsense, so
  *    the split is pinned to words in both languages.
- *  - **The numbers stay Latin.** `CountUp` formats through `Intl` with `en-US`,
- *    which is what we want — the app pins Latin digits for Arabic too (see
- *    `INTL_LOCALES`) — but a counting number inside RTL prose still needs bidi
- *    isolation, hence `ltr-nums`.
  *  - **Motion is optional.** Aurora is a WebGL canvas and BlurText animates on
  *    scroll; under `prefers-reduced-motion` both are dropped for the static
  *    gradient and plain text.
  */
-
-/**
- * The figures behind the counters. They are the same in every language — only
- * the suffix ("M" / "مليون") and the label are translated — so they live here
- * rather than in the message files.
- */
-const TRUST_STATS: { key: string; to: number; separator?: string }[] = [
-  { key: "providers", to: 12_400, separator: "," },
-  { key: "bookings", to: 1.8 },
-  { key: "governorates", to: 27 },
-  { key: "rating", to: 4.8 },
-];
 
 /** Brand blues → teal. Decorative only; the chart ramp is not for backgrounds. */
 const AURORA_COLORS = ["#0EA5E9", "#2563EB", "#14B8A6"];
 
 export function Hero() {
   const t = useTranslations("home");
-  const isRtl = useIsRtl();
   const reduceMotion = useReducedMotion();
 
   /*
@@ -134,48 +114,16 @@ export function Hero() {
           </RevealItem>
         </Reveal>
 
-        <Reveal className="mx-auto mt-12 grid max-w-4xl grid-cols-2 gap-6 lg:grid-cols-4">
-          {TRUST_STATS.map(({ key, to, separator }) => (
-            <RevealItem key={key} className="text-center">
-              <p className="text-2xl font-bold text-white tabular-nums sm:text-3xl">
-                {/*
-                  One isolated LTR run: the counter and its suffix have to stay
-                  glued together, or bidi reorders "1.8" and "مليون" around each
-                  other and the figure reads as gibberish in Arabic.
-                */}
-                <span className="ltr-nums inline-flex items-baseline">
-                  {/*
-                    CountUp drives a spring, and a spring approaches its target
-                    asymptotically — at the shipped default the last few units of
-                    "12,400" crawl for seconds. A shorter `duration` raises both
-                    stiffness and damping, so the figure lands instead of creeping.
-                  */}
-                  <CountUp
-                    to={to}
-                    separator={separator ?? ""}
-                    duration={0.9}
-                    delay={0.15}
-                  />
-                  {/*
-                    `whitespace-pre` keeps the leading space in a suffix like
-                    " مليون" — flex collapses it otherwise, and the figure runs
-                    together as "1.8مليون". "+" and "/5" have no space to keep.
-                  */}
-                  <span className="whitespace-pre">
-                    {t(`trust.${key}.suffix`)}
-                  </span>
-                </span>
-              </p>
-              <p
-                className="mt-1 text-xs text-white/75 sm:text-sm"
-                // The label reads in the page's own direction, not the number's.
-                dir={isRtl ? "rtl" : "ltr"}
-              >
-                {t(`trust.${key}.label`)}
-              </p>
-            </RevealItem>
-          ))}
-        </Reveal>
+        {/*
+          No trust-stats counter row. It used to animate up to four invented
+          numbers (12,400 providers, 1.8M bookings, 27 governorates, a 4.8
+          rating) as though they were a live count — there is no analytics
+          endpoint this could honestly be sourced from (see BACKEND-GAPS.md),
+          and a public marketing page has no authenticated route to a real one
+          even if there were. Four counters climbing to numbers nobody can
+          verify is exactly the fabricated-data pattern the rest of this app
+          was rebuilt to stop doing.
+        */}
       </div>
     </section>
   );

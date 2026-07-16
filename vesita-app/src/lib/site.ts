@@ -28,26 +28,3 @@ export const BUSINESS = {
   /** How long the bank may take to return a refund — quoted honestly (§9). */
   refundWorkingDays: 5,
 } as const;
-
-/** Formats a number as Egyptian Pounds, e.g. `EGP 350`. */
-export function formatEGP(amount: number): string {
-  return new Intl.NumberFormat("en-EG", {
-    style: "currency",
-    currency: "EGP",
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-/** Compact currency for dashboard tiles, e.g. `EGP 1.2M`. */
-export function formatEGPCompact(amount: number): string {
-  return new Intl.NumberFormat("en-EG", {
-    style: "currency",
-    currency: "EGP",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(amount);
-}
-
-export function formatNumber(value: number): string {
-  return new Intl.NumberFormat("en-US").format(value);
-}

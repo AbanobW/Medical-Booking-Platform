@@ -81,7 +81,7 @@ export function ProfileHero({
 
   return (
     <section className="relative">
-      {/* Cover — a local SVG API route, so next/image optimization is pointless. */}
+      {/* Cover — whatever URL the API gave this provider, if any; no local placeholder. */}
       <div className="relative h-40 w-full overflow-hidden bg-muted sm:h-52 lg:h-64">
         {provider.coverImage && (
           // eslint-disable-next-line @next/next/no-img-element
