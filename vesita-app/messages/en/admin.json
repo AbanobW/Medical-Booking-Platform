@@ -68,6 +68,8 @@
     "noShowHint": "confirmed bookings never attended",
     "totalCancellations": "Total cancellations",
     "totalCancellationsHint": "all time, across every provider",
+    "refundedTotal": "Refunded",
+    "refundedTotalHint": "Refunds are not reported yet",
     "platformCommission": "Platform commission",
     "netToProviders": "Net to providers",
     "averageBookingValue": "Avg. booking value",
@@ -76,7 +78,9 @@
   "charts": {
     "trends": {
       "title": "Booking trends",
-      "description": "Monthly booking volume across every provider type, last 12 months"
+      "description": "Monthly booking volume across every provider type, last 12 months",
+      "emptyTitle": "No booking trend",
+      "emptyDescription": "Monthly booking volume needs an analytics endpoint. Nothing is measured yet."
     },
     "topSpecialties": {
       "title": "Top specialties",
@@ -98,11 +102,15 @@
     },
     "cancelReasons": {
       "title": "Why patients cancel",
-      "description": "Cancellations by stated reason"
+      "description": "Cancellations by stated reason",
+      "emptyTitle": "No cancellation reasons",
+      "emptyDescription": "Cancellations are not broken down by reason yet."
     },
     "cancelByType": {
       "title": "Cancellations by provider type",
-      "description": "Where cancellations land"
+      "description": "Where cancellations land",
+      "emptyTitle": "No cancellation breakdown",
+      "emptyDescription": "Cancellations are not attributed to a provider type yet."
     },
     "bookingsVsCancellations": {
       "title": "Bookings vs cancellations",
@@ -110,7 +118,9 @@
     },
     "revenue": {
       "title": "Revenue",
-      "description": "Realised revenue from completed bookings, last 12 months"
+      "description": "Realised revenue from completed bookings, last 12 months",
+      "emptyTitle": "No monthly revenue",
+      "emptyDescription": "Revenue is not reported per month yet, so there is nothing to plot."
     },
     "revenueByType": {
       "title": "Revenue by provider type",
@@ -159,6 +169,8 @@
     "errorTitle": "Couldn't load the leaderboard",
     "emptyTitle": "No bookings yet",
     "emptyDescription": "This ranking appears once these providers start taking bookings.",
+    "chartEmptyTitle": "No booking counts",
+    "chartEmptyDescription": "These providers have no booking volume to rank, so the chart has nothing to draw.",
     "tableEmptyTitle": "No providers",
     "tableEmptyDescription": "Nothing to rank yet.",
     "columns": {

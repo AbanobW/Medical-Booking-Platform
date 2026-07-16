@@ -112,7 +112,8 @@ export async function holdBooking(input: HoldBookingInput): Promise<Booking> {
   // which is why every function below refuses rather than pretending.
   return {
     id: wire.id,
-    reference: wire.reference ?? wire.id,
+    // No reference on the wire; the id is what the server will know it by.
+    reference: wire.id,
     patientId: input.patientId,
     patientProfileId: input.patientProfileId,
     patientInfo: input.patientInfo,

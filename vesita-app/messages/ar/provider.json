@@ -38,6 +38,8 @@
     "missedVisitsHint": "مرضى لم يحضروا إطلاقًا",
     "bookingsChartTitle": "الحجوزات",
     "bookingsChartDescription": "الحجوزات الشهرية مقابل الإلغاءات خلال آخر 12 شهرًا",
+    "chartsEmptyTitle": "لا توجد أرقام شهرية",
+    "chartsEmptyDescription": "لم تُسجَّل حجوزاتك وإيراداتك شهريًا حتى الآن، فلا يوجد ما يُرسم.",
     "todayTitle": "مواعيد اليوم",
     "allBookings": "كل الحجوزات",
     "todayError": "تعذّر تحميل مواعيد اليوم",
@@ -47,6 +49,7 @@
     "ratingTitle": "متوسط التقييم",
     "ratingDescription": "من كل التقييمات التي حصلت عليها",
     "visitsServed": "{count, plural, =0 {لا توجد زيارات بعد} one {زيارة واحدة} two {زيارتان} few {# زيارات} many {# زيارة} other {# زيارة}}",
+    "visitsUnknown": "عدد الزيارات غير متاح بعد",
     "readReviews": "اقرأ التقييمات"
   },
   "bookings": {

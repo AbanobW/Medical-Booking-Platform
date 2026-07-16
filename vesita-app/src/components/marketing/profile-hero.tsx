@@ -187,7 +187,7 @@ export function ProfileHero({
             >
               <p className="text-xs text-muted-foreground">{priceLabel}</p>
               <p className="mt-0.5 text-3xl font-bold text-primary ltr-nums">
-                {provider.price === null ? DASH : formatEGP(provider.price)}
+                {formatEGP(provider.price)}
               </p>
 
               <Button

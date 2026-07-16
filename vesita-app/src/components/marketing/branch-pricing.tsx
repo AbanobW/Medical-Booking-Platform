@@ -2,7 +2,6 @@
 
 import { useTranslations } from "next-intl";
 
-import { DASH } from "@/lib/i18n/format";
 import { useFormat } from "@/lib/i18n/use-format";
 import { branchPriceOf, type Branch, type Service } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -52,12 +51,10 @@ export function BranchPrice({
 
   return (
     <span className={cn("shrink-0 text-end", className)}>
+      {/* `varies` is false when nothing is known, so this prints a bare dash
+          rather than "from —". */}
       <span className="font-bold text-primary tabular-nums">
-        {min === null
-          ? DASH
-          : varies
-            ? t("price.from", { price: formatEGP(min) })
-            : formatEGP(min)}
+        {varies ? t("price.from", { price: formatEGP(min) }) : formatEGP(min)}
       </span>
       {varies && (
         <span className="block text-xs font-normal text-muted-foreground">

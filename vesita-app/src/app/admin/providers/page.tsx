@@ -77,12 +77,23 @@ export default function AdminProvidersPage() {
       getAdminProviders({
         type: (type || undefined) as ProviderRole | undefined,
         status: (status || undefined) as ProviderStatus | undefined,
-        governorateId: governorateId || undefined,
         page: 1,
         pageSize: FULL_PAGE,
       }),
-    [type, status, governorateId],
+    [type, status],
   );
+
+  /**
+   * The API takes no governorate filter, and a provider it has not placed
+   * (`governorateId: null`) cannot match one — so the rail filters the fetched
+   * set here rather than dropping the control.
+   */
+  const providers = useMemo(() => {
+    const items = data?.items ?? [];
+    return governorateId
+      ? items.filter((p) => p.governorateId === governorateId)
+      : items;
+  }, [data, governorateId]);
 
   // The pending count is a property of the whole platform, not of the current
   // filters — so it gets its own unfiltered request.
@@ -130,15 +141,14 @@ export default function AdminProvidersPage() {
     if (!suspending) return;
 
     try {
-      const result = await suspend(suspending.id, suspensionType, reason);
-      const name = named(result.provider);
+      const updated = await suspend(suspending.id, suspensionType, reason);
+      const name = named(updated);
 
+      // The API returns the provider, not the bookings a hard suspension took
+      // down, so the toast cannot report the patient impact §13 asks for.
       toast.success(
         suspensionType === "hard"
-          ? t("providers.toast.hardSuspended", {
-              name,
-              count: result.cancelledBookings,
-            })
+          ? t("providers.toast.suspended", { name })
           : t("providers.toast.softSuspended", { name }),
       );
       setSuspending(null);
@@ -290,8 +300,9 @@ export default function AdminProvidersPage() {
                   <p className="tabular-nums">
                     {formatDateShort(suspension.suspendedAt)}
                     {suspension.type === "hard" &&
+                      suspension.cancelledBookingCount !== undefined &&
                       ` · ${t("providers.refunded", {
-                        count: suspension.cancelledBookingCount ?? 0,
+                        count: suspension.cancelledBookingCount,
                       })}`}
                   </p>
                 </div>
@@ -390,7 +401,7 @@ export default function AdminProvidersPage() {
           </h2>
           <p className="text-sm text-muted-foreground">
             {data
-              ? t("providers.count", { count: data.total })
+              ? t("providers.count", { count: providers.length })
               : t("providers.subtitle")}
           </p>
         </div>
@@ -446,7 +457,7 @@ export default function AdminProvidersPage() {
       ) : (
         <DataTable
           columns={columns}
-          data={data?.items ?? []}
+          data={providers}
           searchPlaceholder={t("providers.searchPlaceholder")}
           pageSize={10}
           emptyTitle={t("providers.emptyTitle")}

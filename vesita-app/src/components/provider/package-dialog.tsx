@@ -53,6 +53,9 @@ function packageSchema(t: (key: string) => string) {
 
 type PackageFormValues = z.infer<ReturnType<typeof packageSchema>>;
 
+/** A service the API gave a price for — the only kind that can be bundled. */
+type PricedService = EditableService & { price: number };
+
 const EMPTY: PackageFormValues = {
   name: "",
   nameAr: "",
@@ -125,14 +128,22 @@ export function PackageDialog({
   const includes = form.watch("includes");
   const price = form.watch("price");
 
+  // A bundle's list price is the sum of its parts, so a service the API has no
+  // price for cannot be bundled — it would silently count as free.
+  const bundleable = useMemo(
+    () => services.filter((s): s is PricedService => s.price !== null),
+    [services],
+  );
+
   // The bundle is only worth buying if it undercuts the sum of its parts.
-  const originalPrice = services
+  const originalPrice = bundleable
     .filter((s) => includes.includes(s.id))
     .reduce((sum, s) => sum + s.price, 0);
   const savings = Math.max(0, originalPrice - (price || 0));
 
   async function onSubmit(values: PackageFormValues) {
     const payload = {
+      kind: "package" as const,
       name: values.name,
       nameAr: values.nameAr,
       description: {
@@ -269,12 +280,12 @@ export function PackageDialog({
                   </FormDescription>
 
                   <div className="max-h-56 space-y-1 overflow-y-auto rounded-xl border p-2">
-                    {services.length === 0 ? (
+                    {bundleable.length === 0 ? (
                       <p className="p-3 text-sm text-muted-foreground">
                         {t("packageDialog.noServices")}
                       </p>
                     ) : (
-                      services.map((service) => {
+                      bundleable.map((service) => {
                         const checked = field.value.includes(service.id);
 
                         return (

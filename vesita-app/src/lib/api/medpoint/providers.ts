@@ -17,6 +17,7 @@ import type {
 } from "@/lib/api/medpoint/types";
 import { GOVERNORATES, SPECIALTIES } from "@/lib/data/egypt";
 import type {
+  GeoPoint,
   Paginated,
   Provider,
   ProviderRole,
@@ -25,7 +26,6 @@ import type {
   Weekday,
 } from "@/lib/types";
 
-const PAGE_SIZE = 50;
 
 // One cached, request-coalesced build of the catalog. Concurrent callers — the
 // search grid, featured rails, a provider page — share a single fetch of
@@ -34,24 +34,32 @@ const catalogLoader = createCachedLoader(buildCatalog);
 
 async function buildCatalog(): Promise<Provider[]> {
   const [wires, branchWires, serviceWires] = await Promise.all([
-    fetchAllPages<WireProvider>("/providers", PAGE_SIZE),
-    fetchAllPages<WireBranch>("/branches", PAGE_SIZE),
-    fetchAllPages<WireService>("/services", PAGE_SIZE),
+    fetchAllPages<WireProvider>("/providers"),
+    fetchAllPages<WireBranch>("/branches"),
+    fetchAllPages<WireService>("/services"),
   ]);
 
-  // The API sends no `provider_id` on a branch. It does, however, encode every
-  // table's row id with the same salt, so a provider's *primary* branch comes
-  // back carrying the provider's own id (Provider row N and Branch row N collide
-  // — verified: the first eight ids line up exactly). Fall back to that when the
-  // foreign key is absent, so every provider gets its real location and a branch
-  // the booking flow can hang off. Secondary branches carry ids that match no
-  // provider and are simply left unattached.
+  // The API sends no `provider_id` on a branch and no `branch_id` on a service,
+  // even though `POST` accepts both — the relations exist in the database and are
+  // omitted on read (BACKEND-GAPS.md).
+  //
+  // Do NOT "fix" this by matching ids across resources. They collide: the backend
+  // hashes every table's row index with the same salt, so Provider row 1, Branch
+  // row 1 and Service row 1 are all `W6V1Y2Pn83Q7mDEK`. That looks like a foreign
+  // key and is not one — joining on it pairs row N with row N, which puts
+  // "Initial Consultation" under a *laboratory* and gives each doctor exactly one
+  // of their two consultations. An earlier version of this file did precisely
+  // that for branches and was right only by luck of the seed's row order.
+  //
+  // So a branch is attached only when the API says so, and services only when a
+  // branch claims them. Today that means every provider has no services and
+  // therefore no price and nothing bookable, which is the truth about this API.
   const branchesByProvider = new Map<string, WireBranch[]>();
   for (const branch of branchWires) {
-    const pid = branch.provider_id ?? branch.id;
-    const list = branchesByProvider.get(pid) ?? [];
+    if (!branch.provider_id) continue;
+    const list = branchesByProvider.get(branch.provider_id) ?? [];
     list.push(branch);
-    branchesByProvider.set(pid, list);
+    branchesByProvider.set(branch.provider_id, list);
   }
 
   const servicesByBranch = new Map<string, WireService[]>();
@@ -110,12 +118,36 @@ function matchesQuery(provider: Provider, q: string): boolean {
     .every((term) => haystack.includes(term));
 }
 
+/**
+ * Rough distance from a governorate centroid, in km.
+ *
+ * `Infinity` when either end is unknown, so a provider whose branch has no
+ * coordinates sorts to the back of "nearest" instead of pretending to sit on
+ * the centroid — which is what a `?? 0` here would have meant.
+ */
 function distanceFrom(provider: Provider, governorateId?: string): number {
-  const gov = GOVERNORATES.find((g) => g.id === (governorateId ?? "cairo"))!;
-  const dLat = (provider.location.lat - gov.lat) * 111;
-  const dLng =
-    (provider.location.lng - gov.lng) * 111 * Math.cos((gov.lat * Math.PI) / 180);
+  const gov = GOVERNORATES.find((g) => g.id === governorateId);
+  const at = provider.location;
+  if (!gov || !at) return Infinity;
+
+  const dLat = (at.lat - gov.lat) * 111;
+  const dLng = (at.lng - gov.lng) * 111 * Math.cos((gov.lat * Math.PI) / 180);
   return Math.sqrt(dLat * dLat + dLng * dLng);
+}
+
+/** Unknown sorts last, whichever direction the column is going. */
+function desc(a: number | null, b: number | null): number {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return b - a;
+}
+
+function asc(a: number | null, b: number | null): number {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a - b;
 }
 
 function paginate<T>(items: T[], page: number, pageSize: number): Paginated<T> {
@@ -176,22 +208,27 @@ export async function searchProviders(
     );
   if (gender)
     results = results.filter((p) => p.type === "doctor" && p.gender === gender);
+  // An unknown value cannot satisfy a threshold. Filtering "under 300 EGP" must
+  // not return providers whose price nobody knows — the patient asked a question
+  // about the price, and "we don't know" is not an answer of "yes".
   if (minRating !== undefined)
-    results = results.filter((p) => p.rating >= minRating);
-  if (minPrice !== undefined) results = results.filter((p) => p.price >= minPrice);
-  if (maxPrice !== undefined) results = results.filter((p) => p.price <= maxPrice);
+    results = results.filter((p) => p.rating !== null && p.rating >= minRating);
+  if (minPrice !== undefined)
+    results = results.filter((p) => p.price !== null && p.price >= minPrice);
+  if (maxPrice !== undefined)
+    results = results.filter((p) => p.price !== null && p.price <= maxPrice);
 
   const sorted = [...results].sort((a, b) => {
     switch (sort) {
       case "lowest_price":
-        return a.price - b.price;
+        return asc(a.price, b.price);
       case "most_booked":
-        return b.bookingCount - a.bookingCount;
+        return desc(a.bookingCount, b.bookingCount);
       case "nearest":
         return distanceFrom(a, governorateId) - distanceFrom(b, governorateId);
       case "highest_rated":
       default:
-        return b.rating - a.rating || b.reviewCount - a.reviewCount;
+        return desc(a.rating, b.rating) || desc(a.reviewCount, b.reviewCount);
     }
   });
 
@@ -225,33 +262,47 @@ export async function getFeaturedProviders(
   const providers = await loadCatalog();
   return providers
     .filter((p) => p.type === type)
-    .sort((a, b) => b.rating - a.rating || b.bookingCount - a.bookingCount)
+    .sort((a, b) => desc(a.rating, b.rating) || desc(a.bookingCount, b.bookingCount))
     .slice(0, limit);
 }
 
+/**
+ * Specialties that have doctors, most-populated first.
+ *
+ * A specialty is parsed out of the provider's name ("Dr. X — Cardiology"), so a
+ * doctor whose name carries no specialty is counted under none rather than
+ * swelling a "General" bucket that nobody chose.
+ */
 export async function getPopularSpecialties(limit = 12) {
   const providers = await loadCatalog();
   const counts = new Map<string, number>();
 
   for (const p of providers) {
-    if (p.type !== "doctor") continue;
+    if (p.type !== "doctor" || p.specialtyId === null) continue;
     counts.set(p.specialtyId, (counts.get(p.specialtyId) ?? 0) + 1);
   }
 
-  return Array.from(counts, ([id, doctorCount]) => ({
-    ...SPECIALTIES.find((s) => s.id === id)!,
-    doctorCount,
-  }))
-    .filter((s) => s.id)
+  return Array.from(counts, ([id, doctorCount]) => {
+    const specialty = SPECIALTIES.find((s) => s.id === id);
+    return specialty ? { ...specialty, doctorCount } : null;
+  })
+    .filter((s): s is NonNullable<typeof s> => s !== null)
     .sort((a, b) => b.doctorCount - a.doctorCount)
     .slice(0, limit);
 }
 
-/** Reviews stay mock in live MVP — returns empty until wired. */
+/** No reviews endpoint the app can read — see `api/engagement`. */
 export async function getProviderReviews(_providerId: string): Promise<Review[]> {
+  void _providerId;
   return [];
 }
 
+/**
+ * The nearest providers of the same type.
+ *
+ * Needs coordinates at both ends. A provider whose branch has none cannot be
+ * placed, so it is left out rather than being drawn at an arbitrary point.
+ */
 export async function getNearbyProviders(
   providerId: string,
   limit = 4,
@@ -260,18 +311,18 @@ export async function getNearbyProviders(
   const origin = providers.find((p) => p.id === providerId);
   if (!origin) throw new ApiError("Provider not found", 404, "provider.notFound");
 
-  const km = (p: Provider) => {
-    const dLat = (p.location.lat - origin.location.lat) * 111;
-    const dLng =
-      (p.location.lng - origin.location.lng) *
-      111 *
-      Math.cos((origin.location.lat * Math.PI) / 180);
+  const from = origin.location;
+  if (!from) return [];
+
+  const km = (at: GeoPoint) => {
+    const dLat = (at.lat - from.lat) * 111;
+    const dLng = (at.lng - from.lng) * 111 * Math.cos((from.lat * Math.PI) / 180);
     return Math.sqrt(dLat * dLat + dLng * dLng);
   };
 
   return providers
-    .filter((p) => p.id !== providerId && p.type === origin.type)
-    .sort((a, b) => km(a) - km(b))
+    .filter((p) => p.id !== providerId && p.type === origin.type && p.location !== null)
+    .sort((a, b) => km(a.location!) - km(b.location!))
     .slice(0, limit);
 }
 

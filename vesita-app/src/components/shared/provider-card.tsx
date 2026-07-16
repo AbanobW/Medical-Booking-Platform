@@ -19,6 +19,7 @@ import { getNextSlots } from "@/lib/api/providers";
 import { toggleFavorite } from "@/lib/api/engagement";
 import { getSpecialtyName } from "@/lib/data/egypt";
 import { todayISO } from "@/lib/time";
+import { orDash } from "@/lib/i18n/format";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import { cn } from "@/lib/utils";
 import type { Provider } from "@/lib/types";
@@ -35,7 +36,11 @@ function isToday(date: string): boolean {
  * component use `useProviderSubtitle()`, which is locale-aware.
  */
 export function providerSubtitle(provider: Provider): string {
-  if (provider.type === "doctor") return getSpecialtyName(provider.specialtyId);
+  if (provider.type === "doctor") {
+    return orDash(
+      provider.specialtyId && getSpecialtyName(provider.specialtyId),
+    );
+  }
   return provider.type === "lab" ? "Medical Laboratory" : "Radiology Center";
 }
 
@@ -45,11 +50,28 @@ export function useProviderSubtitle(): (provider: Provider) => string {
   const { getSpecialtyName: specialtyName } = useDomain();
 
   return (provider: Provider) => {
-    if (provider.type === "doctor") return specialtyName(provider.specialtyId);
+    if (provider.type === "doctor") {
+      return orDash(provider.specialtyId && specialtyName(provider.specialtyId));
+    }
     return provider.type === "lab"
       ? t("providerCard.labSubtitle")
       : t("providerCard.radiologySubtitle");
   };
+}
+
+/** "Area, Governorate" — whichever halves the API answered. */
+function useProviderLocation(): (provider: Provider) => string {
+  const { getAreaName, getGovernorateName } = useDomain();
+
+  return (provider: Provider) =>
+    orDash(
+      [
+        provider.areaId && getAreaName(provider.areaId),
+        provider.governorateId && getGovernorateName(provider.governorateId),
+      ]
+        .filter(Boolean)
+        .join(", "),
+    );
 }
 
 export function providerHref(provider: Provider): string {
@@ -81,8 +103,9 @@ export function ProviderCard({
   const { user } = useAuth();
   const t = useTranslations("common");
   const { formatTime, relativeDay, formatEGP, initialsOf } = useFormat();
-  const { named, getAreaName, getGovernorateName } = useDomain();
+  const { named } = useDomain();
   const subtitleOf = useProviderSubtitle();
+  const locationOf = useProviderLocation();
   const [favorite, setFavorite] = useState(isFavorite);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -133,7 +156,7 @@ export function ProviderCard({
             <Link href={href} className="shrink-0">
               <Avatar className="size-16 rounded-2xl ring-1 ring-border">
                 <AvatarImage
-                  src={provider.photo}
+                  src={provider.photo ?? undefined}
                   alt={name}
                   className="rounded-2xl object-cover"
                 />
@@ -179,19 +202,21 @@ export function ProviderCard({
                 </p>
               </Link>
 
-              <RatingBadge
-                rating={provider.rating}
-                reviewCount={provider.reviewCount}
-                className="mt-1.5"
-              />
+              {/* Stars stand for a score — with no reviews endpoint there is
+                  none to draw, so the badge is omitted rather than zeroed. */}
+              {provider.rating !== null && provider.reviewCount !== null && (
+                <RatingBadge
+                  rating={provider.rating}
+                  reviewCount={provider.reviewCount}
+                  className="mt-1.5"
+                />
+              )}
             </div>
           </div>
 
           <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
             <MapPin className="mt-0.5 size-3.5 shrink-0" />
-            <span className="line-clamp-1">
-              {getAreaName(provider.areaId)}, {getGovernorateName(provider.governorateId)}
-            </span>
+            <span className="line-clamp-1">{locationOf(provider)}</span>
           </p>
 
           {showSlots && (
@@ -289,7 +314,7 @@ export function ProviderCardCompact({
         <Link href={href} className="shrink-0">
           <Avatar className="size-14 rounded-xl ring-1 ring-border">
             <AvatarImage
-              src={provider.photo}
+              src={provider.photo ?? undefined}
               alt={name}
               className="rounded-xl object-cover"
             />
@@ -306,11 +331,13 @@ export function ProviderCardCompact({
           <p className="truncate text-sm text-muted-foreground">
             {subtitleOf(provider)}
           </p>
-          <RatingBadge
-            rating={provider.rating}
-            reviewCount={provider.reviewCount}
-            className="mt-1"
-          />
+          {provider.rating !== null && provider.reviewCount !== null && (
+            <RatingBadge
+              rating={provider.rating}
+              reviewCount={provider.reviewCount}
+              className="mt-1"
+            />
+          )}
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-2">

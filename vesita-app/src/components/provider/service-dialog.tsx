@@ -106,18 +106,22 @@ function baseSchema(t: T) {
     descriptionAr: z
       .string()
       .min(5, t("serviceDialog.validation.descriptionArabic")),
-    price: z.number().min(0, t("serviceDialog.validation.priceNegative")),
+    // Nullable throughout: the API leaves these unanswered on an existing
+    // service, and the editor shows an empty field rather than a made-up one.
+    price: z.number().min(0, t("serviceDialog.validation.priceNegative")).nullable(),
     durationMinutes: z
       .number()
       .int()
       .min(5, t("serviceDialog.validation.minMinutes"))
-      .max(480, t("serviceDialog.validation.tooLong")),
+      .max(480, t("serviceDialog.validation.tooLong"))
+      .nullable(),
     resultTimeHours: z
       .number()
       .int()
       .min(1, t("serviceDialog.validation.minHour"))
-      .max(720, t("serviceDialog.validation.tooLong")),
-    contrastRequired: z.boolean(),
+      .max(720, t("serviceDialog.validation.tooLong"))
+      .nullable(),
+    contrastRequired: z.boolean().nullable(),
     isActive: z.boolean(),
 
     // -- Preparation (§3) ---------------------------------------------------
@@ -241,9 +245,9 @@ function toFormValues(service: EditableService | null): ServiceFormValues {
   return {
     name: service.name,
     nameAr: service.nameAr,
-    category: service.kind === "consultation" ? "" : service.category,
-    description: service.description.en,
-    descriptionAr: service.description.ar,
+    category: service.kind === "consultation" ? "" : (service.category ?? ""),
+    description: service.description?.en ?? "",
+    descriptionAr: service.description?.ar ?? "",
     price: service.price,
     durationMinutes:
       service.kind === "test" ? EMPTY.durationMinutes : service.durationMinutes,
@@ -599,8 +603,12 @@ export function ServiceDialog({
                         type="number"
                         min={0}
                         step={10}
-                        value={String(field.value)}
-                        onChange={(e) => field.onChange(Number(e.target.value))}
+                        value={field.value === null ? "" : String(field.value)}
+                        onChange={(e) =>
+                          field.onChange(
+                            e.target.value === "" ? null : Number(e.target.value),
+                          )
+                        }
                         onBlur={field.onBlur}
                         name={field.name}
                         className="h-10 rounded-xl"
@@ -628,8 +636,12 @@ export function ServiceDialog({
                           type="number"
                           min={1}
                           step={1}
-                          value={String(field.value)}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
+                          value={field.value === null ? "" : String(field.value)}
+                          onChange={(e) =>
+                            field.onChange(
+                              e.target.value === "" ? null : Number(e.target.value),
+                            )
+                          }
                           onBlur={field.onBlur}
                           name={field.name}
                           className="h-10 rounded-xl"
@@ -651,8 +663,12 @@ export function ServiceDialog({
                           type="number"
                           min={5}
                           step={5}
-                          value={String(field.value)}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
+                          value={field.value === null ? "" : String(field.value)}
+                          onChange={(e) =>
+                            field.onChange(
+                              e.target.value === "" ? null : Number(e.target.value),
+                            )
+                          }
                           onBlur={field.onBlur}
                           name={field.name}
                           className="h-10 rounded-xl"
@@ -678,8 +694,10 @@ export function ServiceDialog({
                       </FormDescription>
                     </div>
                     <FormControl>
+                      {/* A switch has no third position: an unanswered
+                          `contrastRequired` shows off until it is set. */}
                       <Switch
-                        checked={field.value}
+                        checked={field.value === true}
                         onCheckedChange={(checked: boolean) => field.onChange(checked)}
                       />
                     </FormControl>

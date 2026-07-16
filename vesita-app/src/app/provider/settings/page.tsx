@@ -33,6 +33,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutation } from "@/hooks/use-async";
 import { updateProviderProfile } from "@/lib/api/provider-admin";
+import { DASH } from "@/lib/i18n/format";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 
@@ -47,7 +48,9 @@ function profileSchema(t: (key: string) => string) {
       .string()
       .regex(/^01[0-2,5]\d{8}$/, t("settings.validation.phone")),
     address: z.string().min(5, t("settings.validation.address")),
-    price: z.number().min(0, t("settings.validation.priceNegative")),
+    // The API has no price column to read back, so the field starts empty
+    // rather than at a fabricated zero.
+    price: z.number().min(0, t("settings.validation.priceNegative")).nullable(),
   });
 }
 
@@ -76,7 +79,7 @@ export default function ProviderSettingsPage() {
       bioAr: "",
       phone: "",
       address: "",
-      price: 0,
+      price: null,
     },
   });
 
@@ -87,10 +90,10 @@ export default function ProviderSettingsPage() {
 
     form.reset({
       name: provider.name,
-      bio: provider.bio.en,
-      bioAr: provider.bio.ar,
-      phone: provider.phone,
-      address: provider.address,
+      bio: provider.bio?.en ?? "",
+      bioAr: provider.bio?.ar ?? "",
+      phone: provider.phone ?? "",
+      address: provider.address ?? "",
       price: provider.price,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -238,8 +241,12 @@ export default function ProviderSettingsPage() {
                           type="number"
                           min={0}
                           step={10}
-                          value={String(field.value)}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
+                          value={field.value === null ? "" : String(field.value)}
+                          onChange={(e) =>
+                            field.onChange(
+                              e.target.value === "" ? null : Number(e.target.value),
+                            )
+                          }
                           onBlur={field.onBlur}
                           name={field.name}
                           className="h-10 rounded-xl"
@@ -301,10 +308,12 @@ export default function ProviderSettingsPage() {
               {t("settings.location")}
             </span>
             <span className="text-end text-sm font-medium">
-              {t("settings.locationValue", {
-                area: getAreaName(provider.areaId),
-                governorate: getGovernorateName(provider.governorateId),
-              })}
+              {provider.areaId && provider.governorateId
+                ? t("settings.locationValue", {
+                    area: getAreaName(provider.areaId),
+                    governorate: getGovernorateName(provider.governorateId),
+                  })
+                : DASH}
             </span>
           </div>
 
@@ -324,13 +333,19 @@ export default function ProviderSettingsPage() {
               {t("settings.rating")}
             </span>
             <span className="flex items-center gap-2">
-              <RatingStars value={provider.rating} size="sm" />
-              <span className="ltr-nums text-sm font-medium tabular-nums">
-                {t("settings.ratingValue", {
-                  rating: provider.rating.toFixed(1),
-                  count: formatNumber(provider.reviewCount),
-                })}
-              </span>
+              {provider.rating === null ? (
+                <span className="text-sm font-medium">{DASH}</span>
+              ) : (
+                <>
+                  <RatingStars value={provider.rating} size="sm" />
+                  <span className="ltr-nums text-sm font-medium tabular-nums">
+                    {t("settings.ratingValue", {
+                      rating: provider.rating.toFixed(1),
+                      count: formatNumber(provider.reviewCount),
+                    })}
+                  </span>
+                </>
+              )}
             </span>
           </div>
 

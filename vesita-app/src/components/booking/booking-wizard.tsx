@@ -35,12 +35,10 @@ import { StepIndicator } from "@/components/booking/step-indicator";
 import { useAuth } from "@/components/providers/auth-provider";
 import { CalendarPicker } from "@/components/shared/calendar-picker";
 import { EASE } from "@/components/shared/motion";
-import { ErrorState } from "@/components/shared/states";
+import { EmptyState, ErrorState } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAsync } from "@/hooks/use-async";
-import { demoUserFor } from "@/lib/api/auth";
-import { estimatedTimeFor, scheduleFor } from "@/lib/api/availability";
 import {
   beginPayment,
   bookingFeeFor,
@@ -55,6 +53,7 @@ import { ApiError } from "@/lib/api/errors";
 import { getAvailability } from "@/lib/api/providers";
 import { getPatientProfiles } from "@/lib/api/profiles";
 import { evaluateEligibility } from "@/lib/eligibility";
+import { orDash } from "@/lib/i18n/format";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import {
@@ -68,22 +67,53 @@ import {
   type PaymentMethod,
   type Provider,
   type TimeSlot,
+  type User,
 } from "@/lib/types";
 
 type StepKey = "patient" | "service" | "prep" | "date" | "time" | "payment";
 
+/**
+ * A booking needs an account.
+ *
+ * Guests used to book against a seeded demo patient, which put the appointment
+ * somewhere no server could see it. A booking belongs to a `PatientProfile` (§1)
+ * and profiles hang off a real account, so signing in comes first.
+ */
 export function BookingWizard({ provider }: { provider: Provider }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
 
+  if (!user) return <SignInFirst provider={provider} />;
+  return <Wizard provider={provider} account={user} />;
+}
+
+function SignInFirst({ provider }: { provider: Provider }) {
+  const t = useTranslations("booking");
+  const tCommon = useTranslations("common");
+
+  return (
+    <EmptyState
+      icon={LogIn}
+      title={t("wizard.signInTitle")}
+      description={t("wizard.signInBody")}
+      action={
+        <Button
+          className="h-11 rounded-xl px-5"
+          render={<Link href={`/login?next=/booking/${provider.slug}`} />}
+        >
+          <LogIn className="size-4" />
+          {tCommon("actions.signIn")}
+        </Button>
+      }
+    />
+  );
+}
+
+function Wizard({ provider, account }: { provider: Provider; account: User }) {
   const t = useTranslations("booking");
   const tCommon = useTranslations("common");
   const { named } = useDomain();
   const { formatDate, formatTime, formatEGP, formatNumber, locale } = useFormat();
   const describeError = useApiError();
-
-  // A guest still books — the appointment attaches to the demo patient account
-  // so the flow works end to end and shows up in the patient dashboard.
-  const account = useMemo(() => user ?? demoUserFor("patient"), [user]);
 
   const [stepIndex, setStepIndex] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -417,18 +447,10 @@ export function BookingWizard({ provider }: { provider: Provider }) {
   const slotSubtitle = useCallback(
     (slot: TimeSlot): string => {
       if (mode === "session") {
-        const queueNumber = slot.taken + 1;
-        const day = branch ? scheduleFor(branch, slot.date) : undefined;
-        const estimate = day ? estimatedTimeFor(day, queueNumber) : undefined;
-
-        const number = formatNumber(queueNumber);
-
-        if (estimate) {
-          const params = { number, time: formatTime(estimate) };
-          return slot.isFull
-            ? t("slot.sessionBusyWithTime", params)
-            : t("slot.sessionWithTime", params);
-        }
+        // No "seen around ~14:20": that estimate was walked off the seeded
+        // schedule template, and the API publishes no session timing to replace
+        // it. The queue number is real — the clock time was never ours to give.
+        const number = formatNumber(slot.taken + 1);
 
         return slot.isFull
           ? t("slot.sessionBusy", { number })
@@ -476,23 +498,6 @@ export function BookingWizard({ provider }: { provider: Provider }) {
           onStepClick={goToIndex}
           className="mb-6"
         />
-
-        {!isAuthenticated && (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed bg-muted/40 p-3">
-            <p className="text-sm text-muted-foreground">
-              {t("wizard.guestNotice")}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 rounded-xl"
-              render={<Link href={`/login?next=/booking/${provider.slug}`} />}
-            >
-              <LogIn className="size-4" />
-              {tCommon("actions.signIn")}
-            </Button>
-          </div>
-        )}
 
         <div className="min-h-[22rem]">
           <AnimatePresence mode="wait" initial={false} custom={direction}>
@@ -624,7 +629,11 @@ export function BookingWizard({ provider }: { provider: Provider }) {
                 </div>
               )}
 
-              {step === "payment" && (
+              {/* Nothing can be charged, discounted or totalled against a price
+                  the API never gave — the step has no honest content to show. */}
+              {step === "payment" && price === null && <ErrorState />}
+
+              {step === "payment" && price !== null && (
                 <PaymentStep
                   provider={provider}
                   serviceName={serviceName ?? t("wizard.fallbackServiceName")}
@@ -741,7 +750,7 @@ function SelectionSummary({
 }: {
   patientName?: string;
   serviceName?: string;
-  price?: number;
+  price?: number | null;
   date?: string;
   time?: string;
 }) {
@@ -775,18 +784,26 @@ function SelectionSummary({
 function ProviderSummary({ provider }: { provider: Provider }) {
   const t = useTranslations("booking");
   const { named, getGovernorateName } = useDomain();
-  const { formatEGP, formatNumber } = useFormat();
+  const { formatEGP, formatNumber, initialsOf } = useFormat();
+
+  const name = named(provider);
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border bg-card p-4 shadow-soft sm:flex-row sm:items-center sm:p-5">
       <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border bg-muted sm:size-20">
-        <Image
-          src={provider.photo}
-          alt={named(provider)}
-          fill
-          sizes="80px"
-          className="object-cover"
-        />
+        {provider.photo ? (
+          <Image
+            src={provider.photo}
+            alt={name}
+            fill
+            sizes="80px"
+            className="object-cover"
+          />
+        ) : (
+          <span className="flex size-full items-center justify-center text-lg font-semibold text-muted-foreground">
+            {initialsOf(name)}
+          </span>
+        )}
       </div>
 
       <div className="min-w-0 flex-1">

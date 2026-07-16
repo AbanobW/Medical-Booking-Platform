@@ -9,7 +9,6 @@ import {
   Landmark,
   LayoutDashboard,
   Microscope,
-  Percent,
   Radiation,
   Stethoscope,
   Target,
@@ -19,10 +18,8 @@ import {
 
 import { ProviderLeaderboard } from "@/components/admin/provider-leaderboard";
 import {
-  BookingsChart,
   CategoryBarChart,
   DonutChart,
-  RevenueChart,
   TrendChart,
 } from "@/components/shared/charts";
 import { Reveal } from "@/components/shared/motion";
@@ -41,9 +38,15 @@ import {
   getRevenueAnalytics,
 } from "@/lib/api/stats";
 import { GOVERNORATES, SPECIALTIES } from "@/lib/data/egypt";
+import { DASH } from "@/lib/i18n/format";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import type { CategoryCount, TimeSeriesPoint } from "@/lib/types";
+
+/** The analytics service counts rows as `{ label, count }`; charts read `CategoryCount`. */
+function toCategories(rows: { label: string; count: number }[]): CategoryCount[] {
+  return rows.map((row) => ({ name: row.label, value: row.count }));
+}
 
 /**
  * The stats service hands back English category labels (one dataset, many
@@ -230,30 +233,30 @@ function PlatformSection() {
           <StatisticsCard
             label={t("stats.totalBookings")}
             value={formatNumber(data.totalBookings)}
-            change={data.bookingsChange}
+            change={data.bookingsChange ?? undefined}
             icon={CalendarCheck}
             tone="primary"
           />
           <StatisticsCard
             label={t("stats.revenue")}
             value={formatEGPCompact(data.totalRevenue)}
-            change={data.revenueChange}
+            change={data.revenueChange ?? undefined}
             icon={Wallet}
             tone="success"
             hint={formatEGP(data.totalRevenue)}
           />
           <StatisticsCard
             label={t("stats.conversionRate")}
-            value={`${formatNumber(data.conversionRate)}%`}
-            change={data.conversionChange}
+            value={percent(data.conversionRate)}
+            change={data.conversionChange ?? undefined}
             icon={Target}
             tone="info"
             hint={t("stats.conversionHint")}
           />
           <StatisticsCard
             label={t("stats.cancellationRate")}
-            value={`${formatNumber(data.cancellationRate)}%`}
-            change={data.cancellationRateChange}
+            value={percent(data.cancellationRate)}
+            change={data.cancellationRateChange ?? undefined}
             invertChange
             icon={CalendarX}
             tone="warning"
@@ -261,7 +264,7 @@ function PlatformSection() {
           />
           <StatisticsCard
             label={t("stats.noShowRate")}
-            value={`${formatNumber(data.noShowRate)}%`}
+            value={percent(data.noShowRate)}
             icon={UserX}
             tone="destructive"
             hint={t("stats.noShowHint")}
@@ -269,11 +272,18 @@ function PlatformSection() {
         </div>
       </Reveal>
 
-      <TrendChart
-        data={months(data.bookingTrends)}
-        title={t("charts.trends.title")}
-        description={t("charts.trends.description")}
-      />
+      {data.bookingTrends.length > 0 ? (
+        <TrendChart
+          data={months(data.bookingTrends)}
+          title={t("charts.trends.title")}
+          description={t("charts.trends.description")}
+        />
+      ) : (
+        <EmptyState
+          title={t("charts.trends.emptyTitle")}
+          description={t("charts.trends.emptyDescription")}
+        />
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {data.topSpecialties.length > 0 ? (
@@ -311,8 +321,8 @@ function PlatformSection() {
 function CancellationSection() {
   const t = useTranslations("admin");
   const describeError = useApiError();
-  const { formatNumber } = useFormat();
-  const { months, lookup } = useChartLabels();
+  const { formatEGP, formatEGPCompact } = useFormat();
+  const { lookup } = useChartLabels();
 
   const { data, error, isLoading, refetch } = useAsync(() =>
     getCancellationAnalytics(),
@@ -321,12 +331,11 @@ function CancellationSection() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <StatGridSkeleton count={2} />
+        <StatGridSkeleton count={1} />
         <div className="grid gap-6 lg:grid-cols-2">
           <ChartSkeleton />
           <ChartSkeleton />
         </div>
-        <ChartSkeleton />
       </div>
     );
   }
@@ -341,7 +350,7 @@ function CancellationSection() {
     );
   }
 
-  if (!data || data.totalCancellations === 0) {
+  if (!data) {
     return (
       <EmptyState
         icon={CalendarX}
@@ -351,46 +360,55 @@ function CancellationSection() {
     );
   }
 
+  const byReason = lookup(toCategories(data.byReason), "cancelReason");
+  const byRole = lookup(toCategories(data.byRole), "providerTypePlural");
+
   return (
     <div className="space-y-6">
       <Reveal>
         <div className="grid gap-4 sm:grid-cols-2">
           <StatisticsCard
-            label={t("stats.totalCancellations")}
-            value={formatNumber(data.totalCancellations)}
-            icon={CalendarX}
+            label={t("stats.refundedTotal")}
+            value={formatEGPCompact(data.refundedTotal)}
+            icon={Banknote}
             tone="destructive"
-            hint={t("stats.totalCancellationsHint")}
-          />
-          <StatisticsCard
-            label={t("stats.cancellationRate")}
-            value={`${formatNumber(data.cancellationRate)}%`}
-            icon={Percent}
-            tone="warning"
-            hint={t("stats.cancellationHintAll")}
+            hint={
+              data.refundedTotal === null
+                ? t("stats.refundedTotalHint")
+                : formatEGP(data.refundedTotal)
+            }
           />
         </div>
       </Reveal>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <CategoryBarChart
-          data={lookup(data.byReason, "cancelReason")}
-          title={t("charts.cancelReasons.title")}
-          description={t("charts.cancelReasons.description")}
-          colorIndex={3}
-        />
-        <DonutChart
-          data={lookup(data.byType, "providerTypePlural")}
-          title={t("charts.cancelByType.title")}
-          description={t("charts.cancelByType.description")}
-        />
-      </div>
+        {byReason.length > 0 ? (
+          <CategoryBarChart
+            data={byReason}
+            title={t("charts.cancelReasons.title")}
+            description={t("charts.cancelReasons.description")}
+            colorIndex={3}
+          />
+        ) : (
+          <EmptyState
+            title={t("charts.cancelReasons.emptyTitle")}
+            description={t("charts.cancelReasons.emptyDescription")}
+          />
+        )}
 
-      <BookingsChart
-        data={months(data.monthly)}
-        title={t("charts.bookingsVsCancellations.title")}
-        description={t("charts.bookingsVsCancellations.description")}
-      />
+        {byRole.length > 0 ? (
+          <DonutChart
+            data={byRole}
+            title={t("charts.cancelByType.title")}
+            description={t("charts.cancelByType.description")}
+          />
+        ) : (
+          <EmptyState
+            title={t("charts.cancelByType.emptyTitle")}
+            description={t("charts.cancelByType.emptyDescription")}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -399,19 +417,14 @@ function RevenueSection() {
   const t = useTranslations("admin");
   const describeError = useApiError();
   const { formatEGP, formatEGPCompact } = useFormat();
-  const { months, lookup } = useChartLabels();
 
   const { data, error, isLoading, refetch } = useAsync(() => getRevenueAnalytics());
 
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <StatGridSkeleton />
+        <StatGridSkeleton count={3} />
         <ChartSkeleton />
-        <div className="grid gap-6 lg:grid-cols-2">
-          <ChartSkeleton />
-          <ChartSkeleton />
-        </div>
       </div>
     );
   }
@@ -426,7 +439,7 @@ function RevenueSection() {
     );
   }
 
-  if (!data || data.totalRevenue === 0) {
+  if (!data) {
     return (
       <EmptyState
         icon={Wallet}
@@ -439,58 +452,42 @@ function RevenueSection() {
   return (
     <div className="space-y-6">
       <Reveal>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatisticsCard
             label={t("stats.totalRevenue")}
-            value={formatEGPCompact(data.totalRevenue)}
+            value={formatEGPCompact(data.grossTotal)}
             icon={Wallet}
             tone="primary"
-            hint={formatEGP(data.totalRevenue)}
+            hint={formatEGP(data.grossTotal)}
           />
           <StatisticsCard
             label={t("stats.platformCommission")}
-            value={formatEGPCompact(data.platformCommission)}
+            value={formatEGPCompact(data.commissionTotal)}
             icon={Coins}
             tone="success"
-            hint={formatEGP(data.platformCommission)}
+            hint={formatEGP(data.commissionTotal)}
           />
           <StatisticsCard
             label={t("stats.netToProviders")}
-            value={formatEGPCompact(data.netToProviders)}
+            value={formatEGPCompact(data.netTotal)}
             icon={Landmark}
             tone="info"
-            hint={formatEGP(data.netToProviders)}
-          />
-          <StatisticsCard
-            label={t("stats.averageBookingValue")}
-            value={formatEGP(data.averageBookingValue)}
-            icon={Banknote}
-            tone="warning"
-            hint={t("stats.averageBookingValueHint")}
+            hint={formatEGP(data.netTotal)}
           />
         </div>
       </Reveal>
 
-      <RevenueChart
-        data={months(data.monthly)}
-        title={t("charts.revenue.title")}
-        description={t("charts.revenue.description")}
+      {/*
+        `monthly` splits each month into commission and net. Every chart wrapper
+        plots a `TimeSeriesPoint`, and gross is not the sum of the two — VAT and
+        the flat platform fee sit outside both — so there is no series to draw
+        until the shapes meet. See BACKEND-GAPS.md.
+      */}
+      <EmptyState
+        icon={Wallet}
+        title={t("charts.revenue.emptyTitle")}
+        description={t("charts.revenue.emptyDescription")}
       />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <DonutChart
-          data={lookup(data.byType, "providerTypePlural")}
-          title={t("charts.revenueByType.title")}
-          description={t("charts.revenueByType.description")}
-          format={(value) => formatEGP(value)}
-        />
-        <DonutChart
-          data={lookup(data.byPaymentMethod, "paymentMethod")}
-          title={t("charts.revenueByPayment.title")}
-          description={t("charts.revenueByPayment.description")}
-          format={(value) => formatEGP(value)}
-        />
-      </div>
     </div>
   );
 }

@@ -23,6 +23,7 @@ import {
   deleteService,
   getServices,
 } from "@/lib/api/provider-admin";
+import { orDash } from "@/lib/i18n/format";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import type { ProviderRole, ServicePackage } from "@/lib/types";
@@ -176,7 +177,7 @@ export default function ProviderServicesPage() {
                       // a bilingual catalogue can see both at a glance.
                       <p className="mt-0.5 truncate text-sm text-muted-foreground">
                         {locale === "ar" ? service.name : service.nameAr} ·{" "}
-                        {service.category}
+                        {orDash(service.category)}
                       </p>
                     )}
                   </div>
@@ -222,21 +223,26 @@ export default function ProviderServicesPage() {
                     {formatEGP(service.price)}
                   </span>
 
-                  {service.kind === "consultation" && (
-                    <span className="inline-flex items-center gap-1 text-muted-foreground">
-                      <Clock className="size-3.5" />
-                      {formatDuration(service.durationMinutes)}
-                    </span>
-                  )}
+                  {/* A clock beside a dash promises nothing — where the API
+                      gave no duration, the line is dropped entirely. */}
+                  {service.kind === "consultation" &&
+                    service.durationMinutes !== null && (
+                      <span className="inline-flex items-center gap-1 text-muted-foreground">
+                        <Clock className="size-3.5" />
+                        {formatDuration(service.durationMinutes)}
+                      </span>
+                    )}
 
                   {service.kind === "test" && (
                     <>
-                      <span className="inline-flex items-center gap-1 text-muted-foreground">
-                        <Clock className="size-3.5" />
-                        {t("services.resultsIn", {
-                          hours: formatNumber(service.resultTimeHours),
-                        })}
-                      </span>
+                      {service.resultTimeHours !== null && (
+                        <span className="inline-flex items-center gap-1 text-muted-foreground">
+                          <Clock className="size-3.5" />
+                          {t("services.resultsIn", {
+                            hours: formatNumber(service.resultTimeHours),
+                          })}
+                        </span>
+                      )}
                       {service.fastingRequired && (
                         <Badge variant="outline" className="gap-1">
                           <Droplet className="size-3" />
@@ -248,10 +254,12 @@ export default function ProviderServicesPage() {
 
                   {service.kind === "scan" && (
                     <>
-                      <span className="inline-flex items-center gap-1 text-muted-foreground">
-                        <Clock className="size-3.5" />
-                        {formatDuration(service.durationMinutes)}
-                      </span>
+                      {service.durationMinutes !== null && (
+                        <span className="inline-flex items-center gap-1 text-muted-foreground">
+                          <Clock className="size-3.5" />
+                          {formatDuration(service.durationMinutes)}
+                        </span>
+                      )}
                       {service.contrastRequired && (
                         <Badge variant="outline">{t("services.contrast")}</Badge>
                       )}

@@ -28,7 +28,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { ValidationError } from "@/lib/api/http";
 import { changePassword } from "@/lib/api/medpoint/profile";
-import { supportsPasswordChange } from "@/lib/api/session";
 import { useApiError } from "@/lib/i18n/use-api-error";
 
 type Values = {
@@ -37,20 +36,12 @@ type Values = {
   confirmPassword: string;
 };
 
-/**
- * Change the account password.
- *
- * Only meaningful against the live MedPoint backend — the seeded demo dataset
- * has no passwords to change (its `login` accepts anything). Rather than hide the
- * card in demo mode and leave a hole where a real capability sits, it renders
- * disabled with a note saying why.
- */
+/** Change the account password, against `PATCH /v1/users/:id/password`. */
 export function ChangePasswordCard() {
   const t = useTranslations("auth");
   const describeError = useApiError();
   const { user } = useAuth();
 
-  const isAvailable = supportsPasswordChange();
   const [showPassword, setShowPassword] = useState(false);
 
   const schema = z
@@ -108,12 +99,6 @@ export function ChangePasswordCard() {
       </CardHeader>
 
       <CardContent>
-        {!isAvailable && (
-          <p className="mb-5 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-muted-foreground">
-            {t("changePassword.demoNotice")}
-          </p>
-        )}
-
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
             <FormField
@@ -142,7 +127,6 @@ export function ChangePasswordCard() {
                       autoComplete="current-password"
                       placeholder={t("password.placeholder")}
                       className="h-11 rounded-xl"
-                      disabled={!isAvailable}
                       {...field}
                     />
                   </FormControl>
@@ -164,7 +148,6 @@ export function ChangePasswordCard() {
                         autoComplete="new-password"
                         placeholder={t("password.placeholder")}
                         className="h-11 rounded-xl"
-                        disabled={!isAvailable}
                         {...field}
                       />
                     </FormControl>
@@ -185,7 +168,6 @@ export function ChangePasswordCard() {
                         autoComplete="new-password"
                         placeholder={t("password.placeholder")}
                         className="h-11 rounded-xl"
-                        disabled={!isAvailable}
                         {...field}
                       />
                     </FormControl>
@@ -197,7 +179,7 @@ export function ChangePasswordCard() {
 
             <Button
               type="submit"
-              disabled={!isAvailable || form.formState.isSubmitting}
+              disabled={form.formState.isSubmitting}
               className="h-11 rounded-xl px-4"
             >
               {form.formState.isSubmitting ? (

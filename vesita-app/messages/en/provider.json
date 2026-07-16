@@ -38,6 +38,8 @@
     "missedVisitsHint": "Patients who never arrived",
     "bookingsChartTitle": "Bookings",
     "bookingsChartDescription": "Monthly bookings against cancellations, last 12 months",
+    "chartsEmptyTitle": "No monthly figures",
+    "chartsEmptyDescription": "Your bookings and revenue are not reported per month yet, so there is nothing to plot.",
     "todayTitle": "Today's appointments",
     "allBookings": "All bookings",
     "todayError": "Couldn't load today's appointments",
@@ -47,6 +49,7 @@
     "ratingTitle": "Average rating",
     "ratingDescription": "Across every review you've received",
     "visitsServed": "{count, plural, =0 {No visits served yet} one {# visit served} other {# visits served}}",
+    "visitsUnknown": "Visits served aren't available yet",
     "readReviews": "Read reviews"
   },
   "bookings": {

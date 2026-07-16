@@ -13,17 +13,16 @@ import { addDays, now, toISODate } from "@/lib/time";
 import type { Provider, TimeSlot } from "@/lib/types";
 import { getProviderById } from "@/lib/api/medpoint/providers";
 
-const PAGE_SIZE = 100;
 
 // The API ignores provider/branch filters on these endpoints, so availability is
 // always the whole dataset filtered in the browser. Cache and coalesce it: a
 // search page full of provider cards then shares ONE fetch of slots + sessions
 // instead of one pair per card.
 const slotsLoader = createCachedLoader(() =>
-  fetchAllPages<WireSlot>("/slots", PAGE_SIZE),
+  fetchAllPages<WireSlot>("/slots"),
 );
 const sessionsLoader = createCachedLoader(() =>
-  fetchAllPages<WireDoctorSession>("/doctor-sessions", PAGE_SIZE),
+  fetchAllPages<WireDoctorSession>("/doctor-sessions"),
 );
 
 /** Drop cached availability (e.g. after a booking consumes capacity). */

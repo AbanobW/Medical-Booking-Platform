@@ -56,7 +56,8 @@ export interface User {
   email: string;
   phone: string;
   role: Role;
-  avatar: string;
+  /** Null when the account has no avatar; the UI falls back to initials. */
+  avatar: string | null;
   status: UserStatus;
   /** Set for doctor/lab/radiology accounts — links the user to their profile. */
   providerId?: string;
@@ -315,8 +316,16 @@ export interface Branch {
   isActive: boolean;
 }
 
-/** The branch price for a service, falling back to the provider-level price. */
-export function branchPriceOf(branch: Branch | undefined, service: Service): number {
+/**
+ * The branch price for a service, falling back to the service's own price.
+ *
+ * Null when neither is known — a branch that does not override a price it also
+ * does not have. Callers must treat that as "no price to show", never as free.
+ */
+export function branchPriceOf(
+  branch: Branch | undefined,
+  service: Service,
+): number | null {
   return branch?.priceOverrides[service.id] ?? service.price;
 }
 

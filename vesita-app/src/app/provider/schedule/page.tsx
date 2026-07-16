@@ -274,7 +274,7 @@ export default function ProviderSchedulePage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {branch && (
+            {branch?.address && (
               <Badge variant="outline" className="font-normal">
                 {branch.address}
               </Badge>

@@ -355,17 +355,23 @@ export function ServiceCatalog({
                     </p>
 
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge variant="outline" className="font-normal">
-                        {categoryName(item.category)}
-                      </Badge>
+                      {item.category && (
+                        <Badge variant="outline" className="font-normal">
+                          {categoryName(item.category)}
+                        </Badge>
+                      )}
 
                       {item.kind === "test" ? (
                         <>
-                          <Badge variant="secondary" className="gap-1 font-normal">
-                            <Clock className="size-3" />
-                            {t("catalog.resultsIn", { hours: item.resultTimeHours })}
-                          </Badge>
-                          {item.preparation.fastingRequired && (
+                          {item.resultTimeHours !== null && (
+                            <Badge variant="secondary" className="gap-1 font-normal">
+                              <Clock className="size-3" />
+                              {t("catalog.resultsIn", {
+                                hours: item.resultTimeHours,
+                              })}
+                            </Badge>
+                          )}
+                          {item.preparation?.fastingRequired && (
                             <Badge
                               variant="secondary"
                               className="gap-1 bg-warning/15 font-normal text-warning-foreground"
@@ -381,10 +387,12 @@ export function ServiceCatalog({
                         </>
                       ) : (
                         <>
-                          <Badge variant="secondary" className="gap-1 font-normal">
-                            <Clock className="size-3" />
-                            {formatDuration(item.durationMinutes)}
-                          </Badge>
+                          {item.durationMinutes !== null && (
+                            <Badge variant="secondary" className="gap-1 font-normal">
+                              <Clock className="size-3" />
+                              {formatDuration(item.durationMinutes)}
+                            </Badge>
+                          )}
                           {item.contrastRequired && (
                             <Badge
                               variant="secondary"

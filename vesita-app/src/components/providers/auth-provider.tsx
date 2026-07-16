@@ -13,7 +13,7 @@ import {
 
 import * as session from "@/lib/api/session";
 import { onUnauthorized } from "@/lib/api/tokens";
-import type { Role, User } from "@/lib/types";
+import type { User } from "@/lib/types";
 
 interface AuthContextValue {
   user: User | null;
@@ -21,8 +21,6 @@ interface AuthContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<User>;
-  loginAs: (role: Role) => Promise<User>;
-  loginWithGoogle: () => Promise<User>;
   register: (input: session.RegisterInput) => Promise<User>;
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<User>) => Promise<User>;
@@ -78,18 +76,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return next;
   }, []);
 
-  const loginAs = useCallback(async (role: Role) => {
-    const next = await session.loginAs(role);
-    setUserState(next);
-    return next;
-  }, []);
-
-  const loginWithGoogle = useCallback(async () => {
-    const next = await session.loginWithGoogle();
-    setUserState(next);
-    return next;
-  }, []);
-
   const register = useCallback(async (input: session.RegisterInput) => {
     const next = await session.register(input);
     setUserState(next);
@@ -118,14 +104,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       isAuthenticated: user !== null,
       login,
-      loginAs,
-      loginWithGoogle,
       register,
       logout,
       updateProfile,
       setUser: setUserState,
     }),
-    [user, isLoading, login, loginAs, loginWithGoogle, register, logout, updateProfile],
+    [user, isLoading, login, register, logout, updateProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { orDash } from "@/lib/i18n/format";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import type { Named } from "@/lib/i18n/domain";
 import {
@@ -91,7 +92,7 @@ function ServiceCard({
   onSelect,
 }: {
   service: Service;
-  price: number;
+  price: number | null;
   isSelected: boolean;
   onSelect: () => void;
 }) {
@@ -102,20 +103,30 @@ function ServiceCard({
   const pkg = service.kind === "package" ? service : undefined;
   const saving = pkg ? pkg.originalPrice - pkg.price : 0;
 
+  // A duration or a turnaround the API did not answer has no badge to show —
+  // "—h" would read as a promise we cannot make.
   const meta: string[] = (() => {
     switch (service.kind) {
       case "consultation":
-        return [formatDuration(service.durationMinutes)];
+        return service.durationMinutes === null
+          ? []
+          : [formatDuration(service.durationMinutes)];
       case "test":
         return [
-          t("service.meta.results", {
-            duration: formatDuration(service.resultTimeHours * 60),
-          }),
+          ...(service.resultTimeHours === null
+            ? []
+            : [
+                t("service.meta.results", {
+                  duration: formatDuration(service.resultTimeHours * 60),
+                }),
+              ]),
           ...(service.fastingRequired ? [t("service.meta.fasting")] : []),
         ];
       case "scan":
         return [
-          formatDuration(service.durationMinutes),
+          ...(service.durationMinutes === null
+            ? []
+            : [formatDuration(service.durationMinutes)]),
           ...(service.contrastRequired ? [t("service.meta.contrast")] : []),
         ];
       case "package":
@@ -304,16 +315,25 @@ export function ServicePicker({
                       )}
                     </span>
                     <span className="mt-0.5 block text-sm text-muted-foreground">
-                      {getAreaName(item.areaId)},{" "}
-                      {getGovernorateName(item.governorateId)}
+                      {orDash(
+                        [
+                          item.areaId && getAreaName(item.areaId),
+                          item.governorateId &&
+                            getGovernorateName(item.governorateId),
+                        ]
+                          .filter(Boolean)
+                          .join(", "),
+                      )}
                     </span>
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                      {item.address}
+                      {orDash(item.address)}
                     </span>
-                    <span className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="size-3" />
-                      <span className="ltr-nums">{item.openingHours}</span>
-                    </span>
+                    {item.openingHours !== null && (
+                      <span className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="size-3" />
+                        <span className="ltr-nums">{item.openingHours}</span>
+                      </span>
+                    )}
                   </span>
                 </button>
               );

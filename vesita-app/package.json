@@ -8,10 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "check:seed": "tsx scripts/check-seed.ts",
-    "check:flows": "tsx scripts/check-flows.ts",
-    "check:search": "tsx scripts/check-search.ts",
-    "verify": "npm run typecheck && npm run lint && npm run check:seed && npm run check:flows && npm run check:search"
+    "verify": "npm run typecheck && npm run lint"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

@@ -62,34 +62,59 @@ export function createCachedLoader<T>(
 }
 
 /**
- * Absolute ceiling on pages walked for one list. A backstop against an endpoint
- * that mis-reports `total_pages` or ignores `page` — either would otherwise loop
- * the caller until the dataset's reported page count, hammering the network.
+ * Absolute ceiling on pages walked for one list.
+ *
+ * A backstop against an endpoint that mis-reports `total_pages` or ignores
+ * `page` — either would otherwise loop until the reported page count, hammering
+ * the network.
+ *
+ * It bites for real: the server pins every page at 10 rows whatever we ask for,
+ * so `/slots` is 105 pages for 1044 rows and this cap stops us at 400. Walking
+ * all of it would be 105 serial requests and would trip the API's 30/min
+ * throttle. Truncation is logged rather than silent — a short list that looks
+ * complete is worse than a short list that says so. The fix is server-side:
+ * honour `per_page`, or take a filter so we stop fetching whole tables.
  */
 const MAX_PAGES = 40;
 
-/** Walk every page of a MedPoint list endpoint into a single flat array. */
-export async function fetchAllPages<T>(path: string, pageSize: number): Promise<T[]> {
+/**
+ * Walk every page of a MedPoint list endpoint into a single flat array.
+ *
+ * The page size is the *server's*, not ours. MedPoint ignores both `limit` and
+ * `per_page` and always returns 10 rows — asking for 100 gets 10, with
+ * `"per_page": 10` in the meta. This used to send `limit` and then stop as soon
+ * as a page came back shorter than what it asked for, so a 10-row page against a
+ * requested 100 looked like the last one: `/services` returned 10 of 49 and
+ * `/slots` 10 of 1044, silently, and everything downstream quietly saw a
+ * fraction of the data.
+ *
+ * So: trust the reported `total`/`total_pages`, not the batch size, and stop
+ * only on an empty page or once we hold every row the server claims.
+ */
+export async function fetchAllPages<T>(path: string): Promise<T[]> {
   const items: T[] = [];
   let page = 1;
   let totalPages = 1;
 
   while (page <= totalPages && page <= MAX_PAGES) {
-    const { items: batch, pagination } = await apiList<T>(path, {
-      query: { page, limit: pageSize },
-    });
+    const { items: batch, pagination } = await apiList<T>(path, { query: { page } });
     items.push(...batch);
     totalPages = pagination?.total_pages ?? 1;
 
-    // Stop the moment we can prove there is nothing left, rather than trusting
-    // `total_pages` alone:
-    //  - an empty or short page is the last page;
-    //  - once we hold every row the server claims, further pages are redundant
-    //    (and would just refetch the same rows if `page` were being ignored).
-    if (batch.length === 0 || batch.length < pageSize) break;
+    // An empty page is the end. So is holding everything the server claims —
+    // which also stops us looping forever if `page` were being ignored.
+    if (batch.length === 0) break;
     if (pagination && items.length >= pagination.total) break;
 
     page += 1;
+
+    if (page > MAX_PAGES && pagination && items.length < pagination.total) {
+      console.warn(
+        `[medpoint] ${path}: stopped at ${items.length}/${pagination.total} rows ` +
+          `(${MAX_PAGES}-page cap). The API pins pages at ${batch.length} rows and ` +
+          `ignores per_page, so the rest is unreachable without a filter.`,
+      );
+    }
   }
 
   return items;
