@@ -52,6 +52,17 @@ export function parseMoney(value: number | string | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/**
+ * Like `parseMoney`, but for a field where absence means "unknown", not "0" —
+ * a rating average with no ratings yet, say. `null`/`undefined` stay `null`
+ * rather than collapsing to a number that would read as a real zero.
+ */
+function parseNullableNumber(value: number | string | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  const parsed = typeof value === "number" ? value : Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function toLocalPhone(phone: string | null): string {
   if (!phone) return "";
   const trimmed = phone.trim();
@@ -76,7 +87,7 @@ function statusOf(status: WireUser["status"]): UserStatus {
   return status === "suspended" || status === "pending" ? status : "active";
 }
 
-function genderOf(gender: WireUser["gender"]): Gender | undefined {
+function genderOf(gender: "male" | "female" | null | undefined): Gender | undefined {
   return gender === "male" || gender === "female" ? gender : undefined;
 }
 
@@ -157,6 +168,7 @@ function providerTypeOf(raw: string): ProviderRole {
 /** British → app (American) spellings and a few common abbreviations. */
 const SPECIALTY_ALIASES: Record<string, string> = {
   paediatrics: "pediatrics",
+  orthopaedics: "orthopedics",
   "obstetrics & gynaecology": "gynecology",
   gynaecology: "gynecology",
   "ob/gyn": "gynecology",
@@ -165,10 +177,19 @@ const SPECIALTY_ALIASES: Record<string, string> = {
   otolaryngology: "ent",
 };
 
-/** Resolve a free-text specialty label ("Paediatrics") to a known specialty id. */
-function specialtyIdFromLabel(label: string): string {
+/**
+ * Resolve a free-text specialty label ("Paediatrics") to a known specialty id.
+ *
+ * `null` on no match — this used to fall back to the literal string
+ * `"general"`, which is not a real id in `SPECIALTIES` (the closest is
+ * `"general-surgery"`, a different specialty entirely). `getSpecialtyName`
+ * would then miss too and paper over it with the invented label "General
+ * Practice" — a fabricated category no doctor claimed. A specialty this app
+ * doesn't recognise is unknown, not "general".
+ */
+function specialtyIdFromLabel(label: string): string | null {
   const norm = label.trim().toLowerCase();
-  if (!norm) return "general";
+  if (!norm) return null;
 
   const exact = SPECIALTIES.find(
     (s) => s.id === norm || s.name.toLowerCase() === norm || s.nameAr === label.trim(),
@@ -180,7 +201,7 @@ function specialtyIdFromLabel(label: string): string {
   const partial = SPECIALTIES.find(
     (s) => norm.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(norm),
   );
-  return partial?.id ?? "general";
+  return partial?.id ?? null;
 }
 
 /**
@@ -191,13 +212,13 @@ function specialtyIdFromLabel(label: string): string {
  */
 export function parseProviderName(rawName: string): {
   name: string;
-  specialtyId: string;
+  specialtyId: string | null;
 } {
   const [head, tail] = rawName.split(/\s+[—–-]\s+/, 2);
   const name = (head ?? rawName).trim() || rawName;
   return {
     name,
-    specialtyId: tail ? specialtyIdFromLabel(tail) : "general",
+    specialtyId: tail ? specialtyIdFromLabel(tail) : null,
   };
 }
 
@@ -227,7 +248,9 @@ export function toBranch(wire: WireBranch, providerId: string): Branch {
   return {
     id: wire.id,
     providerId,
-    name: wire.area ?? wire.address ?? wire.id,
+    // A real `name` field exists on the wire now, but is still null on every
+    // branch seen so far — fall back to what a patient would recognise.
+    name: wire.name ?? wire.area ?? wire.address ?? wire.id,
     governorateId,
     areaId: areaIdOf(governorateId, wire.area),
     address: wire.address ?? null,
@@ -332,12 +355,12 @@ export interface ProviderAssembly {
 /**
  * The fields every provider type shares.
  *
- * Almost all of them are `null`, and that is the honest answer: `/v1/providers`
- * returns `{type, id, provider_type, name, status, created_at, updated_at}` and
- * nothing else. There is no rating, no photo, no bio, no price and no waiting
- * time on the wire — each of those used to be filled with a plausible constant
- * here (`rating: 0`, `waitingTimeMinutes: 30`, a generated avatar), which is
- * exactly the invented data this model no longer carries.
+ * `/v1/providers` grew a `rating_avg`/`rating_count`/`verified_at` since this
+ * was first mapped, so those three read straight off the wire now. Everything
+ * else here is still `null`, and that remains the honest answer: no photo, no
+ * bio, no price and no waiting time exist on the wire. Each of those used to be
+ * filled with a plausible constant (`waitingTimeMinutes: 30`, a generated
+ * avatar) — exactly the invented data this model no longer carries.
  */
 function baseProviderFields(wire: WireProvider, branches: Branch[], displayName: string) {
   const main = branches[0];
@@ -350,8 +373,9 @@ function baseProviderFields(wire: WireProvider, branches: Branch[], displayName:
     photo: null as string | null,
     coverImage: null as string | null,
     bio: null as LocalizedText | null,
-    rating: null as number | null,
-    reviewCount: null as number | null,
+    rating: parseNullableNumber(wire.rating_avg),
+    // A real 0 (no ratings yet) is a known fact, unlike a null average.
+    reviewCount: wire.rating_count ?? null,
     price: null as number | null,
     // A provider's location is its main branch's; null when it has no branch.
     governorateId: main?.governorateId ?? null,
@@ -367,6 +391,7 @@ function baseProviderFields(wire: WireProvider, branches: Branch[], displayName:
     schedule: [],
     branches,
     acceptedInsurancePlanIds: [],
+    verifiedAt: wire.verified_at ?? null,
   };
 }
 
@@ -394,17 +419,26 @@ export function toProvider(assembly: ProviderAssembly): Provider {
   base.price = prices.length ? Math.min(...prices) : null;
 
   if (type === "doctor") {
+    // Prefer the dedicated `specialty` field when the API has it; every doctor
+    // on staging still has it null, so the name-parsed fallback stays the
+    // load-bearing path today.
+    const wireSpecialty = assembly.wire.specialty?.trim();
+    const resolvedSpecialtyId = wireSpecialty
+      ? specialtyIdFromLabel(wireSpecialty)
+      : specialtyId;
+
     const doctor: Doctor = {
       ...base,
       type: "doctor",
       title: "Dr.",
-      specialtyId,
-      subSpecialties: [],
-      gender: null,
+      specialtyId: resolvedSpecialtyId,
+      subSpecialties: assembly.wire.subspecialty ? [assembly.wire.subspecialty] : [],
+      gender: genderOf(assembly.wire.gender) ?? null,
       yearsOfExperience: null,
       degrees: [],
       languages: [],
       clinicName: branches[0]?.name ?? null,
+      syndicateNumber: assembly.wire.syndicate_number ?? null,
       // No stand-in consultation. A doctor with no attributable service has
       // nothing bookable, and the booking flow must say so rather than offer an
       // invented "Consultation, 300 EGP" that exists on no price list.

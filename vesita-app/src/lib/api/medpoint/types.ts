@@ -110,11 +110,31 @@ export interface WireProvider extends WireResource {
   provider_type: string;
   name: string;
   status: string;
+  /**
+   * Added since the provider was first mapped (re-probed 2026-07-16) — a real
+   * dedicated field, where before the specialty was only ever glued into
+   * `name` ("Dr. X — Cardiology"). Every provider on staging still has this
+   * `null`, so `parseProviderName`'s split of `name` remains the load-bearing
+   * path; this is read first and preferred once it's populated.
+   */
+  gender?: "male" | "female" | null;
+  specialty?: string | null;
+  subspecialty?: string | null;
+  /** Decimal string or number; `null` until the provider has any ratings. */
+  rating_avg?: number | string | null;
+  /** A real `0` is a fact (no ratings yet), not an unknown — unlike `rating_avg`. */
+  rating_count?: number | null;
+  /** Doctors only in practice; null until Medical Syndicate registration is recorded. */
+  syndicate_number?: string | null;
+  /** Null until ops confirms the listing — see the FAQ's verification promise. */
+  verified_at?: string | null;
 }
 
 export interface WireBranch extends WireResource {
   type: "Branch";
   provider_id?: string;
+  /** Added since first mapped; `null` on every branch seen so far. */
+  name?: string | null;
   governorate?: string;
   area?: string;
   address?: string;

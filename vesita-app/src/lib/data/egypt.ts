@@ -142,8 +142,15 @@ export function getGovernorate(id: string): Governorate | undefined {
   return GOVERNORATES.find((g) => g.id === id);
 }
 
+/**
+ * Every caller passes an id sourced from `GOVERNORATES` itself (a `<select>`
+ * built from the same list, an already-resolved `governorateId`), so the
+ * fallback below is unreached in practice — kept as `?? id` rather than an
+ * invented English word, on the chance a caller ever passes one that doesn't
+ * resolve.
+ */
 export function getGovernorateName(id: string): string {
-  return getGovernorate(id)?.name ?? "Unknown";
+  return getGovernorate(id)?.name ?? id;
 }
 
 export function getAreasFor(governorateId: string) {
@@ -151,7 +158,7 @@ export function getAreasFor(governorateId: string) {
 }
 
 export function getAreaName(id: string): string {
-  return ALL_AREAS.find((a) => a.id === id)?.name ?? "Unknown";
+  return ALL_AREAS.find((a) => a.id === id)?.name ?? id;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,8 +209,9 @@ export function getSpecialty(id: string): Specialty | undefined {
   return SPECIALTIES.find((s) => s.id === id);
 }
 
+/** Same contract as `getGovernorateName`: `?? id`, never an invented category. */
 export function getSpecialtyName(id: string): string {
-  return getSpecialty(id)?.name ?? "General Practice";
+  return getSpecialty(id)?.name ?? id;
 }
 
 // Insurance plans are NOT here. This used to hardcode 6 networks (AXA, MedNet,

@@ -260,12 +260,18 @@ export interface ProviderBase {
   acceptedInsurancePlanIds: string[];
   /** Present only while `status === "suspended"`. */
   suspension?: Suspension;
+  /** Null until ops confirms the listing — backs the FAQ's verification promise. */
+  verifiedAt: string | null;
 }
 
 export interface Doctor extends ProviderBase {
   type: "doctor";
   title: string;
-  /** Parsed out of the provider's name ("Dr. X — Cardiology"); null if absent. */
+  /**
+   * A real `specialty` field on the wire, when the API has it; falls back to
+   * parsing it out of the provider's name ("Dr. X — Cardiology") when not.
+   * Null if neither resolves to a specialty this app recognises.
+   */
   specialtyId: string | null;
   subSpecialties: string[];
   gender: Gender | null;
@@ -273,6 +279,8 @@ export interface Doctor extends ProviderBase {
   degrees: string[];
   languages: string[];
   clinicName: string | null;
+  /** Medical Syndicate registration number — the FAQ's verification claim. */
+  syndicateNumber: string | null;
   consultationTypes: ConsultationType[];
 }
 
