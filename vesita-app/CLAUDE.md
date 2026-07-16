@@ -1,6 +1,9 @@
 # Vesita — build contract
 
-Medical booking platform for Egypt (Vezeeta-like). **Frontend only.** No backend.
+Medical booking platform for Egypt (Vezeeta-like). **Live API only — there is no mock.**
+Every value on screen came from MedPoint or is absent; an absent value renders as an
+em dash (`DASH` / `orDash` in `@/lib/i18n/format`). Never invent a default to fill a
+gap — no `?? 0`, no placeholder rating, no plausible opening hours. See `.claude/BACKEND-GAPS.md`.
 Next.js 15 App Router · TypeScript · Tailwind v4 · shadcn (Base UI) · Framer Motion ·
 React Hook Form + Zod · TanStack Table · Recharts · lucide-react.
 
@@ -51,14 +54,14 @@ const { data, error, isLoading, refetch, setData } = useAsync(() => getBookings(
 | `@/lib/api/profiles` | `getPatientProfiles(accountId)`, `getPatientProfile`, `createPatientProfile`, `updatePatientProfile`, `deletePatientProfile`, `checkEligibility` |
 | `@/lib/api/availability` | `slotsForBranch`, `nextAvailableSlot`, `queuePositionFor`, `estimatedTimeFor`, `releaseExpiredHolds`, `branchOf`, `earliestAvailability` |
 | `@/lib/eligibility` | `evaluateEligibility(service, profile)` → `EligibilityResult`, `describeEligibility`, `ageOf` |
-| `@/lib/data/clinical` | `CHRONIC_CONDITIONS`, `preparationForTest/Scan`, `eligibilityForTest/Scan` |
+| `@/lib/data/clinical` | `CHRONIC_CONDITIONS` (the vocabulary a provider declares rules from) |
 | `@/lib/api/engagement` | `getFavorites`, `getFavoriteIds`, `toggleFavorite`, `getReviewsByPatient`, `getReviewsByProvider`, `createReview`, `updateReview`, `deleteReview`, `replyToReview`, `getNotifications`, `getUnreadCount`, `markNotificationRead`, `markAllNotificationsRead`, `deleteNotification` |
 | `@/lib/api/stats` | `getPatientStats`, `getProviderStats`, `getAdminStats`, `getTopProviders(type)`, `getCancellationAnalytics`, `getRevenueAnalytics` |
 | `@/lib/api/admin` | `getUsers`, `setUserStatus`, `getAdminProviders`, `setProviderStatus`, `getCoupons`/`createCoupon`/`updateCoupon`/`deleteCoupon`, `getCampaigns`/`createCampaign`/`updateCampaign`/`deleteCampaign`, `getCommission`, `updateCommission` |
 | `@/lib/api/provider-admin` | `updateProviderProfile`, `getSchedule`, `updateSchedule`, `getHolidays`, `addHoliday`, `removeHoliday`, `getServices`, `createService`, `updateService`, `deleteService`, `createPackage`, `updatePackage`, `deletePackage` |
-| `@/lib/api/auth` | `HOME_FOR_ROLE`, `OTP_CODE` (`"123456"`), `demoUserFor(role)` |
+| `@/lib/api/auth` | `HOME_FOR_ROLE`, `RegisterInput` |
 | `@/lib/data/egypt` | `GOVERNORATES`, `SPECIALTIES`, `getAreasFor(govId)`, `getGovernorateName`, `getAreaName`, `getSpecialtyName`, `slugify` |
-| `@/lib/data/seed` | `TODAY` (fixed anchor — **use instead of `new Date()`**), `todayISO()`, `addDays`, `toISODate` |
+| `@/lib/time` | `now()`, `todayISO()`, `addDays`, `toISODate` |
 | `@/lib/format` | `formatDate`, `formatDateShort`, `formatTime`, `relativeDay`, `timeAgo`, `formatDuration`, `formatDelta`, `initialsOf` |
 | `@/lib/site` | `SITE`, `BUSINESS` (bookingFee, paymentHoldMinutes, freeCancellationHours), `formatEGP`, `formatEGPCompact`, `formatNumber` |
 | `@/lib/types` | the whole domain model — `Provider` (`Doctor \| Lab \| RadiologyCenter`, discriminated on `.type`), `Branch`, `PatientProfile`, `Booking`, `Review`, `Coupon`, `SearchFilters`, `Role`, … |
@@ -93,15 +96,19 @@ are load-bearing; breaking them is a product bug, not a style choice.
 Holds expire after `BUSINESS.paymentHoldMinutes` and are *discarded*, returning the
 place to capacity. A booking is never partially confirmed.
 
-Auth: `const { user, isAuthenticated, isLoading, login, loginAs, register, logout, updateProfile } = useAuth()`
-from `@/components/providers/auth-provider`.
+Auth: `const { user, isAuthenticated, isLoading, login, register, logout, updateProfile } = useAuth()`
+from `@/components/providers/auth-provider`. There is no demo login, no role switcher
+and no signup OTP — all three were mock affordances.
 
-**`TODAY` is a fixed date (2026-07-13)**, not `new Date()` — the dataset is
-deterministic so server and client hydration agree. Use it for anything "now".
+Use `now()` from `@/lib/time` for anything "now", and only inside client
+components — a server render and the client evaluate it at different instants.
 
-Dataset: 56 doctors, 22 labs, 22 radiology centers, 60 patients, 620 bookings,
-reviews, coupons, campaigns — all cross-referenced. Mutations persist to
-localStorage.
+**What the API cannot serve, the app does not show.** MedPoint returns providers,
+branches, services, slots, coupons and insurances — but no foreign keys on read, so
+no service or slot can be attributed to a provider. Consequently: no provider price,
+no availability, nothing bookable, no booking list, and no stats (there is no
+analytics endpoint at all). Those screens render dashes and empty states on purpose.
+Functions with no endpoint throw a 501 `ApiError` rather than pretending to save.
 
 ---
 

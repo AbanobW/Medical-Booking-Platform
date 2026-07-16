@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -25,7 +25,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { HOME_FOR_ROLE } from "@/lib/api/auth";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import type { Role } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 type LoginValues = { email: string; password: string };
 

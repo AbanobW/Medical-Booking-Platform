@@ -55,6 +55,7 @@
     "clinic": "Clinic",
     "branches": "Branches ({count})",
     "reviews": "Reviews ({count})",
+    "reviewsNoCount": "Reviews",
     "tests": "Tests ({count})",
     "scans": "Scans ({count})",
     "packages": "Packages ({count})"

@@ -23,7 +23,6 @@ import type {
   ProviderRole,
   Review,
   SearchFilters,
-  Weekday,
 } from "@/lib/types";
 
 

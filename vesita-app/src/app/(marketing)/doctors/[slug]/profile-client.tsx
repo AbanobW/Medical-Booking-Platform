@@ -223,7 +223,9 @@ export default function DoctorProfilePage() {
               </p>
               <div className="mt-auto flex items-center justify-between gap-2 pt-1">
                 <Badge variant="secondary" className="font-normal">
-                  {formatDuration(consultation.durationMinutes)}
+                  {consultation.durationMinutes === null
+                    ? DASH
+                    : formatDuration(consultation.durationMinutes)}
                 </Badge>
                 <Button
                   render={
@@ -254,29 +256,28 @@ export default function DoctorProfilePage() {
         <div className="flex items-start gap-3">
           <Building2 className="mt-0.5 size-4 shrink-0 text-primary" />
           <div>
-            <p className="font-medium">{doctor.clinicName}</p>
+            <p className="font-medium">{orDash(doctor.clinicName)}</p>
             <p className="mt-0.5 flex items-start gap-1.5 text-sm text-muted-foreground">
               <MapPin className="mt-0.5 size-3.5 shrink-0" />
-              <span>
-                {doctor.address} — {getAreaName(doctor.areaId)},{" "}
-                {getGovernorateName(doctor.governorateId)}
-              </span>
+              <span>{orDash(place)}</span>
             </p>
           </div>
         </div>
 
-        <MapPlaceholder
-          center={doctor.location}
-          address={doctor.address}
-          markers={[
-            {
-              id: doctor.id,
-              label: doctor.clinicName,
-              location: doctor.location,
-              isPrimary: true,
-            },
-          ]}
-        />
+        {doctor.location && (
+          <MapPlaceholder
+            center={doctor.location}
+            address={doctor.address ?? undefined}
+            markers={[
+              {
+                id: doctor.id,
+                label: doctor.clinicName ?? named(doctor),
+                location: doctor.location,
+                isPrimary: true,
+              },
+            ]}
+          />
+        )}
       </CardContent>
     </Card>
   );
@@ -285,10 +286,14 @@ export default function DoctorProfilePage() {
     <div className="pb-20">
       <ProfileHero
         provider={doctor}
-        subtitle={`${L.doctorTitle(doctor.title)} · ${getSpecialtyName(doctor.specialtyId)}`}
+        subtitle={[L.doctorTitle(doctor.title), specialtyName]
+          .filter((part): part is string => Boolean(part))
+          .join(" · ")}
         priceLabel={t("hero.priceConsultation")}
         chips={[
-          t("hero.chipExperience", { years: doctor.yearsOfExperience }),
+          ...(doctor.yearsOfExperience === null
+            ? []
+            : [t("hero.chipExperience", { years: doctor.yearsOfExperience })]),
           ...doctor.degrees.slice(0, 2).map(L.degree),
           ...doctor.languages.slice(0, 2).map(L.language),
         ]}
@@ -312,7 +317,9 @@ export default function DoctorProfilePage() {
                   {t("tabs.branches", { count: doctor.branches.length })}
                 </TabsTrigger>
                 <TabsTrigger value="reviews" className="h-9 px-4">
-                  {t("tabs.reviews", { count: doctor.reviewCount })}
+                  {doctor.reviewCount === null
+                    ? t("tabs.reviewsNoCount")
+                    : t("tabs.reviews", { count: doctor.reviewCount })}
                 </TabsTrigger>
               </TabsList>
 

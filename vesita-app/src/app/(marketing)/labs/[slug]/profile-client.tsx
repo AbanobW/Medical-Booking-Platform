@@ -30,6 +30,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAsync } from "@/hooks/use-async";
 import { getProviderBySlug } from "@/lib/api/providers";
+import { DASH, orDash } from "@/lib/i18n/format";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import { useLabels } from "@/lib/i18n/use-labels";
 import { BUSINESS } from "@/lib/site";
@@ -90,6 +91,19 @@ export default function LabProfilePage() {
   const activeTests = lab.tests.filter((test) => test.isActive);
   const activePackages = lab.packages.filter((p) => p.isActive);
 
+  /** Street address, area and governorate — as much of each as the API answered. */
+  const place = [
+    lab.address,
+    [
+      lab.areaId ? getAreaName(lab.areaId) : null,
+      lab.governorateId ? getGovernorateName(lab.governorateId) : null,
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join(", "),
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(" — ");
+
   const overview = (
     <div className="space-y-6">
       <Card>
@@ -141,10 +155,7 @@ export default function LabProfilePage() {
                 <dt className="text-xs text-muted-foreground">
                   {t("about.mainBranch")}
                 </dt>
-                <dd className="text-sm font-medium">
-                  {lab.address} — {getAreaName(lab.areaId)},{" "}
-                  {getGovernorateName(lab.governorateId)}
-                </dd>
+                <dd className="text-sm font-medium">{orDash(place)}</dd>
               </div>
             </div>
 
@@ -153,9 +164,13 @@ export default function LabProfilePage() {
               <div>
                 <dt className="text-xs text-muted-foreground">{t("about.phone")}</dt>
                 <dd className="text-sm font-medium tabular-nums ltr-nums">
-                  <a href={`tel:${lab.phone}`} className="hover:text-primary">
-                    {lab.phone}
-                  </a>
+                  {lab.phone ? (
+                    <a href={`tel:${lab.phone}`} className="hover:text-primary">
+                      {lab.phone}
+                    </a>
+                  ) : (
+                    DASH
+                  )}
                 </dd>
               </div>
             </div>
@@ -186,30 +201,38 @@ export default function LabProfilePage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t("about.mainLocation")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <MapPlaceholder
-            center={lab.location}
-            address={lab.address}
-            markers={[
-              {
-                id: lab.id,
-                label: named(lab),
-                location: lab.location,
-                isPrimary: true,
-              },
-              ...lab.branches.map((branch) => ({
-                id: branch.id,
-                label: branch.name,
-                location: branch.location,
-              })),
-            ]}
-          />
-        </CardContent>
-      </Card>
+      {lab.location && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("about.mainLocation")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MapPlaceholder
+              center={lab.location}
+              address={lab.address ?? undefined}
+              markers={[
+                {
+                  id: lab.id,
+                  label: named(lab),
+                  location: lab.location,
+                  isPrimary: true,
+                },
+                ...lab.branches.flatMap((branch) =>
+                  branch.location
+                    ? [
+                        {
+                          id: branch.id,
+                          label: branch.name,
+                          location: branch.location,
+                        },
+                      ]
+                    : [],
+                ),
+              ]}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <div className="lg:hidden">
         <AvailabilityPanel provider={lab} />
@@ -247,7 +270,9 @@ export default function LabProfilePage() {
                   {t("tabs.branches", { count: lab.branches.length })}
                 </TabsTrigger>
                 <TabsTrigger value="reviews" className="h-9 px-4">
-                  {t("tabs.reviews", { count: lab.reviewCount })}
+                  {lab.reviewCount === null
+                    ? t("tabs.reviewsNoCount")
+                    : t("tabs.reviews", { count: lab.reviewCount })}
                 </TabsTrigger>
               </TabsList>
 

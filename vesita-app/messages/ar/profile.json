@@ -55,6 +55,7 @@
     "clinic": "العيادة",
     "branches": "الفروع ({count})",
     "reviews": "التقييمات ({count})",
+    "reviewsNoCount": "التقييمات",
     "tests": "التحاليل ({count})",
     "scans": "الأشعة ({count})",
     "packages": "الباقات ({count})"

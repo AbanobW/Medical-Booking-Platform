@@ -30,6 +30,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAsync } from "@/hooks/use-async";
 import { getProviderBySlug } from "@/lib/api/providers";
+import { DASH, orDash } from "@/lib/i18n/format";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import { useLabels } from "@/lib/i18n/use-labels";
 import type { RadiologyCenter } from "@/lib/types";
@@ -89,12 +90,34 @@ export default function RadiologyProfilePage() {
   const activeScans = center.scans.filter((s) => s.isActive);
   const activePackages = center.packages.filter((p) => p.isActive);
 
-  const averageScanMinutes = activeScans.length
+  /**
+   * Averaged over the scans whose duration the API answered — a scan of unknown
+   * length is left out rather than counted as zero, which would drag the typical
+   * time below anything this center actually offers.
+   */
+  const knownDurations = activeScans
+    .map((scan) => scan.durationMinutes)
+    .filter((minutes): minutes is number => minutes !== null);
+
+  const averageScanMinutes = knownDurations.length
     ? Math.round(
-        activeScans.reduce((sum, scan) => sum + scan.durationMinutes, 0) /
-          activeScans.length,
+        knownDurations.reduce((sum, minutes) => sum + minutes, 0) /
+          knownDurations.length,
       )
-    : 0;
+    : null;
+
+  /** Street address, area and governorate — as much of each as the API answered. */
+  const place = [
+    center.address,
+    [
+      center.areaId ? getAreaName(center.areaId) : null,
+      center.governorateId ? getGovernorateName(center.governorateId) : null,
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join(", "),
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(" — ");
 
   const overview = (
     <div className="space-y-6">
@@ -134,9 +157,9 @@ export default function RadiologyProfilePage() {
                   {t("about.typicalScanTime")}
                 </dt>
                 <dd className="text-sm font-medium">
-                  {averageScanMinutes
-                    ? formatDuration(averageScanMinutes)
-                    : t("about.variesByScan")}
+                  {averageScanMinutes === null
+                    ? t("about.variesByScan")
+                    : formatDuration(averageScanMinutes)}
                 </dd>
               </div>
             </div>
@@ -147,10 +170,7 @@ export default function RadiologyProfilePage() {
                 <dt className="text-xs text-muted-foreground">
                   {t("about.mainBranch")}
                 </dt>
-                <dd className="text-sm font-medium">
-                  {center.address} — {getAreaName(center.areaId)},{" "}
-                  {getGovernorateName(center.governorateId)}
-                </dd>
+                <dd className="text-sm font-medium">{orDash(place)}</dd>
               </div>
             </div>
 
@@ -159,9 +179,16 @@ export default function RadiologyProfilePage() {
               <div>
                 <dt className="text-xs text-muted-foreground">{t("about.phone")}</dt>
                 <dd className="text-sm font-medium tabular-nums ltr-nums">
-                  <a href={`tel:${center.phone}`} className="hover:text-primary">
-                    {center.phone}
-                  </a>
+                  {center.phone ? (
+                    <a
+                      href={`tel:${center.phone}`}
+                      className="hover:text-primary"
+                    >
+                      {center.phone}
+                    </a>
+                  ) : (
+                    DASH
+                  )}
                 </dd>
               </div>
             </div>
@@ -192,30 +219,38 @@ export default function RadiologyProfilePage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t("about.mainLocation")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <MapPlaceholder
-            center={center.location}
-            address={center.address}
-            markers={[
-              {
-                id: center.id,
-                label: named(center),
-                location: center.location,
-                isPrimary: true,
-              },
-              ...center.branches.map((branch) => ({
-                id: branch.id,
-                label: branch.name,
-                location: branch.location,
-              })),
-            ]}
-          />
-        </CardContent>
-      </Card>
+      {center.location && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("about.mainLocation")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MapPlaceholder
+              center={center.location}
+              address={center.address ?? undefined}
+              markers={[
+                {
+                  id: center.id,
+                  label: named(center),
+                  location: center.location,
+                  isPrimary: true,
+                },
+                ...center.branches.flatMap((branch) =>
+                  branch.location
+                    ? [
+                        {
+                          id: branch.id,
+                          label: branch.name,
+                          location: branch.location,
+                        },
+                      ]
+                    : [],
+                ),
+              ]}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <div className="lg:hidden">
         <AvailabilityPanel provider={center} />
@@ -250,7 +285,9 @@ export default function RadiologyProfilePage() {
                   {t("tabs.branches", { count: center.branches.length })}
                 </TabsTrigger>
                 <TabsTrigger value="reviews" className="h-9 px-4">
-                  {t("tabs.reviews", { count: center.reviewCount })}
+                  {center.reviewCount === null
+                    ? t("tabs.reviewsNoCount")
+                    : t("tabs.reviews", { count: center.reviewCount })}
                 </TabsTrigger>
               </TabsList>
 
