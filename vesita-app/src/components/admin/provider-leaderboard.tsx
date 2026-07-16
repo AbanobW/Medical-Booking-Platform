@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useAsync } from "@/hooks/use-async";
 import { getTopProviders, type RankedProvider } from "@/lib/api/stats";
+import { DASH } from "@/lib/i18n/format";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import type { ProviderRole } from "@/lib/types";
@@ -70,7 +71,7 @@ export function ProviderLeaderboard({
           return (
             <div className="flex items-center gap-3">
               <Avatar className="size-9 shrink-0 rounded-xl">
-                <AvatarImage src={provider.photo} alt="" />
+                <AvatarImage src={provider.photo ?? undefined} alt="" />
                 <AvatarFallback className="rounded-xl text-xs">
                   {initialsOf(named(provider))}
                 </AvatarFallback>
@@ -80,7 +81,9 @@ export function ProviderLeaderboard({
                   {named(provider)}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {getGovernorateName(provider.governorateId)}
+                  {provider.governorateId
+                    ? getGovernorateName(provider.governorateId)
+                    : DASH}
                 </p>
               </div>
             </div>
@@ -91,12 +94,21 @@ export function ProviderLeaderboard({
         id: "rating",
         accessorFn: (r) => r.provider.rating,
         header: t("leaderboard.columns.rating"),
-        cell: ({ row }) => (
-          <span className="inline-flex items-center gap-1 tabular-nums">
-            <Star className="size-3.5 fill-warning text-warning" aria-hidden />
-            {row.original.provider.rating.toFixed(1)}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const { rating } = row.original.provider;
+
+          // A star beside a dash would read as an unrated provider scoring zero.
+          if (rating === null) {
+            return <span className="text-muted-foreground">{DASH}</span>;
+          }
+
+          return (
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <Star className="size-3.5 fill-warning text-warning" aria-hidden />
+              {rating.toFixed(1)}
+            </span>
+          );
+        },
       },
       {
         id: "bookings",
@@ -124,6 +136,11 @@ export function ProviderLeaderboard({
         header: t("leaderboard.columns.cancellationRate"),
         cell: ({ row }) => {
           const rate = row.original.cancellationRate;
+
+          // A colour would grade the provider on a number we do not have.
+          if (rate === null) {
+            return <span className="text-muted-foreground">{DASH}</span>;
+          }
 
           return (
             <Badge
@@ -164,11 +181,10 @@ export function ProviderLeaderboard({
     );
   }
 
-  const ranked = (data ?? []).filter((row) => row.bookings > 0);
+  const ranked = data ?? [];
+  const { icon } = PROVIDER_TYPE_META[type];
 
   if (ranked.length === 0) {
-    const { icon } = PROVIDER_TYPE_META[type];
-
     return (
       <EmptyState
         icon={icon}
@@ -178,17 +194,29 @@ export function ProviderLeaderboard({
     );
   }
 
+  // The table can carry a provider whose booking count is unknown; a bar cannot.
+  const series = ranked
+    .filter((row): row is RankedProvider & { bookings: number } =>
+      row.bookings !== null,
+    )
+    .map((row) => ({ name: named(row.provider), value: row.bookings }));
+
   return (
     <div className="space-y-6">
-      <CategoryBarChart
-        data={ranked.map((row) => ({
-          name: named(row.provider),
-          value: row.bookings,
-        }))}
-        title={title}
-        description={description}
-        colorIndex={colorIndex}
-      />
+      {series.length > 0 ? (
+        <CategoryBarChart
+          data={series}
+          title={title}
+          description={description}
+          colorIndex={colorIndex}
+        />
+      ) : (
+        <EmptyState
+          icon={icon}
+          title={t("leaderboard.chartEmptyTitle")}
+          description={t("leaderboard.chartEmptyDescription")}
+        />
+      )}
 
       <DataTable
         columns={columns}

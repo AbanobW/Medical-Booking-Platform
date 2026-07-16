@@ -34,6 +34,7 @@ import {
   suspendProvider,
 } from "@/lib/api/admin";
 import { GOVERNORATES } from "@/lib/data/egypt";
+import { DASH, orDash } from "@/lib/i18n/format";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import {
@@ -186,6 +187,10 @@ export default function AdminProvidersPage() {
     [getGovernorateName],
   );
 
+  /** The API does not always place a provider. */
+  const governorateOf = (provider: Provider) =>
+    provider.governorateId ? getGovernorateName(provider.governorateId) : DASH;
+
   const columns = useMemo<ColumnDef<Provider, unknown>[]>(
     () => [
       {
@@ -197,7 +202,7 @@ export default function AdminProvidersPage() {
           return (
             <div className="flex items-center gap-3">
               <Avatar className="size-9 shrink-0 rounded-xl">
-                <AvatarImage src={provider.photo} alt="" />
+                <AvatarImage src={provider.photo ?? undefined} alt="" />
                 <AvatarFallback className="rounded-xl text-xs">
                   {initialsOf(named(provider))}
                 </AvatarFallback>
@@ -207,7 +212,7 @@ export default function AdminProvidersPage() {
                   {named(provider)}
                 </p>
                 <p className="ltr-nums truncate text-xs text-muted-foreground">
-                  {provider.phone}
+                  {orDash(provider.phone)}
                 </p>
               </div>
             </div>
@@ -222,11 +227,11 @@ export default function AdminProvidersPage() {
       },
       {
         id: "governorate",
-        accessorFn: (p) => getGovernorateName(p.governorateId),
+        accessorFn: (p) => governorateOf(p),
         header: t("providers.columns.governorate"),
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-muted-foreground">
-            {getGovernorateName(row.original.governorateId)}
+            {governorateOf(row.original)}
           </span>
         ),
       },
@@ -234,15 +239,24 @@ export default function AdminProvidersPage() {
         id: "rating",
         accessorKey: "rating",
         header: t("providers.columns.rating"),
-        cell: ({ row }) => (
-          <span className="ltr-nums inline-flex items-center gap-1 tabular-nums">
-            <Star className="size-3.5 fill-warning text-warning" aria-hidden />
-            {row.original.rating.toFixed(1)}
-            <span className="text-xs text-muted-foreground">
-              ({formatNumber(row.original.reviewCount)})
+        cell: ({ row }) => {
+          const { rating, reviewCount } = row.original;
+
+          // A star beside a dash would read as an unrated provider scoring zero.
+          if (rating === null) {
+            return <span className="text-muted-foreground">{DASH}</span>;
+          }
+
+          return (
+            <span className="ltr-nums inline-flex items-center gap-1 tabular-nums">
+              <Star className="size-3.5 fill-warning text-warning" aria-hidden />
+              {rating.toFixed(1)}
+              <span className="text-xs text-muted-foreground">
+                ({formatNumber(reviewCount)})
+              </span>
             </span>
-          </span>
-        ),
+          );
+        },
       },
       {
         id: "bookings",

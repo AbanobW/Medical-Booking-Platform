@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { useAsync } from "@/hooks/use-async";
 import { getAdminStats } from "@/lib/api/stats";
 import { GOVERNORATES, SPECIALTIES } from "@/lib/data/egypt";
+import { DASH } from "@/lib/i18n/format";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import type { CategoryCount, TimeSeriesPoint } from "@/lib/types";
@@ -81,6 +82,10 @@ export default function AdminDashboardPage() {
   const { months, specialties, governorates } = useChartLabels();
 
   const { data: stats, error, isLoading, refetch } = useAsync(() => getAdminStats());
+
+  /** An unknown rate is a dash, not "—%". */
+  const percent = (value: number | null) =>
+    value === null ? DASH : `${formatNumber(value)}%`;
 
   if (isLoading) {
     return (
@@ -143,7 +148,7 @@ export default function AdminDashboardPage() {
           <StatisticsCard
             label={t("stats.patients")}
             value={formatNumber(stats.totalUsers)}
-            change={stats.usersChange}
+            change={stats.usersChange ?? undefined}
             icon={Users}
             tone="primary"
             hint={t("stats.patientsHint")}
@@ -151,7 +156,7 @@ export default function AdminDashboardPage() {
           <StatisticsCard
             label={t("stats.providers")}
             value={formatNumber(stats.totalProviders)}
-            change={stats.providersChange}
+            change={stats.providersChange ?? undefined}
             icon={Stethoscope}
             tone="info"
             hint={t("stats.providersHint")}
@@ -159,14 +164,14 @@ export default function AdminDashboardPage() {
           <StatisticsCard
             label={t("stats.bookings")}
             value={formatNumber(stats.totalBookings)}
-            change={stats.bookingsChange}
+            change={stats.bookingsChange ?? undefined}
             icon={CalendarCheck}
             tone="success"
           />
           <StatisticsCard
             label={t("stats.revenue")}
             value={formatEGPCompact(stats.totalRevenue)}
-            change={stats.revenueChange}
+            change={stats.revenueChange ?? undefined}
             icon={Wallet}
             tone="warning"
             hint={formatEGP(stats.totalRevenue)}
@@ -183,16 +188,16 @@ export default function AdminDashboardPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatisticsCard
             label={t("stats.conversionRate")}
-            value={`${formatNumber(stats.conversionRate)}%`}
-            change={stats.conversionChange}
+            value={percent(stats.conversionRate)}
+            change={stats.conversionChange ?? undefined}
             icon={Target}
             tone="primary"
             hint={t("stats.conversionHint")}
           />
           <StatisticsCard
             label={t("stats.cancellationRate")}
-            value={`${formatNumber(stats.cancellationRate)}%`}
-            change={stats.cancellationRateChange}
+            value={percent(stats.cancellationRate)}
+            change={stats.cancellationRateChange ?? undefined}
             invertChange
             icon={CalendarX}
             tone="warning"
@@ -200,7 +205,7 @@ export default function AdminDashboardPage() {
           />
           <StatisticsCard
             label={t("stats.noShowRate")}
-            value={`${formatNumber(stats.noShowRate)}%`}
+            value={percent(stats.noShowRate)}
             icon={UserX}
             tone="destructive"
             hint={t("stats.noShowHint")}

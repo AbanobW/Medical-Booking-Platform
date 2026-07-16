@@ -1,19 +1,52 @@
-import { applyProviderCancellation, isUpcoming } from "@/lib/api/bookings";
-import { ApiError, db, makeId, paginate, request } from "@/lib/api/client";
-import {
-  isHold,
-  type CashbackCampaign,
-  type CommissionSettings,
-  type Coupon,
-  type Paginated,
-  type Provider,
-  type ProviderRole,
-  type ProviderStatus,
-  type Role,
-  type SuspensionType,
-  type User,
-  type UserStatus,
+/**
+ * The admin API.
+ *
+ * Mixed, and explicit about which half is which:
+ *
+ *   • **Coupons** are real — `/v1/coupons` lists and deletes.
+ *   • **Users** and **providers** are real but admin-gated. A non-admin token
+ *     gets a 403, which is the right answer and is passed through rather than
+ *     swallowed into an empty list.
+ *   • **Campaigns**, **commission** and **suspension** have no endpoint at all.
+ *
+ * Everything used to run on the seeded dataset — 60 users, 100 providers, 8
+ * coupons, 4 campaigns — mutated in the browser and persisted to localStorage.
+ * An admin "suspending" a provider changed nothing but their own tab.
+ */
+
+import { ApiError } from "@/lib/api/errors";
+import { apiList } from "@/lib/api/http";
+import * as live from "@/lib/api/medpoint/admin";
+import { toProvider, toUser } from "@/lib/api/medpoint/mappers";
+import type { WireProvider, WireUser } from "@/lib/api/medpoint/types";
+import type {
+  CashbackCampaign,
+  CommissionSettings,
+  Coupon,
+  Paginated,
+  Provider,
+  ProviderRole,
+  ProviderStatus,
+  Role,
+  SuspensionType,
+  User,
+  UserStatus,
 } from "@/lib/types";
+
+function unsupported(what: string, why: string): ApiError {
+  return new ApiError(`${what} is not available yet — ${why}`, 501, "admin.notSupported");
+}
+
+function paginateAll<T>(items: T[], page = 1, pageSize = 12): Paginated<T> {
+  const start = (page - 1) * pageSize;
+  return {
+    items: items.slice(start, start + pageSize),
+    total: items.length,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Users
@@ -27,336 +60,163 @@ export interface UserQuery {
   pageSize?: number;
 }
 
-export function getUsers(query: UserQuery = {}): Promise<Paginated<User>> {
-  return request(() => {
-    const { q, role, status, page = 1, pageSize = 10 } = query;
+/**
+ * `GET /v1/users` takes no filters, so the query is applied client-side over
+ * whatever the page returns — the same degraded pattern as provider discovery.
+ */
+export async function getUsers(query: UserQuery = {}): Promise<Paginated<User>> {
+  const { items } = await apiList<WireUser>("/users");
+  let users = items.map(toUser);
 
-    let results = db().users;
-
-    if (role) results = results.filter((u) => u.role === role);
-    if (status) results = results.filter((u) => u.status === status);
-    if (q) {
-      const term = q.toLowerCase();
-      results = results.filter((u) =>
-        [u.name, u.email, u.phone].join(" ").toLowerCase().includes(term),
-      );
-    }
-
-    const sorted = [...results].sort((a, b) =>
-      b.createdAt.localeCompare(a.createdAt),
+  if (query.q) {
+    const q = query.q.toLowerCase();
+    users = users.filter(
+      (u) =>
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.phone ?? "").includes(q),
     );
-    return paginate(sorted, page, pageSize);
-  });
+  }
+  if (query.status) users = users.filter((u) => u.status === query.status);
+
+  return paginateAll(users, query.page, query.pageSize);
 }
 
-export function setUserStatus(id: string, status: UserStatus): Promise<User> {
-  return request(() => {
-    const state = db();
-    const user = state.users.find((u) => u.id === id);
-    if (!user) throw new ApiError("User not found", 404, "user.notFound");
-
-    user.status = status;
-
-    // Suspending a provider's account must also pull their public listing.
-    if (user.providerId) {
-      const provider = state.providers.find((p) => p.id === user.providerId);
-      if (provider) {
-        if (status === "suspended") provider.status = "suspended";
-        else if (provider.status === "suspended") provider.status = "approved";
-      }
-    }
-
-    return user;
-  });
+export async function setUserStatus(_id: string, _status: UserStatus): Promise<User> {
+  void _id;
+  void _status;
+  throw unsupported(
+    "Suspending a user",
+    "the API has no status field on a user it will accept.",
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Providers
 // ---------------------------------------------------------------------------
 
-export interface AdminProviderQuery {
+export interface ProviderQuery {
   q?: string;
   type?: ProviderRole;
   status?: ProviderStatus;
-  governorateId?: string;
   page?: number;
   pageSize?: number;
 }
 
-export function getAdminProviders(
-  query: AdminProviderQuery = {},
+export async function getAdminProviders(
+  query: ProviderQuery = {},
 ): Promise<Paginated<Provider>> {
-  return request(() => {
-    const { q, type, status, governorateId, page = 1, pageSize = 10 } = query;
+  const { items } = await apiList<WireProvider>("/providers");
+  let providers = items.map((wire) => toProvider({ wire }));
 
-    let results = db().providers;
+  if (query.q) {
+    const q = query.q.toLowerCase();
+    providers = providers.filter((p) => p.name.toLowerCase().includes(q));
+  }
+  if (query.type) providers = providers.filter((p) => p.type === query.type);
+  if (query.status) providers = providers.filter((p) => p.status === query.status);
 
-    if (type) results = results.filter((p) => p.type === type);
-    if (status) results = results.filter((p) => p.status === status);
-    if (governorateId)
-      results = results.filter((p) => p.governorateId === governorateId);
-    if (q) {
-      const term = q.toLowerCase();
-      results = results.filter((p) =>
-        [p.name, p.address, p.phone].join(" ").toLowerCase().includes(term),
-      );
-    }
-
-    const sorted = [...results].sort((a, b) => b.joinedAt.localeCompare(a.joinedAt));
-    return paginate(sorted, page, pageSize);
-  });
+  return paginateAll(providers, query.page, query.pageSize);
 }
 
-export function setProviderStatus(
-  id: string,
-  status: ProviderStatus,
+export async function setProviderStatus(
+  _id: string,
+  _status: ProviderStatus,
 ): Promise<Provider> {
-  return request(() => {
-    const state = db();
-    const provider = state.providers.find((p) => p.id === id);
-    if (!provider) throw new ApiError("Provider not found", 404, "provider.notFound");
-
-    provider.status = status;
-    if (status !== "suspended") provider.suspension = undefined;
-
-    // Keep the linked login account in sync.
-    const account = state.users.find((u) => u.providerId === id);
-    if (account) {
-      account.status = status === "suspended" ? "suspended" : status === "pending" ? "pending" : "active";
-    }
-
-    return provider;
-  });
+  void _id;
+  void _status;
+  throw unsupported("Changing a provider's status", "there is no endpoint for it.");
 }
 
-/**
- * Suspends a provider (§13).
- *
- * A **soft** suspension removes them from search and blocks new bookings while
- * honoring the bookings that already exist — it suits a temporary pause and does
- * not punish patients who already booked.
- *
- * A **hard** suspension — for a credential problem or fraud — additionally
- * cancels every upcoming booking, refunds them in full, and notifies the
- * affected patients so they can rebook elsewhere.
- */
-export function suspendProvider(
-  id: string,
-  type: SuspensionType,
-  reason: string,
-): Promise<{ provider: Provider; cancelledBookings: number }> {
-  return request(() => {
-    const state = db();
-    const provider = state.providers.find((p) => p.id === id);
-    if (!provider) throw new ApiError("Provider not found", 404, "provider.notFound");
-
-    let cancelledBookings = 0;
-
-    if (type === "hard") {
-      const upcoming = state.bookings.filter(
-        (b) =>
-          b.providerId === id &&
-          isUpcoming(b) &&
-          (b.status === "confirmed" || isHold(b.status)),
-      );
-
-      for (const booking of upcoming) {
-        if (isHold(booking.status)) {
-          state.bookings = state.bookings.filter((x) => x.id !== booking.id);
-          continue;
-        }
-        applyProviderCancellation(
-          booking,
-          `${provider.name} has been suspended from the platform. ${reason}`,
-        );
-        cancelledBookings += 1;
-      }
-    }
-
-    provider.status = "suspended";
-    provider.suspension = {
-      type,
-      reason,
-      suspendedAt: new Date().toISOString(),
-      cancelledBookingCount: cancelledBookings,
-    };
-
-    const account = state.users.find((u) => u.providerId === id);
-    if (account) account.status = "suspended";
-
-    return { provider, cancelledBookings };
-  });
-}
-
-/** Lifts a suspension and returns the provider to search. */
-export function reinstateProvider(id: string): Promise<Provider> {
-  return request(() => {
-    const state = db();
-    const provider = state.providers.find((p) => p.id === id);
-    if (!provider) throw new ApiError("Provider not found", 404, "provider.notFound");
-
-    provider.status = "approved";
-    provider.suspension = undefined;
-
-    const account = state.users.find((u) => u.providerId === id);
-    if (account) account.status = "active";
-
-    return provider;
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Coupons
-// ---------------------------------------------------------------------------
-
-export function getCoupons(): Promise<Coupon[]> {
-  return request(() =>
-    [...db().coupons].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+export async function suspendProvider(
+  _id: string,
+  _type: SuspensionType,
+  _reason: string,
+): Promise<Provider> {
+  void _id;
+  void _type;
+  void _reason;
+  throw unsupported(
+    "Suspending a provider",
+    "a hard suspension must cancel and refund every upcoming booking (§13), and the API can neither list nor refund them.",
   );
+}
+
+export async function reinstateProvider(_id: string): Promise<Provider> {
+  void _id;
+  throw unsupported("Reinstating a provider", "there is no endpoint for it.");
+}
+
+// ---------------------------------------------------------------------------
+// Coupons — real
+// ---------------------------------------------------------------------------
+
+export async function getCoupons(): Promise<Coupon[]> {
+  return live.getCoupons();
 }
 
 export type CouponInput = Omit<Coupon, "id" | "usageCount" | "createdAt">;
 
-export function createCoupon(input: CouponInput): Promise<Coupon> {
-  return request(() => {
-    const state = db();
-
-    const exists = state.coupons.some(
-      (c) => c.code.toUpperCase() === input.code.toUpperCase(),
-    );
-    if (exists) throw new ApiError(
-        "A coupon with that code already exists.",
-        409,
-        "coupon.codeExists",
-      );
-
-    const coupon: Coupon = {
-      ...input,
-      code: input.code.toUpperCase(),
-      id: makeId("cpn"),
-      usageCount: 0,
-      createdAt: new Date().toISOString(),
-    };
-
-    state.coupons.unshift(coupon);
-    return coupon;
-  });
-}
-
-export function updateCoupon(id: string, patch: Partial<CouponInput>): Promise<Coupon> {
-  return request(() => {
-    const state = db();
-    const coupon = state.coupons.find((c) => c.id === id);
-    if (!coupon) throw new ApiError("Coupon not found", 404, "coupon.notFound");
-
-    if (patch.code) {
-      const clash = state.coupons.some(
-        (c) => c.id !== id && c.code.toUpperCase() === patch.code!.toUpperCase(),
-      );
-      if (clash) throw new ApiError(
-        "A coupon with that code already exists.",
-        409,
-        "coupon.codeExists",
-      );
-    }
-
-    Object.assign(coupon, patch, patch.code ? { code: patch.code.toUpperCase() } : {});
-    return coupon;
-  });
-}
-
-export function deleteCoupon(id: string): Promise<{ id: string }> {
-  return request(() => {
-    const state = db();
-    const index = state.coupons.findIndex((c) => c.id === id);
-    if (index < 0) throw new ApiError("Coupon not found", 404, "coupon.notFound");
-
-    state.coupons.splice(index, 1);
-    return { id };
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Cashback campaigns
-// ---------------------------------------------------------------------------
-
-export function getCampaigns(): Promise<CashbackCampaign[]> {
-  return request(() =>
-    [...db().campaigns].sort((a, b) => b.startsAt.localeCompare(a.startsAt)),
+export async function createCoupon(_input: CouponInput): Promise<Coupon> {
+  void _input;
+  throw unsupported(
+    "Creating a coupon",
+    "the API's coupon has no description, minimum-order or applies-to column to write.",
   );
+}
+
+export async function updateCoupon(
+  _id: string,
+  _patch: Partial<CouponInput>,
+): Promise<Coupon> {
+  void _id;
+  void _patch;
+  throw unsupported("Editing a coupon", "the fields this form edits do not exist on the API.");
+}
+
+export async function deleteCoupon(id: string): Promise<{ id: string }> {
+  return live.deleteCoupon(id);
+}
+
+// ---------------------------------------------------------------------------
+// Campaigns & commission — no endpoint
+// ---------------------------------------------------------------------------
+
+export async function getCampaigns(): Promise<CashbackCampaign[]> {
+  return [];
 }
 
 export type CampaignInput = Omit<
   CashbackCampaign,
-  "id" | "totalIssued" | "redeemedCount" | "status"
+  "id" | "status" | "totalIssued" | "redeemedCount"
 >;
 
-/** Derives status from the campaign window rather than trusting the caller. */
-function statusFor(startsAt: string, endsAt: string): CashbackCampaign["status"] {
-  const now = new Date().toISOString();
-  if (endsAt < now) return "ended";
-  if (startsAt > now) return "scheduled";
-  return "active";
+export async function createCampaign(_input: CampaignInput): Promise<CashbackCampaign> {
+  void _input;
+  throw unsupported("Creating a campaign", "there is no campaigns endpoint.");
 }
 
-export function createCampaign(input: CampaignInput): Promise<CashbackCampaign> {
-  return request(() => {
-    const campaign: CashbackCampaign = {
-      ...input,
-      id: makeId("cbk"),
-      status: statusFor(input.startsAt, input.endsAt),
-      totalIssued: 0,
-      redeemedCount: 0,
-    };
-
-    db().campaigns.unshift(campaign);
-    return campaign;
-  });
-}
-
-export function updateCampaign(
-  id: string,
-  patch: Partial<CampaignInput>,
+export async function updateCampaign(
+  _id: string,
+  _patch: Partial<CampaignInput>,
 ): Promise<CashbackCampaign> {
-  return request(() => {
-    const campaign = db().campaigns.find((c) => c.id === id);
-    if (!campaign) throw new ApiError("Campaign not found", 404, "campaign.notFound");
-
-    Object.assign(campaign, patch);
-    campaign.status = statusFor(campaign.startsAt, campaign.endsAt);
-    return campaign;
-  });
+  void _id;
+  void _patch;
+  throw unsupported("Editing a campaign", "there is no campaigns endpoint.");
 }
 
-export function deleteCampaign(id: string): Promise<{ id: string }> {
-  return request(() => {
-    const state = db();
-    const index = state.campaigns.findIndex((c) => c.id === id);
-    if (index < 0) throw new ApiError("Campaign not found", 404, "campaign.notFound");
-
-    state.campaigns.splice(index, 1);
-    return { id };
-  });
+export async function deleteCampaign(_id: string): Promise<{ id: string }> {
+  void _id;
+  throw unsupported("Deleting a campaign", "there is no campaigns endpoint.");
 }
 
-// ---------------------------------------------------------------------------
-// Commission
-// ---------------------------------------------------------------------------
-
-export function getCommission(): Promise<CommissionSettings> {
-  return request(() => db().commission);
+export async function getCommission(): Promise<CommissionSettings | null> {
+  return null;
 }
 
-export function updateCommission(
-  patch: Partial<Omit<CommissionSettings, "updatedAt">>,
+export async function updateCommission(
+  _patch: Partial<CommissionSettings>,
 ): Promise<CommissionSettings> {
-  return request(() => {
-    const state = db();
-    state.commission = {
-      ...state.commission,
-      ...patch,
-      updatedAt: new Date().toISOString(),
-    };
-    return state.commission;
-  });
+  void _patch;
+  throw unsupported("Editing commission", "there is no commission endpoint.");
 }

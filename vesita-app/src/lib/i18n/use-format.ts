@@ -55,9 +55,13 @@ export function useFormat() {
       timeAgo: (iso: string) => F.timeAgo(iso, locale),
       formatDuration: (minutes: number) => F.formatDuration(minutes, locale),
       formatDelta: (value: number) => F.formatDelta(value, locale),
-      formatEGP: (amount: number) => F.formatEGP(amount, locale),
-      formatEGPCompact: (amount: number) => F.formatEGPCompact(amount, locale),
-      formatNumber: (value: number) => F.formatNumber(value, locale),
+      // Nullable, like the functions they wrap: an unknown value prints as a
+      // dash, so a call site passes `null` straight through.
+      formatEGP: (amount: number | null | undefined) => F.formatEGP(amount, locale),
+      formatEGPCompact: (amount: number | null | undefined) =>
+        F.formatEGPCompact(amount, locale),
+      formatNumber: (value: number | null | undefined) =>
+        F.formatNumber(value, locale),
       initialsOf: F.initialsOf,
     }),
     [locale],

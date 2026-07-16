@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { now } from "@/lib/time";
+import { DASH, orDash } from "@/lib/i18n/format";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import { type Branch, type Weekday } from "@/lib/types";
 
@@ -43,6 +44,20 @@ export function BranchesSection({
       // Arabic weekday names are already short; English abbreviates to three.
       return locale === "ar" ? name : name.slice(0, 3);
     });
+
+  /** Street address, area and governorate — as much of each as the API answered. */
+  const placeOf = (branch: Branch): string => {
+    const area = [
+      branch.areaId ? getAreaName(branch.areaId) : null,
+      branch.governorateId ? getGovernorateName(branch.governorateId) : null,
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join(", ");
+
+    return [branch.address, area]
+      .filter((part): part is string => Boolean(part))
+      .join(" — ");
+  };
 
   if (branches.length === 0) {
     return (
@@ -94,28 +109,34 @@ export function BranchesSection({
 
                   <p className="mt-1 flex items-start gap-1.5 text-sm text-muted-foreground">
                     <MapPin className="mt-0.5 size-3.5 shrink-0" />
-                    <span>
-                      {branch.address} — {getAreaName(branch.areaId)},{" "}
-                      {getGovernorateName(branch.governorateId)}
-                    </span>
+                    <span>{orDash(placeOf(branch))}</span>
                   </p>
                 </div>
 
                 {/* Hours, services and contact are all branch-level facts. */}
                 <div className="grid gap-2 text-sm sm:grid-cols-2">
-                  <a
-                    href={`tel:${branch.phone}`}
-                    className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2 transition-colors hover:bg-accent"
-                  >
-                    <Phone className="size-3.5 shrink-0 text-primary" />
-                    <span className="truncate tabular-nums ltr-nums">
-                      {branch.phone}
-                    </span>
-                  </a>
+                  {branch.phone ? (
+                    <a
+                      href={`tel:${branch.phone}`}
+                      className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2 transition-colors hover:bg-accent"
+                    >
+                      <Phone className="size-3.5 shrink-0 text-primary" />
+                      <span className="truncate tabular-nums ltr-nums">
+                        {branch.phone}
+                      </span>
+                    </a>
+                  ) : (
+                    <p className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2">
+                      <Phone className="size-3.5 shrink-0 text-primary" />
+                      <span className="truncate">{DASH}</span>
+                    </p>
+                  )}
 
                   <p className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2">
                     <Clock className="size-3.5 shrink-0 text-primary" />
-                    <span className="truncate">{branch.openingHours}</span>
+                    <span className="truncate">
+                      {orDash(branch.openingHours)}
+                    </span>
                   </p>
 
                   <p className="flex items-center gap-2 rounded-xl bg-muted px-3 py-2">
@@ -143,19 +164,21 @@ export function BranchesSection({
                   </p>
                 )}
 
-                <MapPlaceholder
-                  center={branch.location}
-                  address={branch.address}
-                  height={220}
-                  markers={[
-                    {
-                      id: branch.id,
-                      label: branch.name,
-                      location: branch.location,
-                      isPrimary: true,
-                    },
-                  ]}
-                />
+                {branch.location && (
+                  <MapPlaceholder
+                    center={branch.location}
+                    address={branch.address ?? undefined}
+                    height={220}
+                    markers={[
+                      {
+                        id: branch.id,
+                        label: branch.name,
+                        location: branch.location,
+                        isPrimary: true,
+                      },
+                    ]}
+                  />
+                )}
               </CardContent>
             </Card>
           </li>

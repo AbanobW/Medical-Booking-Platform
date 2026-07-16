@@ -19,6 +19,7 @@ import SpotlightCard from "@/components/reactbits/SpotlightCard";
 import { RatingStars } from "@/components/shared/rating";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DASH } from "@/lib/i18n/format";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import type { Provider } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,13 @@ export function ProfileHero({
   const name = named(provider);
   const isDoctor = provider.type === "doctor";
 
+  const place = [
+    provider.areaId ? getAreaName(provider.areaId) : null,
+    provider.governorateId ? getGovernorateName(provider.governorateId) : null,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(", ");
+
   async function share() {
     const url = typeof window !== "undefined" ? window.location.href : "";
     try {
@@ -75,13 +83,15 @@ export function ProfileHero({
     <section className="relative">
       {/* Cover — a local SVG API route, so next/image optimization is pointless. */}
       <div className="relative h-40 w-full overflow-hidden bg-muted sm:h-52 lg:h-64">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={provider.coverImage}
-          alt=""
-          aria-hidden
-          className="size-full object-cover"
-        />
+        {provider.coverImage && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={provider.coverImage}
+            alt=""
+            aria-hidden
+            className="size-full object-cover"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
       </div>
 
@@ -93,15 +103,17 @@ export function ProfileHero({
             {/* Identity */}
             <div className="flex min-w-0 flex-1 flex-col gap-5 sm:flex-row">
               <div className="size-24 shrink-0 overflow-hidden rounded-2xl border-4 border-background bg-muted shadow-lift sm:size-32">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={provider.photo}
-                  alt={name}
-                  className="size-full object-cover"
-                  onError={(event) => {
-                    event.currentTarget.style.display = "none";
-                  }}
-                />
+                {provider.photo && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={provider.photo}
+                    alt={name}
+                    className="size-full object-cover"
+                    onError={(event) => {
+                      event.currentTarget.style.display = "none";
+                    }}
+                  />
+                )}
                 <span className="sr-only">{initialsOf(name)}</span>
               </div>
 
@@ -126,17 +138,20 @@ export function ProfileHero({
                 </p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <MapPin className="size-3.5 shrink-0" />
-                    {getAreaName(provider.areaId)},{" "}
-                    {getGovernorateName(provider.governorateId)}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="size-3.5 shrink-0" />
-                    {t("hero.wait", {
-                      duration: formatDuration(provider.waitingTimeMinutes),
-                    })}
-                  </span>
+                  {place && (
+                    <span className="flex items-center gap-1.5">
+                      <MapPin className="size-3.5 shrink-0" />
+                      {place}
+                    </span>
+                  )}
+                  {provider.waitingTimeMinutes !== null && (
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="size-3.5 shrink-0" />
+                      {t("hero.wait", {
+                        duration: formatDuration(provider.waitingTimeMinutes),
+                      })}
+                    </span>
+                  )}
                 </div>
 
                 {chips && chips.length > 0 && (
@@ -172,7 +187,7 @@ export function ProfileHero({
             >
               <p className="text-xs text-muted-foreground">{priceLabel}</p>
               <p className="mt-0.5 text-3xl font-bold text-primary ltr-nums">
-                {formatEGP(provider.price)}
+                {provider.price === null ? DASH : formatEGP(provider.price)}
               </p>
 
               <Button
@@ -184,14 +199,16 @@ export function ProfileHero({
               </Button>
 
               <div className="mt-2 flex gap-2">
-                <Button
-                  render={<a href={`tel:${provider.phone}`} />}
-                  variant="outline"
-                  className="h-10 flex-1 rounded-xl"
-                >
-                  <Phone className="size-4" />
-                  {t("hero.call")}
-                </Button>
+                {provider.phone && (
+                  <Button
+                    render={<a href={`tel:${provider.phone}`} />}
+                    variant="outline"
+                    className="h-10 flex-1 rounded-xl"
+                  >
+                    <Phone className="size-4" />
+                    {t("hero.call")}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="icon"
@@ -219,22 +236,41 @@ export function ProfileHero({
             <Stat label={t("hero.stats.rating")}>
               <span className="flex items-center gap-2">
                 <span className="ltr-nums text-xl font-bold tabular-nums sm:text-2xl">
-                  <CountUp to={provider.rating} duration={0.9} />
+                  {provider.rating === null ? (
+                    DASH
+                  ) : (
+                    <CountUp to={provider.rating} duration={0.9} />
+                  )}
                 </span>
-                <RatingStars value={provider.rating} size="sm" />
+                {/* Five empty stars would read as a score, not as no score. */}
+                {provider.rating !== null && (
+                  <RatingStars value={provider.rating} size="sm" />
+                )}
               </span>
             </Stat>
 
             <Stat label={t("hero.stats.reviews")}>
               <span className="ltr-nums text-xl font-bold tabular-nums sm:text-2xl">
-                <CountUp to={provider.reviewCount} separator="," duration={0.9} />
+                {provider.reviewCount === null ? (
+                  DASH
+                ) : (
+                  <CountUp
+                    to={provider.reviewCount}
+                    separator=","
+                    duration={0.9}
+                  />
+                )}
               </span>
             </Stat>
 
             {isDoctor && (
               <Stat label={t("hero.stats.experience")}>
                 <span className="ltr-nums text-xl font-bold tabular-nums sm:text-2xl">
-                  <CountUp to={provider.yearsOfExperience} duration={0.9} />
+                  {provider.yearsOfExperience === null ? (
+                    DASH
+                  ) : (
+                    <CountUp to={provider.yearsOfExperience} duration={0.9} />
+                  )}
                 </span>
               </Stat>
             )}
@@ -246,16 +282,22 @@ export function ProfileHero({
               <span className="flex items-center gap-1.5">
                 <Star className="size-4 shrink-0 fill-warning text-warning" />
                 <span className="ltr-nums text-xl font-bold tabular-nums sm:text-2xl">
-                  <CountUp
-                    to={provider.bookingCount}
-                    separator=","
-                    duration={0.9}
-                  />
+                  {provider.bookingCount === null ? (
+                    DASH
+                  ) : (
+                    <CountUp
+                      to={provider.bookingCount}
+                      separator=","
+                      duration={0.9}
+                    />
+                  )}
                 </span>
               </span>
-              <span className="sr-only">
-                {formatNumber(provider.bookingCount)}
-              </span>
+              {provider.bookingCount !== null && (
+                <span className="sr-only">
+                  {formatNumber(provider.bookingCount)}
+                </span>
+              )}
             </Stat>
           </dl>
         </div>

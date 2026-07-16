@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import {
+  BarChart3,
   CalendarCheck,
   Gauge,
   Hourglass,
@@ -42,6 +43,7 @@ import { useAsync } from "@/hooks/use-async";
 import { getBookings } from "@/lib/api/bookings";
 import { getProviderStats } from "@/lib/api/stats";
 import { todayISO } from "@/lib/time";
+import { DASH } from "@/lib/i18n/format";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import { isCancelled, schedulingModeFor } from "@/lib/types";
@@ -73,6 +75,10 @@ export default function ProviderDashboardPage() {
 
   const isDoctor = provider ? schedulingModeFor(provider.type) === "session" : false;
 
+  /** An unknown rate is a dash, not "—%". */
+  const percent = (value: number | null) =>
+    value === null ? DASH : `${formatNumber(value)}%`;
+
   // Cancelled bookings are not "on today" — the four cancellation/refund states
   // all collapse to the same thing here (§7).
   const todaysAppointments = (today.data?.items ?? [])
@@ -99,28 +105,28 @@ export default function ProviderDashboardPage() {
           <StatisticsCard
             label={t("dashboard.totalBookings")}
             value={formatNumber(stats.data.totalBookings)}
-            change={stats.data.bookingsChange}
+            change={stats.data.bookingsChange ?? undefined}
             icon={CalendarCheck}
             tone="primary"
           />
           <StatisticsCard
             label={t("dashboard.revenue")}
             value={formatEGP(stats.data.revenue)}
-            change={stats.data.revenueChange}
+            change={stats.data.revenueChange ?? undefined}
             icon={Wallet}
             tone="success"
           />
           <StatisticsCard
             label={t("dashboard.newPatients")}
             value={formatNumber(stats.data.newPatients)}
-            change={stats.data.newPatientsChange}
+            change={stats.data.newPatientsChange ?? undefined}
             icon={UserPlus}
             tone="info"
           />
           <StatisticsCard
             label={t("dashboard.cancellations")}
             value={formatNumber(stats.data.cancellations)}
-            change={stats.data.cancellationsChange}
+            change={stats.data.cancellationsChange ?? undefined}
             invertChange
             icon={XCircle}
             tone="destructive"
@@ -135,8 +141,8 @@ export default function ProviderDashboardPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatisticsCard
             label={t("dashboard.utilization")}
-            value={`${formatNumber(stats.data.utilizationRate)}%`}
-            change={stats.data.utilizationChange}
+            value={percent(stats.data.utilizationRate)}
+            change={stats.data.utilizationChange ?? undefined}
             icon={Gauge}
             tone="primary"
             hint={
@@ -147,21 +153,25 @@ export default function ProviderDashboardPage() {
           />
           <StatisticsCard
             label={t("dashboard.averageWait")}
-            value={formatDuration(stats.data.averageWaitMinutes)}
+            value={
+              stats.data.averageWaitMinutes === null
+                ? DASH
+                : formatDuration(stats.data.averageWaitMinutes)
+            }
             icon={Hourglass}
             tone="warning"
             hint={t("dashboard.averageWaitHint")}
           />
           <StatisticsCard
             label={t("dashboard.cancellationRate")}
-            value={`${formatNumber(stats.data.cancellationRate)}%`}
+            value={percent(stats.data.cancellationRate)}
             icon={XCircle}
             tone="destructive"
             hint={t("dashboard.cancellationRateHint")}
           />
           <StatisticsCard
             label={t("dashboard.missedVisits")}
-            value={`${formatNumber(stats.data.noShowRate)}%`}
+            value={percent(stats.data.noShowRate)}
             icon={UserX}
             tone="info"
             hint={t("dashboard.missedVisitsHint")}
@@ -176,14 +186,22 @@ export default function ProviderDashboardPage() {
           <ChartSkeleton />
         </div>
       ) : stats.data ? (
-        <div className="grid gap-6 xl:grid-cols-2">
-          <BookingsChart
-            data={stats.data.monthly}
-            title={t("dashboard.bookingsChartTitle")}
-            description={t("dashboard.bookingsChartDescription")}
+        stats.data.monthly.length > 0 ? (
+          <div className="grid gap-6 xl:grid-cols-2">
+            <BookingsChart
+              data={stats.data.monthly}
+              title={t("dashboard.bookingsChartTitle")}
+              description={t("dashboard.bookingsChartDescription")}
+            />
+            <RevenueChart data={stats.data.monthly} />
+          </div>
+        ) : (
+          <EmptyState
+            icon={BarChart3}
+            title={t("dashboard.chartsEmptyTitle")}
+            description={t("dashboard.chartsEmptyDescription")}
           />
-          <RevenueChart data={stats.data.monthly} />
-        </div>
+        )
       ) : null}
 
       {/* ------------------------------------------------- today + avg rating */}
@@ -278,16 +296,27 @@ export default function ProviderDashboardPage() {
             ) : stats.data ? (
               <>
                 <span className="text-5xl font-bold tabular-nums">
-                  {stats.data.averageRating.toFixed(1)}
+                  {stats.data.averageRating === null
+                    ? DASH
+                    : stats.data.averageRating.toFixed(1)}
                 </span>
-                <RatingStars value={stats.data.averageRating} size="lg" />
+                {/* Stars would read as a zero rating; an unrated provider has none. */}
+                {stats.data.averageRating !== null && (
+                  <RatingStars value={stats.data.averageRating} size="lg" />
+                )}
                 <div className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <TrendingUp className="size-4" />
-                  <span>
-                    {t("dashboard.visitsServed", {
-                      count: stats.data.totalBookings,
-                    })}
-                  </span>
+                  {stats.data.totalBookings === null ? (
+                    <span>{t("dashboard.visitsUnknown")}</span>
+                  ) : (
+                    <>
+                      <TrendingUp className="size-4" />
+                      <span>
+                        {t("dashboard.visitsServed", {
+                          count: stats.data.totalBookings,
+                        })}
+                      </span>
+                    </>
+                  )}
                 </div>
                 <Button
                   variant="outline"

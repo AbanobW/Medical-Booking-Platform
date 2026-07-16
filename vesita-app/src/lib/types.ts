@@ -870,17 +870,25 @@ export interface NotificationPreferences {
 
 export type DiscountType = "percentage" | "fixed";
 
+/**
+ * A discount code.
+ *
+ * `/v1/coupons` carries the code, type, value, usage counts and expiry. It has
+ * no description and no minimum-order or max-discount column, so those are null
+ * rather than a made-up "0" that would read as "no minimum".
+ */
 export interface Coupon {
   id: string;
   code: string;
-  description: string;
+  description: string | null;
   discountType: DiscountType;
   discountValue: number;
-  minOrderValue: number;
+  minOrderValue: number | null;
   maxDiscount?: number;
-  usageLimit: number;
+  /** `null` = unlimited, which is what the API means by a null `max_uses`. */
+  usageLimit: number | null;
   usageCount: number;
-  expiresAt: string;
+  expiresAt: string | null;
   isActive: boolean;
   /** Empty array = applies to every service type. */
   appliesTo: ProviderRole[];

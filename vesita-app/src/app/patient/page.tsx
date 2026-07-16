@@ -41,7 +41,7 @@ import type { PatientProfile, Provider } from "@/lib/types";
 export default function PatientDashboardPage() {
   const t = useTranslations("patient");
   const L = useLabels();
-  const { formatEGP, locale } = useFormat();
+  const { formatEGP, formatNumber, locale } = useFormat();
   const describeError = useApiError();
 
   const { user } = useAuth();
@@ -157,21 +157,21 @@ export default function PatientDashboardPage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatisticsCard
                 label={t("dashboard.stats.upcoming")}
-                value={stats.data.upcomingCount}
+                value={formatNumber(stats.data.upcomingCount)}
                 icon={CalendarClock}
                 tone="info"
                 hint={t("dashboard.stats.upcomingHint")}
               />
               <StatisticsCard
                 label={t("dashboard.stats.completed")}
-                value={stats.data.completedCount}
+                value={formatNumber(stats.data.completedCount)}
                 icon={CalendarCheck}
                 tone="success"
                 hint={t("dashboard.stats.completedHint")}
               />
               <StatisticsCard
                 label={t("dashboard.stats.cancelled")}
-                value={stats.data.cancelledCount}
+                value={formatNumber(stats.data.cancelledCount)}
                 icon={CalendarX}
                 tone="destructive"
                 hint={t("dashboard.stats.cancelledHint")}
@@ -195,14 +195,14 @@ export default function PatientDashboardPage() {
               />
               <StatisticsCard
                 label={t("dashboard.stats.favorites")}
-                value={stats.data.favoriteCount}
+                value={formatNumber(stats.data.favoriteCount)}
                 icon={Heart}
                 tone="destructive"
                 hint={t("dashboard.stats.favoritesHint")}
               />
               <StatisticsCard
                 label={t("dashboard.stats.reviews")}
-                value={stats.data.reviewCount}
+                value={formatNumber(stats.data.reviewCount)}
                 icon={Star}
                 tone="warning"
                 hint={t("dashboard.stats.reviewsHint")}

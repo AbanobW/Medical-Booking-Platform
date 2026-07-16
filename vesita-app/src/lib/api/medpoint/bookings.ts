@@ -1,8 +1,20 @@
 /**
- * Booking write path against MedPoint — read/cancel stay on the mock.
+ * Booking writes against MedPoint.
  *
- * The API returns bookings without relations or appointment datetime, so every
- * created booking is enriched from wizard context and stored in the overlay.
+ * Creation is real: `POST /v1/bookings` accepts the profile, branch, bookable
+ * and price, and the server records it. Everything after creation is not.
+ *
+ * This module used to keep a localStorage "overlay" — the wizard's context
+ * (provider, service, date, time, status) written to the browser because
+ * `GET /v1/bookings` returns rows with no relations and no appointment
+ * datetime. The overlay is gone with the rest of the client-side data: it was
+ * per-browser, so a booking vanished on another device, and `payBooking` used to
+ * swallow a failed `/v1/payments` call and mark the booking confirmed-and-paid
+ * locally regardless — telling a patient they had paid when the API had
+ * refused.
+ *
+ * So: create is live, and the lifecycle beyond it reports that the server cannot
+ * carry it yet. See BACKEND-GAPS.md.
  */
 
 import { ApiError } from "@/lib/api/errors";
@@ -11,18 +23,10 @@ import { apiRequest } from "@/lib/api/http";
 import { getSlotsForDate } from "@/lib/api/medpoint/availability";
 import { parseBookableId } from "@/lib/api/medpoint/mappers";
 import { getProviderById } from "@/lib/api/medpoint/providers";
-import {
-  createOverlayBooking,
-  findOverlayBookingById,
-  overlayToBooking,
-  removeOverlayBooking,
-  saveOverlayBooking,
-  type OverlayBookingContext,
-} from "@/lib/api/medpoint/overlay";
 import type { WireBooking } from "@/lib/api/medpoint/types";
 import { BUSINESS } from "@/lib/site";
 import type { Booking, PaymentMethod, Provider, Service } from "@/lib/types";
-import { branchPriceOf, isHold } from "@/lib/types";
+import { branchPriceOf } from "@/lib/types";
 
 function bookingFeeFor(method: PaymentMethod): number {
   return method === "cash" ? 0 : BUSINESS.bookingFee;
@@ -44,49 +48,14 @@ function findService(provider: Provider, serviceId: string): Service | undefined
   );
 }
 
-function specialtyLabelOf(provider: Provider): string {
-  if (provider.type !== "doctor") return "";
-  return provider.specialtyId;
-}
-
-function buildContext(
-  input: HoldBookingInput,
-  provider: Provider,
-  service: Service,
-  price: number,
-  slotMeta: { capacityType: Booking["capacityType"]; overCapacity: boolean },
-): OverlayBookingContext {
-  const fee = bookingFeeFor(input.paymentMethod);
-  const branch = provider.branches.find((b) => b.id === input.branchId);
-
-  return {
-    patientId: input.patientId,
-    patientProfileId: input.patientProfileId,
-    patientInfo: input.patientInfo,
-    providerId: provider.id,
-    providerType: provider.type,
-    providerName: provider.name,
-    providerNameAr: provider.nameAr,
-    providerPhoto: provider.photo,
-    providerSpecialty: specialtyLabelOf(provider),
-    serviceId: service.id,
-    serviceName: service.name,
-    serviceNameAr: service.nameAr,
-    branchId: input.branchId,
-    date: input.date,
-    time: input.time,
-    paymentMethod: input.paymentMethod,
-    price,
-    discount: 0,
-    cashback: 0,
-    total: price,
-    couponCode: input.couponCode,
-    bookingFee: fee,
-    capacityType: slotMeta.capacityType,
-    overCapacity: slotMeta.overCapacity,
-    acknowledgement: input.acknowledgement,
-    address: branch?.address ?? provider.address,
-  };
+/** 501: the server has no way to carry this step, which is not the caller's fault. */
+function unsupported(what: string): never {
+  throw new ApiError(
+    `${what} is not available yet — the API returns bookings without a service, ` +
+      "a provider or an appointment time, so a booking cannot be tracked after it is made.",
+    501,
+    "booking.notSupported",
+  );
 }
 
 export async function holdBooking(input: HoldBookingInput): Promise<Booking> {
@@ -137,101 +106,67 @@ export async function holdBooking(input: HoldBookingInput): Promise<Booking> {
     },
   });
 
-  const ctx = buildContext(input, provider, service, price, {
+  // The server records the booking but echoes almost nothing back, so the
+  // confirmation is assembled from what we just sent and it accepted. This is a
+  // receipt for one request, not a stored record — it cannot be read back later,
+  // which is why every function below refuses rather than pretending.
+  return {
+    id: wire.id,
+    reference: wire.reference ?? wire.id,
+    patientId: input.patientId,
+    patientProfileId: input.patientProfileId,
+    patientInfo: input.patientInfo,
+    providerId: provider.id,
+    providerType: provider.type,
+    providerName: provider.name,
+    providerNameAr: provider.nameAr,
+    providerPhoto: provider.photo,
+    providerSpecialty: provider.type === "doctor" ? provider.specialtyId : null,
+    serviceId: service.id,
+    serviceName: service.name,
+    serviceNameAr: service.nameAr,
+    branchId: input.branchId,
+    address: branch.address ?? provider.address,
+    date: input.date,
+    time: input.time,
+    paymentMethod: input.paymentMethod,
+    price,
+    discount: 0,
+    cashback: 0,
+    total: price,
+    couponCode: input.couponCode,
+    bookingFee: fee,
     capacityType: slot.capacityType,
     overCapacity: slot.isFull && slot.capacityType === "comfort",
-  });
-
-  const status = fee > 0 ? "held" : "confirmed";
-  const overlay = createOverlayBooking(wire.id, ctx, status);
-  if (fee > 0) {
-    overlay.holdExpiresAt = new Date(
-      Date.now() + BUSINESS.paymentHoldMinutes * 60_000,
-    ).toISOString();
-  } else {
-    overlay.paymentStatus = "paid";
-  }
-
-  saveOverlayBooking(overlay);
-  return overlayToBooking(overlay);
+    acknowledgement: input.acknowledgement,
+    // A fee means the place is only held until it is paid for.
+    status: fee > 0 ? "held" : "confirmed",
+    paymentStatus: fee > 0 ? "unpaid" : "paid",
+    holdExpiresAt:
+      fee > 0
+        ? new Date(Date.now() + BUSINESS.paymentHoldMinutes * 60_000).toISOString()
+        : undefined,
+    createdAt: wire.created_at ?? new Date().toISOString(),
+    updatedAt: wire.updated_at ?? new Date().toISOString(),
+    hasReview: false,
+  } as Booking;
 }
 
-export async function beginPayment(bookingId: string): Promise<Booking> {
-  const overlay = findOverlayBookingById(bookingId);
-  if (!overlay) {
-    throw new ApiError("Booking not found", 404, "booking.notFound");
-  }
-  if (overlay.status !== "held") {
-    throw new ApiError("This booking is not held.", 409, "booking.notHeld");
-  }
-
-  overlay.status = "awaiting_payment";
-  saveOverlayBooking(overlay);
-  return overlayToBooking(overlay);
+export async function beginPayment(_bookingId: string): Promise<Booking> {
+  void _bookingId;
+  return unsupported("Paying for a booking");
 }
 
 export async function payBooking(
-  bookingId: string,
-  outcome: "success" | "failure" = "success",
+  _bookingId: string,
+  _outcome: "success" | "failure" = "success",
 ): Promise<Booking> {
-  const overlay = findOverlayBookingById(bookingId);
-  if (!overlay) {
-    throw new ApiError("Booking not found", 404, "booking.notFound");
-  }
-
-  if (!isHold(overlay.status)) {
-    throw new ApiError(
-      "This booking is no longer awaiting payment.",
-      409,
-      "booking.notAwaitingPayment",
-    );
-  }
-
-  if (overlay.holdExpiresAt && overlay.holdExpiresAt <= new Date().toISOString()) {
-    removeOverlayBooking(overlay.patientId, bookingId);
-    throw new ApiError(
-      "Your reservation window expired and the place was released. Please book again.",
-      410,
-      "booking.holdExpired",
-      { minutes: BUSINESS.paymentHoldMinutes },
-    );
-  }
-
-  if (outcome === "failure") {
-    removeOverlayBooking(overlay.patientId, bookingId);
-    throw new ApiError(
-      "The payment did not go through, so the place was released. Please try booking again.",
-      402,
-      "booking.paymentFailed",
-    );
-  }
-
-  try {
-    await apiRequest("/payments", {
-      method: "POST",
-      body: {
-        booking_id: bookingId,
-        amount: overlay.bookingFee,
-        purpose: "booking_fee",
-        gateway: overlay.paymentMethod === "cash" ? "cash" : "card",
-      },
-    });
-  } catch {
-    // Scaffold API may reject payment shape — overlay still confirms locally.
-  }
-
-  overlay.status = "confirmed";
-  overlay.paymentStatus = "paid";
-  overlay.holdExpiresAt = undefined;
-  saveOverlayBooking(overlay);
-
-  return overlayToBooking(overlay);
+  void _bookingId;
+  void _outcome;
+  return unsupported("Paying for a booking");
 }
 
-export async function releaseHold(bookingId: string): Promise<{ id: string }> {
-  const overlay = findOverlayBookingById(bookingId);
-  if (overlay) {
-    removeOverlayBooking(overlay.patientId, bookingId);
-  }
-  return { id: bookingId };
+export async function releaseHold(_bookingId: string): Promise<{ id: string }> {
+  void _bookingId;
+  return unsupported("Releasing a hold");
 }

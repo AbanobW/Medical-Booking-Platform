@@ -30,6 +30,22 @@ interface WireResource {
   readable_updated_at?: string;
 }
 
+export interface WireCoupon extends WireResource {
+  type: "Coupon";
+  code: string;
+  /** "fixed" | "percentage". */
+  coupon_type?: string;
+  /** Decimal string, e.g. "50.00". */
+  value?: number | string;
+  /** "global" — who the coupon applies to. Not an on/off switch. */
+  scope?: string;
+  /** `null` means unlimited. */
+  max_uses?: number | null;
+  max_uses_per_user?: number | null;
+  used_count?: number;
+  expires_at?: string | null;
+}
+
 export interface WireUser extends WireResource {
   type: "User";
   name: string;

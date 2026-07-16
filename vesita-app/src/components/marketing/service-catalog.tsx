@@ -39,6 +39,16 @@ import { cn } from "@/lib/utils";
 type CatalogItem = LabTest | RadiologyScan;
 
 /**
+ * Price comparator. A service the API gave no price for sorts last either way —
+ * an unknown price is not a cheap one, and not a dear one.
+ */
+function byPrice(a: number | null, b: number | null, direction: 1 | -1): number {
+  if (a === null) return b === null ? 0 : 1;
+  if (b === null) return -1;
+  return (a - b) * direction;
+}
+
+/**
  * The catalogue categories are a closed set in the dataset, so each one has a
  * translation; anything unexpected falls back to the stored English label.
  */
@@ -110,7 +120,7 @@ function PreparationDetails({ item }: { item: CatalogItem }) {
       </p>
 
       <ul className="space-y-2 text-muted-foreground">
-        {prep.fastingRequired && (
+        {prep?.fastingRequired && (
           <li className="flex items-start gap-2">
             <Droplet className="mt-0.5 size-3.5 shrink-0 text-warning" />
             <span>
@@ -129,14 +139,14 @@ function PreparationDetails({ item }: { item: CatalogItem }) {
           </li>
         )}
 
-        {!prep.fastingRequired && prep.waterAllowed && (
+        {prep && !prep.fastingRequired && prep.waterAllowed && (
           <li className="flex items-start gap-2">
             <GlassWater className="mt-0.5 size-3.5 shrink-0 text-primary" />
             <span>{t("preparation.noFasting")}</span>
           </li>
         )}
 
-        {prep.medicationRestrictions.length > 0 && (
+        {prep && prep.medicationRestrictions.length > 0 && (
           <li className="flex items-start gap-2">
             <Pill className="mt-0.5 size-3.5 shrink-0 text-warning" />
             <span>
@@ -148,19 +158,19 @@ function PreparationDetails({ item }: { item: CatalogItem }) {
           </li>
         )}
 
-        {localized(prep.arrivalInstructions) && (
+        {localized(prep?.arrivalInstructions) && (
           <li className="flex items-start gap-2">
             <Clock className="mt-0.5 size-3.5 shrink-0 text-primary" />
             <span>
               <span className="font-medium text-foreground">
                 {t("preparation.onArrival")}{" "}
               </span>
-              {localized(prep.arrivalInstructions)}
+              {localized(prep?.arrivalInstructions)}
             </span>
           </li>
         )}
 
-        {prep.documentsRequired.length > 0 && (
+        {prep && prep.documentsRequired.length > 0 && (
           <li className="flex items-start gap-2">
             <FileText className="mt-0.5 size-3.5 shrink-0 text-primary" />
             <span>
@@ -223,7 +233,14 @@ export function ServiceCatalog({
   const active = useMemo(() => items.filter((i) => i.isActive), [items]);
 
   const categories = useMemo(
-    () => Array.from(new Set(active.map((i) => i.category))).sort(),
+    () =>
+      Array.from(
+        new Set(
+          active
+            .map((i) => i.category)
+            .filter((c): c is string => c !== null),
+        ),
+      ).sort(),
     [active],
   );
 
@@ -233,14 +250,16 @@ export function ServiceCatalog({
     const filtered = active.filter((item) => {
       if (category && item.category !== category) return false;
       if (!term) return true;
-      return `${item.name} ${item.nameAr} ${item.category} ${localized(item.description)}`
+      return [item.name, item.nameAr, item.category, localized(item.description)]
+        .filter(Boolean)
+        .join(" ")
         .toLowerCase()
         .includes(term);
     });
 
     return [...filtered].sort((a, b) => {
-      if (sort === "price_asc") return a.price - b.price;
-      if (sort === "price_desc") return b.price - a.price;
+      if (sort === "price_asc") return byPrice(a.price, b.price, 1);
+      if (sort === "price_desc") return byPrice(a.price, b.price, -1);
       return named(a).localeCompare(named(b), locale);
     });
   }, [active, category, q, sort, named, localized, locale]);

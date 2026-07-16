@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { DASH } from "@/lib/i18n/format";
 import { useFormat } from "@/lib/i18n/use-format";
 import { branchPriceOf, type Branch, type Service } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -16,19 +17,24 @@ import { cn } from "@/lib/utils";
 export function branchPriceRange(
   service: Service,
   branches: Branch[],
-): { min: number; max: number; varies: boolean } {
+): { min: number | null; max: number | null; varies: boolean } {
   const offering = branches.filter(
     (branch) => branch.isActive && branch.serviceIds.includes(service.id),
   );
 
-  const prices = (offering.length > 0 ? offering : []).map((branch) =>
-    branchPriceOf(branch, service),
-  );
-  if (prices.length === 0) prices.push(service.price);
+  const prices: (number | null)[] =
+    offering.length > 0
+      ? offering.map((branch) => branchPriceOf(branch, service))
+      : [service.price];
 
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
-  return { min, max, varies: min !== max };
+  const known = prices.filter((price): price is number => price !== null);
+  if (known.length === 0) return { min: null, max: null, varies: false };
+
+  const min = Math.min(...known);
+  const max = Math.max(...known);
+  // A branch whose price the API did not answer is another way it varies: the
+  // cheapest we know of is not necessarily the cheapest there is.
+  return { min, max, varies: min !== max || known.length < prices.length };
 }
 
 export function BranchPrice({
@@ -47,7 +53,11 @@ export function BranchPrice({
   return (
     <span className={cn("shrink-0 text-end", className)}>
       <span className="font-bold text-primary tabular-nums">
-        {varies ? t("price.from", { price: formatEGP(min) }) : formatEGP(min)}
+        {min === null
+          ? DASH
+          : varies
+            ? t("price.from", { price: formatEGP(min) })
+            : formatEGP(min)}
       </span>
       {varies && (
         <span className="block text-xs font-normal text-muted-foreground">

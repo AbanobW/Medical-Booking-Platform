@@ -50,11 +50,15 @@ export function ReviewsSection({ provider }: { provider: Provider }) {
 
   return (
     <div className="space-y-6">
-      <RatingCard
-        rating={provider.rating}
-        reviewCount={provider.reviewCount}
-        reviews={reviews}
-      />
+      {/* The summary is the provider's own averages, not ours to recompute from
+          the page of reviews we happen to be holding. */}
+      {provider.rating !== null && provider.reviewCount !== null && (
+        <RatingCard
+          rating={provider.rating}
+          reviewCount={provider.reviewCount}
+          reviews={reviews}
+        />
+      )}
 
       <div className="space-y-4">
         {reviews.slice(0, shown).map((review) => (

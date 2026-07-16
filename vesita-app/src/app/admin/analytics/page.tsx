@@ -186,6 +186,10 @@ function PlatformSection() {
 
   const { data, error, isLoading, refetch } = useAsync(() => getAdminStats());
 
+  /** An unknown rate is a dash, not "—%". */
+  const percent = (value: number | null) =>
+    value === null ? DASH : `${formatNumber(value)}%`;
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -209,7 +213,7 @@ function PlatformSection() {
     );
   }
 
-  if (!data || data.totalBookings === 0) {
+  if (!data) {
     return (
       <EmptyState
         icon={CalendarCheck}
