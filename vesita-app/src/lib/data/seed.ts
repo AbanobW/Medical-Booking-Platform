@@ -11,7 +11,6 @@ import {
   slugify,
 } from "@/lib/data/egypt";
 import {
-  CHRONIC_CONDITIONS,
   eligibilityForScan,
   eligibilityForTest,
   preparationForScan,
@@ -686,8 +685,18 @@ function generatePatientProfiles(rng: Rng, patients: User[]): PatientProfile[] {
 
   const nextId = () => `pp-${String(n++).padStart(4, "0")}`;
 
-  const conditions = (chance: number) =>
-    rng.bool(chance) ? rng.sample([...CHRONIC_CONDITIONS], rng.int(1, 2)) : [];
+  /**
+   * A 14-digit national ID, matching the shape the form validates.
+   *
+   * Not every profile carries one — it is optional on the API, and a parent
+   * adding a newborn rarely has the card to hand — so the dataset exercises both
+   * the present and absent cases.
+   */
+  const nationalId = (chance: number) =>
+    rng.bool(chance)
+      ? String(rng.int(2, 3)) +
+        String(rng.int(0, 99_999_999_999_99)).padStart(13, "0")
+      : undefined;
 
   for (const account of patients) {
     const selfGender = account.gender ?? "male";
@@ -700,9 +709,7 @@ function generatePatientProfiles(rng: Rng, patients: User[]): PatientProfile[] {
       gender: selfGender,
       dateOfBirth: account.dateOfBirth ?? "1990-01-01",
       phone: account.phone,
-      bloodType: account.bloodType,
-      chronicConditions: conditions(0.3),
-      isPregnant: false,
+      nationalId: nationalId(0.8),
       createdAt: account.createdAt,
     });
 
@@ -716,9 +723,7 @@ function generatePatientProfiles(rng: Rng, patients: User[]): PatientProfile[] {
         fullName: personName(rng, spouseGender).en,
         gender: spouseGender,
         dateOfBirth: toISODate(addDays(TODAY, -rng.int(24, 60) * 365)),
-        bloodType: rng.pick(["A+", "B+", "O+", "AB+", "O-"]),
-        chronicConditions: conditions(0.25),
-        isPregnant: spouseGender === "female" && rng.bool(0.15),
+        nationalId: nationalId(0.7),
         createdAt: isoAt(-rng.int(1, 400)),
       });
     }
@@ -732,9 +737,8 @@ function generatePatientProfiles(rng: Rng, patients: User[]): PatientProfile[] {
         fullName: personName(rng, childGender).en,
         gender: childGender,
         dateOfBirth: toISODate(addDays(TODAY, -rng.int(1, 17) * 365)),
-        bloodType: rng.pick(["A+", "B+", "O+", "AB+"]),
-        chronicConditions: conditions(0.15),
-        isPregnant: false,
+        // A child often has no card yet.
+        nationalId: nationalId(0.25),
         createdAt: isoAt(-rng.int(1, 400)),
       });
     }
@@ -748,10 +752,7 @@ function generatePatientProfiles(rng: Rng, patients: User[]): PatientProfile[] {
         fullName: personName(rng, parentGender).en,
         gender: parentGender,
         dateOfBirth: toISODate(addDays(TODAY, -rng.int(58, 85) * 365)),
-        bloodType: rng.pick(["A+", "B+", "O+", "AB+", "A-"]),
-        // Older profiles carry chronic conditions far more often.
-        chronicConditions: conditions(0.7),
-        isPregnant: false,
+        nationalId: nationalId(0.9),
         createdAt: isoAt(-rng.int(1, 400)),
       });
     }

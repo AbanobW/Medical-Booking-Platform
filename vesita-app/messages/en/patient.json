@@ -251,11 +251,6 @@
     "gender": "Gender",
     "genderPlaceholder": "Select gender",
     "dateOfBirth": "Date of birth",
-    "bloodType": "Blood type",
-    "bloodTypePlaceholder": "Select blood type",
-    "bloodTypeHint": "Shared with providers in an emergency.",
-    "governorate": "Governorate",
-    "governoratePlaceholder": "Select governorate",
     "reset": "Reset",
     "save": "Save changes",
     "saving": "Saving…",
@@ -263,13 +258,8 @@
     "validation": {
       "name": "Please enter your full name.",
       "phone": "Enter a valid Egyptian mobile number (11 digits).",
-      "gender": "Select your gender.",
-      "dateOfBirthRequired": "Select your date of birth.",
-      "dateOfBirthPast": "Your date of birth must be in the past.",
-      "bloodType": "Select your blood type.",
-      "governorate": "Select your governorate."
-    },
-    "limitedFields": "Only your name and mobile number are stored on your MedPoint account today. Gender, date of birth and blood type live on each patient profile instead."
+      "dateOfBirthPast": "Your date of birth must be in the past."
+    }
   },
   "profiles": {
     "title": "Patient profiles",
@@ -281,11 +271,7 @@
     "emptyDescription": "Add yourself and the family members you book for. Bookings, results and history are kept per person."
   },
   "profileCard": {
-    "pregnant": "Pregnant",
     "age": "{count, plural, one {# year old} other {# years old}}",
-    "insurance": "Insurance: {plan}",
-    "conditions": "Chronic conditions",
-    "noConditions": "None recorded.",
     "bookings": "{count, plural, =0 {No bookings} one {# booking} other {# bookings}}",
     "viewBookings": "View bookings for {name}",
     "edit": "Edit",
@@ -301,7 +287,7 @@
   "profileDialog": {
     "addTitle": "Add a patient profile",
     "editTitle": "Edit {name}",
-    "description": "Bookings belong to a patient profile, not to your account — so each person's medical and booking history stays with them. We ask for gender, date of birth, pregnancy and chronic conditions because we screen every test and scan against them before you book: it is what stops a scan being booked for someone it isn't safe for.",
+    "description": "Bookings belong to a patient profile, not to your account — so each person's medical and booking history stays with them. We ask for gender and date of birth because we screen every test and scan against them before you book: it is what stops a scan being booked for someone it isn't safe for.",
     "relationship": "Who is this for?",
     "relationshipPlaceholder": "Select a relationship",
     "relationshipSelfLocked": "This is your own profile and can't be reassigned.",
@@ -313,13 +299,9 @@
     "dateOfBirth": "Date of birth",
     "dateOfBirthHint": "Age limits apply to several scans.",
     "phone": "Mobile number (optional)",
-    "bloodType": "Blood type (optional)",
-    "bloodTypePlaceholder": "Select blood type",
-    "bloodTypeUnknown": "Not known",
-    "conditions": "Chronic conditions",
-    "conditionsHint": "Select everything that applies. A condition here can rule a scan out entirely — a pacemaker rules out an MRI, for instance.",
-    "pregnant": "Currently pregnant",
-    "pregnantHint": "X-ray, CT and mammography are never performed during pregnancy. We block those bookings for you.",
+    "nationalId": "National ID (optional)",
+    "nationalIdPlaceholder": "14 digits",
+    "nationalIdHint": "As printed on the national ID card. Some providers ask for it on arrival.",
     "cancel": "Cancel",
     "save": "Save changes",
     "add": "Add profile",
@@ -332,7 +314,8 @@
       "gender": "Select a gender.",
       "dateOfBirthRequired": "Select a date of birth.",
       "dateOfBirthPast": "The date of birth must be in the past.",
-      "phone": "Enter a valid Egyptian mobile number (11 digits), or leave it blank."
+      "phone": "Enter a valid Egyptian mobile number (11 digits), or leave it blank.",
+      "nationalId": "A national ID is 14 digits, or leave it blank."
     }
   },
   "serviceName": {

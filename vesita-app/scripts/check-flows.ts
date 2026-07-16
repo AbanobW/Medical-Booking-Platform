@@ -29,9 +29,15 @@ import {
   deleteCoupon,
 } from "../src/lib/api/admin";
 import { demoUserFor } from "../src/lib/api/auth";
-import { evaluateEligibility } from "../src/lib/eligibility";
+import { ageOf, evaluateEligibility } from "../src/lib/eligibility";
 import { BUSINESS } from "../src/lib/site";
-import { isCancelled, type Acknowledgement, type PatientInfo } from "../src/lib/types";
+import { ApiError } from "../src/lib/api/client";
+import {
+  isCancelled,
+  requiresAcknowledgement,
+  type Acknowledgement,
+  type PatientInfo,
+} from "../src/lib/types";
 
 const ok = (label: string, extra = "") => console.log(`  ✓ ${label}${extra ? ` — ${extra}` : ""}`);
 const fail = (label: string, err: unknown) => {
@@ -84,8 +90,6 @@ async function main() {
     fullName: "Flow Check Junior",
     gender: "female",
     dateOfBirth: "2019-04-02",
-    chronicConditions: [],
-    isPregnant: false,
   });
   ok("createPatientProfile", `${child.fullName} (${child.relationship})`);
 
@@ -96,8 +100,6 @@ async function main() {
       fullName: "Impostor",
       gender: "male",
       dateOfBirth: "1990-01-01",
-      chronicConditions: [],
-      isPregnant: false,
     });
     fail("duplicate self-profile guard", "a second 'self' profile was ACCEPTED");
   } catch (err) {
@@ -233,8 +235,6 @@ async function main() {
             fullName: `Capacity Filler ${i}`,
             gender: "male",
             dateOfBirth: "2000-01-01",
-            chronicConditions: [],
-            isPregnant: false,
           });
           await holdBooking({
             patientId: patient.id,
@@ -257,8 +257,6 @@ async function main() {
           fullName: "One Too Many",
           gender: "male",
           dateOfBirth: "2000-01-01",
-          chronicConditions: [],
-          isPregnant: false,
         });
         try {
           await holdBooking({
@@ -295,26 +293,32 @@ async function main() {
   }
 
   console.log("\n6. PREPARATION & ELIGIBILITY (§3)");
+  // Screened on age: a profile stores gender and date of birth, so those are the
+  // rules that can block outright. A scan's pregnancy and excluded-condition
+  // rules are shown and acknowledged instead — the acknowledgement gate below is
+  // what enforces those.
+  const CHILD_DOB = "2020-01-01";
+  const childAge = ageOf(CHILD_DOB);
+
+  const restrictedFor = (s: { isActive: boolean; eligibility: { minAge?: number } }) =>
+    s.isActive && s.eligibility.minAge !== undefined && s.eligibility.minAge > childAge;
+
   const rad = (await searchProviders({ type: "radiology", pageSize: 50 })).items.find(
-    (p) =>
-      p.type === "radiology" &&
-      p.scans.some((s) => s.isActive && !s.eligibility.pregnancySafe),
+    (p) => p.type === "radiology" && p.scans.some(restrictedFor),
   );
   if (rad && rad.type === "radiology") {
-    const unsafe = rad.scans.find((s) => s.isActive && !s.eligibility.pregnancySafe)!;
+    const unsafe = rad.scans.find(restrictedFor)!;
 
-    const expecting = await createPatientProfile(patient.id, {
-      relationship: "spouse",
-      fullName: "Expecting Patient",
+    const tooYoung = await createPatientProfile(patient.id, {
+      relationship: "child",
+      fullName: "Too Young Patient",
       gender: "female",
-      dateOfBirth: "1994-03-11",
-      chronicConditions: [],
-      isPregnant: true,
+      dateOfBirth: CHILD_DOB,
     });
 
-    const verdict = evaluateEligibility(unsafe, expecting);
+    const verdict = evaluateEligibility(unsafe, tooYoung);
     verdict.eligible
-      ? fail("pregnancy eligibility rule", `${unsafe.name} was allowed during pregnancy`)
+      ? fail("age eligibility rule", `${unsafe.name} was allowed below its age floor`)
       : ok("ineligible profile blocked", verdict.violations[0].message);
 
     // ...and the API must refuse it too, not just the UI.
@@ -326,13 +330,13 @@ async function main() {
       try {
         await holdBooking({
           patientId: patient.id,
-          patientProfileId: expecting.id,
+          patientProfileId: tooYoung.id,
           providerId: rad.id,
           branchId: rBranch.id,
           serviceId: unsafe.id,
           date: rSlot.date,
           time: rSlot.time,
-          patientInfo: { ...info, fullName: expecting.fullName, gender: "female" },
+          patientInfo: { ...info, fullName: tooYoung.fullName, gender: "female" },
           paymentMethod: "cash",
           acknowledgement: {
             preparationAccepted: true,
@@ -346,27 +350,50 @@ async function main() {
       }
 
       // A service with preparation/eligibility cannot be booked without the
-      // acknowledgement — this is what stops a patient arriving un-fasted.
-      try {
-        await holdBooking({
-          patientId: patient.id,
-          patientProfileId: self.id,
-          providerId: rad.id,
-          branchId: rBranch.id,
-          serviceId: unsafe.id,
-          date: rSlot.date,
-          time: rSlot.time,
-          patientInfo: info,
-          paymentMethod: "cash",
-          // No acknowledgement supplied.
-        });
-        fail("acknowledgement gate", "booking completed WITHOUT acknowledgement");
-      } catch (err) {
-        ok("booking blocked without acknowledgement", (err as Error).message);
+      // acknowledgement — this is what stops a patient arriving un-fasted, and
+      // it is the only thing standing behind a pregnancy or chronic-condition
+      // rule now that no profile stores the facts to screen those against.
+      //
+      // Deliberately a scan `self` is ELIGIBLE for: an ineligible profile is
+      // refused before the acknowledgement is ever examined, so reusing the
+      // age-restricted scan here would pass whether or not the gate exists.
+      const ackable = rad.scans.find(
+        (s) =>
+          s.isActive &&
+          requiresAcknowledgement(s) &&
+          rBranch.serviceIds.includes(s.id) &&
+          evaluateEligibility(s, self).eligible,
+      );
+
+      if (!ackable) {
+        ok("acknowledgement gate", "skipped — no eligible scan requiring one");
+      } else {
+        try {
+          await holdBooking({
+            patientId: patient.id,
+            patientProfileId: self.id,
+            providerId: rad.id,
+            branchId: rBranch.id,
+            serviceId: ackable.id,
+            date: rSlot.date,
+            time: rSlot.time,
+            patientInfo: info,
+            paymentMethod: "cash",
+            // No acknowledgement supplied.
+          });
+          fail("acknowledgement gate", "booking completed WITHOUT acknowledgement");
+        } catch (err) {
+          (err as ApiError).code === "booking.acknowledgementRequired"
+            ? ok("booking blocked without acknowledgement", (err as Error).message)
+            : fail(
+                "acknowledgement gate",
+                `blocked, but for the wrong reason: ${(err as Error).message}`,
+              );
+        }
       }
     }
   } else {
-    ok("eligibility", "skipped — no pregnancy-restricted scan found");
+    ok("eligibility", "skipped — no age-restricted scan found");
   }
 
   console.log("\n7. RESCHEDULE, CANCEL & REFUND (§8, §9)");

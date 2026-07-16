@@ -11,43 +11,38 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { AppSelect } from "@/components/ui/app-select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
 import { HOME_FOR_ROLE } from "@/lib/api/auth";
 import { ValidationError } from "@/lib/api/http";
-import {
-  requiresOtpAfterSignup,
-  signupCollectsProfileFields,
-} from "@/lib/api/session";
-import { GOVERNORATES } from "@/lib/data/egypt";
+import { requiresOtpAfterSignup } from "@/lib/api/session";
 import { useApiError } from "@/lib/i18n/use-api-error";
-import { useDomain } from "@/lib/i18n/use-format";
-import { useLabels } from "@/lib/i18n/use-labels";
 
 /** Egyptian mobile numbers: 010/011/012/015 followed by eight digits. */
 const EG_PHONE = /^01[0125][0-9]{8}$/;
 
+/**
+ * `POST /v1/auth/register` takes `full_name`, `email`, `password` and `phone` —
+ * nothing else. `confirmPassword` and `terms` are deliberate extras: neither is
+ * sent, they exist to catch a typo and to record consent before the account is
+ * created. Anything beyond those belongs on the profile screens, where it has
+ * an endpoint that stores it.
+ */
 type RegisterValues = {
   name: string;
   email: string;
   phone: string;
   password: string;
   confirmPassword: string;
-  gender?: "male" | "female";
-  governorateId?: string;
   terms: boolean;
 };
 
@@ -63,13 +58,10 @@ export default function RegisterPage() {
   const t = useTranslations("auth");
   const tCommon = useTranslations("common");
   const describeError = useApiError();
-  const L = useLabels();
-  const { getGovernorateName } = useDomain();
 
   const router = useRouter();
   const { register } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
-  const collectProfileFields = signupCollectsProfileFields();
 
   const schema = useMemo(() => {
     return z
@@ -82,8 +74,6 @@ export default function RegisterPage() {
         phone: z.string().regex(EG_PHONE, t("errors.invalidPhone")),
         password: z.string().min(8, t("errors.passwordMin8")),
         confirmPassword: z.string().min(1, t("errors.confirmPassword")),
-        gender: z.enum(["male", "female"]).optional(),
-        governorateId: z.string().optional(),
         terms: z.boolean().refine((v) => v === true, {
           message: t("errors.acceptTerms"),
         }),
@@ -96,24 +86,8 @@ export default function RegisterPage() {
             path: ["confirmPassword"],
           });
         }
-        if (collectProfileFields) {
-          if (!values.gender) {
-            ctx.addIssue({
-              code: "custom",
-              message: t("errors.selectGender"),
-              path: ["gender"],
-            });
-          }
-          if (!values.governorateId) {
-            ctx.addIssue({
-              code: "custom",
-              message: t("errors.selectGovernorate"),
-              path: ["governorateId"],
-            });
-          }
-        }
       });
-  }, [t, tCommon, collectProfileFields]);
+  }, [t, tCommon]);
 
   const form = useForm<RegisterValues>({
     resolver: zodResolver(schema),
@@ -123,8 +97,6 @@ export default function RegisterPage() {
       phone: "",
       password: "",
       confirmPassword: "",
-      gender: "male",
-      governorateId: "",
       terms: false,
     },
   });
@@ -149,8 +121,6 @@ export default function RegisterPage() {
         email: values.email,
         phone: values.phone,
         password: values.password,
-        gender: values.gender ?? "male",
-        governorateId: values.governorateId ?? "",
         role: "patient",
       });
 
@@ -304,65 +274,6 @@ export default function RegisterPage() {
               )}
             />
           </div>
-
-          {collectProfileFields ? (
-            <>
-              <FormField
-                control={form.control}
-                name="gender"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("register.genderLabel")}</FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        value={field.value}
-                        onValueChange={(value: string | null) => {
-                          if (value) field.onChange(value);
-                        }}
-                        className="flex gap-6"
-                      >
-                        {(["male", "female"] as const).map((option) => (
-                          <div key={option} className="flex items-center gap-2">
-                            <RadioGroupItem value={option} id={`gender-${option}`} />
-                            <Label
-                              htmlFor={`gender-${option}`}
-                              className="cursor-pointer text-sm font-normal"
-                            >
-                              {L.gender(option)}
-                            </Label>
-                          </div>
-                        ))}
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="governorateId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("register.governorateLabel")}</FormLabel>
-                    <FormControl>
-                      <AppSelect
-                        value={field.value ?? ""}
-                        onValueChange={field.onChange}
-                        options={GOVERNORATES.map((g) => ({
-                          value: g.id,
-                          label: getGovernorateName(g.id),
-                        }))}
-                        placeholder={t("register.governoratePlaceholder")}
-                      />
-                    </FormControl>
-                    <FormDescription>{t("register.governorateHint")}</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </>
-          ) : null}
 
           <FormField
             control={form.control}

@@ -116,15 +116,10 @@ export function PreparationStep({
   }
 
   /**
-   * The violations this profile actually trips. `evaluateEligibility` raises one
-   * `condition` violation per excluded condition the profile carries, in rule
-   * order — so the same filter reproduces which condition each one is about.
+   * A profile is only ever screened on gender and age — the two clinical facts
+   * it stores. The pregnancy and excluded-condition restrictions are still in
+   * `restrictions` above, where the patient reads them and acknowledges them.
    */
-  const trippedConditions = (rules?.excludedConditions ?? []).filter((c) =>
-    profile.chronicConditions.includes(c),
-  );
-  let conditionIndex = 0;
-
   const describeViolation = (violation: EligibilityViolation): string => {
     switch (violation.code) {
       case "gender":
@@ -145,17 +140,6 @@ export function PreparationStep({
           max: formatNumber(rules?.maxAge ?? 0),
           age: formatNumber(age),
         });
-      case "pregnancy":
-        return t("prep.violation.pregnancy", { service: serviceName });
-      case "condition": {
-        const condition = trippedConditions[conditionIndex++];
-        return condition
-          ? t("prep.violation.condition", {
-              service: serviceName,
-              condition: L.condition(condition),
-            })
-          : violation.message;
-      }
       default:
         return violation.message;
     }

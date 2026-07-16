@@ -60,10 +60,9 @@ export interface User {
   status: UserStatus;
   /** Set for doctor/lab/radiology accounts — links the user to their profile. */
   providerId?: string;
-  governorateId?: string;
   gender?: Gender;
+  /** `birth` on the wire — written via `PATCH /v1/users/:id`, not `PUT /v1/profile`. */
   dateOfBirth?: string;
-  bloodType?: string;
   createdAt: string;
   lastActiveAt: string;
 }
@@ -102,15 +101,12 @@ export interface PatientProfile {
   accountId: string;
   relationship: Relationship;
   fullName: string;
+  /** Screened against a service's gender rules before booking. */
   gender: Gender;
+  /** Screened against a service's age rules before booking. */
   dateOfBirth: string;
   phone?: string;
-  bloodType?: string;
-  /** Screened against a service's eligibility rules before booking. */
-  chronicConditions: string[];
-  isPregnant: boolean;
-  /** Reserved for the insurance phase (§14) — not surfaced in the MVP flow. */
-  insurance?: InsuranceInfo;
+  nationalId?: string;
   createdAt: string;
 }
 
@@ -346,18 +342,21 @@ export interface EligibilityRules {
   genders?: Gender[];
   minAge?: number;
   maxAge?: number;
-  /** `false` = unsafe or not permitted during pregnancy. */
+  /** `false` = unsafe or not permitted during pregnancy. Shown, not auto-checked. */
   pregnancySafe: boolean;
-  /** Conditions that make this service inappropriate. */
+  /** Conditions that make this service inappropriate. Shown, not auto-checked. */
   excludedConditions: string[];
 }
 
-export type EligibilityViolationCode =
-  | "gender"
-  | "min_age"
-  | "max_age"
-  | "pregnancy"
-  | "condition";
+/**
+ * Only the rules a stored profile can be screened against.
+ *
+ * `gender` and `dateOfBirth` are the sole clinical facts the API persists on a
+ * profile, so they are the only rules that can block a booking outright.
+ * `pregnancySafe` and `excludedConditions` are still declared, displayed, and
+ * acknowledged (§3) — there is just nothing on file to check them against.
+ */
+export type EligibilityViolationCode = "gender" | "min_age" | "max_age";
 
 export interface EligibilityViolation {
   code: EligibilityViolationCode;

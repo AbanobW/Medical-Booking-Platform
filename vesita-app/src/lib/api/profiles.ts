@@ -5,7 +5,6 @@ import { evaluateEligibility } from "@/lib/eligibility";
 import type {
   EligibilityResult,
   Gender,
-  InsuranceInfo,
   PatientProfile,
   Relationship,
   Service,
@@ -54,16 +53,14 @@ export function getPatientProfile(
   });
 }
 
+/** Exactly what `POST`/`PATCH /v1/me/profiles` accept — see `medpoint/profiles`. */
 export interface PatientProfileInput {
   relationship: Relationship;
   fullName: string;
   gender: Gender;
   dateOfBirth: string;
   phone?: string;
-  bloodType?: string;
-  chronicConditions: string[];
-  isPregnant: boolean;
-  insurance?: InsuranceInfo;
+  nationalId?: string;
 }
 
 export function createPatientProfile(
@@ -94,7 +91,6 @@ export function createPatientProfile(
       id: makeId("pp"),
       accountId,
       ...input,
-      isPregnant: input.gender === "female" && input.isPregnant,
       createdAt: new Date().toISOString(),
     };
 
@@ -119,7 +115,6 @@ export function updatePatientProfile(
     }
 
     Object.assign(profile, input);
-    if (profile.gender === "male") profile.isPregnant = false;
 
     return profile;
   });

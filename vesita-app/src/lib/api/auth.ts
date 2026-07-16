@@ -1,5 +1,5 @@
 import { ApiError, db, makeId, request } from "@/lib/api/client";
-import type { Gender, Role, User } from "@/lib/types";
+import type { Role, User } from "@/lib/types";
 
 /**
  * Mock authentication.
@@ -133,13 +133,17 @@ export function loginWithGoogle(): Promise<User> {
   });
 }
 
+/**
+ * What `POST /v1/auth/register` accepts, in the app's own naming.
+ *
+ * `role` is mock-only — the live API decides it server-side and the signup form
+ * always passes "patient".
+ */
 export interface RegisterInput {
   name: string;
   email: string;
   phone: string;
   password: string;
-  gender: Gender;
-  governorateId?: string;
   role?: Role;
 }
 
@@ -167,8 +171,6 @@ export function register(input: RegisterInput): Promise<User> {
       role: input.role ?? "patient",
       avatar: `/api/avatar?seed=${id}&name=${encodeURIComponent(input.name)}`,
       status: "active",
-      gender: input.gender,
-      governorateId: input.governorateId,
       createdAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
     };
@@ -224,7 +226,7 @@ export function logout(): Promise<void> {
 
 export function updateProfile(
   id: string,
-  patch: Partial<Pick<User, "name" | "phone" | "governorateId" | "gender" | "dateOfBirth" | "bloodType">>,
+  patch: Partial<Pick<User, "name" | "phone" | "gender" | "dateOfBirth">>,
 ): Promise<User> {
   return request(() => {
     const user = db().users.find((u) => u.id === id);

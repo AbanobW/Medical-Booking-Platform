@@ -73,6 +73,7 @@ export async function createPatientProfile(
       gender: input.gender,
       date_of_birth: input.dateOfBirth,
       relationship: input.relationship,
+      national_id: input.nationalId,
       phone: toE164Phone(input.phone),
     },
   });
@@ -93,6 +94,7 @@ export async function updatePatientProfile(
         gender: input.gender,
         date_of_birth: input.dateOfBirth,
         relationship: input.relationship,
+        national_id: input.nationalId,
         phone: input.phone !== undefined ? toE164Phone(input.phone) : undefined,
       },
     });

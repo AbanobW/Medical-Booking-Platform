@@ -47,10 +47,11 @@ and the account is immediately usable, so it skips `/verify` entirely
 | Endpoint | Status | Notes |
 |---|---|---|
 | `GET /v1/profile` | **used** | The signed-in user. Returns `gender` and `birth`… |
-| `PUT /v1/profile` | **used, lossy** | …but **accepts neither**. Only `name` and `phone` round-trip. Workaround #10. |
+| `PUT /v1/profile` | **used** | …but **accepts neither**. Only `name` and `phone` round-trip — `gender`/`birth` go via `PATCH /v1/users/:id`, so the account needs both writers. Workaround #10 is no longer lossy. |
 | `POST /v1/profile/avatar` · `DELETE /v1/profile/avatar` | **used** | |
 | `PATCH /v1/users/:id/password` | **used** | `{ current_password, new_password, new_password_confirmation }`; a wrong password is a 422 on `current_password` |
-| `GET /v1/users` · `GET|PATCH|DELETE /v1/users/:id` | unused | admin surface |
+| `PATCH /v1/users/:id` | **used** | `{ name, gender, birth, current_password, new_password, new_password_confirmation }`. The app sends only `gender` and `birth`: `name` is left to `PUT /v1/profile` so each field has one writer, and the password trio belongs to the endpoint above, which reports a wrong password as a 422 a form can attach to. |
+| `GET /v1/users` · `GET|DELETE /v1/users/:id` | unused | admin surface |
 | `/v1/users/:id/roles` · `/v1/users/:id/permissions` (GET/POST/PUT/DELETE) | unused | Full RBAC exists on the server; **no role reaches `WireUser`**, so the app can't use it. Workaround #11. |
 
 ### Roles & permissions
@@ -501,15 +502,12 @@ export interface PatientProfile {
   accountId: string;
   relationship: Relationship;
   fullName: string;
+  /** Screened against a service's gender rules before booking. */
   gender: Gender;
+  /** Screened against a service's age rules before booking. */
   dateOfBirth: string;
   phone?: string;
-  bloodType?: string;
-  /** Screened against a service's eligibility rules before booking. */
-  chronicConditions: string[];
-  isPregnant: boolean;
-  /** Reserved for the insurance phase (§14) — not surfaced in the MVP flow. */
-  insurance?: InsuranceInfo;
+  nationalId?: string;
   createdAt: string;
 }
 ```
@@ -631,9 +629,13 @@ patient profile so there is something to screen against.
 | `dateOfBirth` | `date_of_birth` | `toISODateOnly` — **note the user calls it `birth`, the profile calls it `date_of_birth`** |
 | `phone` | `phone` | `toLocalPhone` |
 | `accountId` | `user_id` | checked, 404s on mismatch (`profiles.ts:23-26`) |
-| **`chronicConditions`** | ✗ | **hard-coded `[]`** — defeats eligibility screening |
-| **`isPregnant`** | ✗ | **hard-coded `false`** — same |
-| `bloodType`, `insurance` | ✗ | absent |
+| `nationalId` | `national_id` | direct; optional, 14 digits |
+
+`bloodType`, `chronicConditions`, `isPregnant` and `insurance` are **gone** from the domain
+model — the API has no column for any of them, and the forms no longer collect what cannot
+be stored. Eligibility screening now runs on `gender` and `dateOfBirth` alone; a service's
+pregnancy and excluded-condition rules are still declared, displayed and acknowledged (§3),
+they are simply not auto-checked. See `eligibility.ts`.
 
 ### `TimeSlot`
 
@@ -665,7 +667,7 @@ if the wire format drifts, this is the only file that changes.
 | `toE164Phone` | `:60` | `0…` → `+20…`; already-`+` passes through |
 | `roleOf` | `:68` | ⚠️ takes no argument, returns `"patient"`. Workaround #11. |
 | `toUser` | `:80` | `birth` → `dateOfBirth`; avatar falls back to a generated URL |
-| `toPatientProfile` | `:100` | hard-codes `chronicConditions: []`, `isPregnant: false` |
+| `toPatientProfile` | `:100` | defaults a null `gender`/`date_of_birth` — the auto-created SELF profile has neither |
 | `governorateIdOf` / `areaIdOf` | `:115` / `:124` | fuzzy string match; ⚠️ **defaults to `"cairo"` / `"nasr-city"` on a miss** |
 | `toBranch` | `:159` | lat/lng parsed from string-or-number; defaults to `30.04, 31.24` (Cairo) |
 | `wireServiceToConsultation` | `:181` | |

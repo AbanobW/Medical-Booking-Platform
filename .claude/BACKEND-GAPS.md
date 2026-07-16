@@ -124,8 +124,14 @@ There is no `/v1/favorites` (or equivalent) in the collection or on the server.
 
 `POST /v1/services` accepts `prep_instructions`, `eligibility_rules` and `home_collection`
 — the schema was built for §3 of the business rules. But nothing comes back populated on
-the read side, and there are no `chronic_conditions` / `is_pregnant` columns on a patient
-profile to screen against even if it did.
+the read side.
+
+There are also no `chronic_conditions` / `is_pregnant` columns on a patient profile. That
+half is now **settled rather than outstanding**: the app no longer collects either, because
+a field the server cannot keep is a field the user fills in twice. Screening runs on
+`gender` and `date_of_birth`, which do persist; a service's pregnancy and excluded-condition
+rules stay declared, displayed and acknowledged. If those columns ever land, re-screening
+them is a change to `evaluateEligibilityDetailed` and the profile form — nothing else.
 
 This is a **safety** rule, not a nice-to-have. §3 requires that where a lab test or scan
 carries preparation instructions or eligibility restrictions, the booking flow *must*

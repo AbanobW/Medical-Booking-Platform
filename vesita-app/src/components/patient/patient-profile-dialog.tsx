@@ -9,7 +9,6 @@ import { z } from "zod";
 
 import { AppSelect } from "@/components/ui/app-select";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -28,15 +27,12 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { useMutation } from "@/hooks/use-async";
 import {
   createPatientProfile,
   updatePatientProfile,
   type PatientProfileInput,
 } from "@/lib/api/profiles";
-import { CHRONIC_CONDITIONS } from "@/lib/data/clinical";
 import { TODAY } from "@/lib/data/seed";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useLabels } from "@/lib/i18n/use-labels";
@@ -46,9 +42,8 @@ import {
   type Relationship,
 } from "@/lib/types";
 
-const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
-
-const BLOOD_OPTIONS = BLOOD_TYPES.map((type) => ({ value: type, label: type }));
+/** Egyptian national IDs are 14 digits. Optional — the API does not require one. */
+const EG_NATIONAL_ID = /^\d{14}$/;
 
 /** The validation messages are copy, so the schema is built per-render. */
 function buildSchema(t: (key: string) => string) {
@@ -75,9 +70,12 @@ function buildSchema(t: (key: string) => string) {
       .refine((value) => value === "" || /^01[0125]\d{8}$/.test(value), {
         message: t("profileDialog.validation.phone"),
       }),
-    bloodType: z.string(),
-    chronicConditions: z.array(z.string()),
-    isPregnant: z.boolean(),
+    nationalId: z
+      .string()
+      .trim()
+      .refine((value) => value === "" || EG_NATIONAL_ID.test(value), {
+        message: t("profileDialog.validation.nationalId"),
+      }),
   });
 }
 
@@ -89,9 +87,7 @@ const BLANK: ProfileValues = {
   gender: "male",
   dateOfBirth: "",
   phone: "",
-  bloodType: "",
-  chronicConditions: [],
-  isPregnant: false,
+  nationalId: "",
 };
 
 function toValues(profile: PatientProfile): ProfileValues {
@@ -101,9 +97,7 @@ function toValues(profile: PatientProfile): ProfileValues {
     gender: profile.gender,
     dateOfBirth: profile.dateOfBirth.slice(0, 10),
     phone: profile.phone ?? "",
-    bloodType: profile.bloodType ?? "",
-    chronicConditions: [...profile.chronicConditions],
-    isPregnant: profile.isPregnant,
+    nationalId: profile.nationalId ?? "",
   };
 }
 
@@ -114,19 +108,18 @@ function toInput(values: ProfileValues): PatientProfileInput {
     gender: values.gender,
     dateOfBirth: values.dateOfBirth,
     phone: values.phone.trim() || undefined,
-    bloodType: values.bloodType || undefined,
-    chronicConditions: values.chronicConditions,
-    isPregnant: values.gender === "female" && values.isPregnant,
+    nationalId: values.nationalId.trim() || undefined,
   };
 }
 
 /**
  * Add or edit a patient profile.
  *
- * The form is deliberately explicit about *why* it asks for gender, age,
- * pregnancy and chronic conditions: those four fields are what the booking flow
- * screens a service's eligibility rules against (§3). If they are wrong, the
- * screening is wrong.
+ * These are exactly the fields `/v1/me/profiles` stores. The form is explicit
+ * about *why* it asks for gender and date of birth: they are what the booking
+ * flow screens a service's eligibility rules against (§3), so if they are wrong
+ * the screening is wrong. A service's pregnancy and chronic-condition rules are
+ * shown and acknowledged at booking time instead — nothing on file to screen.
  */
 export function PatientProfileDialog({
   accountId,
@@ -162,9 +155,6 @@ export function PatientProfileDialog({
   const update = useMutation(updatePatientProfile);
   const isPending = create.isPending || update.isPending;
 
-  const gender = form.watch("gender");
-  const conditions = form.watch("chronicConditions");
-
   const genderOptions = [
     { value: "male", label: L.gender("male") },
     { value: "female", label: L.gender("female") },
@@ -195,14 +185,6 @@ export function PatientProfileDialog({
     } catch (error) {
       toast.error(describeError(error));
     }
-  }
-
-  function toggleCondition(condition: string, checked: boolean) {
-    const next = checked
-      ? [...conditions, condition]
-      : conditions.filter((c) => c !== condition);
-
-    form.setValue("chronicConditions", next, { shouldDirty: true });
   }
 
   return (
@@ -279,14 +261,9 @@ export function PatientProfileDialog({
                     <FormControl>
                       <AppSelect
                         value={field.value}
-                        onValueChange={(value) => {
-                          field.onChange(value as ProfileValues["gender"]);
-                          if (value === "male") {
-                            form.setValue("isPregnant", false, {
-                              shouldDirty: true,
-                            });
-                          }
-                        }}
+                        onValueChange={(value) =>
+                          field.onChange(value as ProfileValues["gender"])
+                        }
                         options={genderOptions}
                         placeholder={t("profileDialog.genderPlaceholder")}
                         disabled={isPending}
@@ -345,90 +322,28 @@ export function PatientProfileDialog({
 
               <FormField
                 control={form.control}
-                name="bloodType"
+                name="nationalId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("profileDialog.bloodType")}</FormLabel>
+                    <FormLabel>{t("profileDialog.nationalId")}</FormLabel>
                     <FormControl>
-                      <AppSelect
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        options={BLOOD_OPTIONS}
-                        emptyOption={t("profileDialog.bloodTypeUnknown")}
-                        placeholder={t("profileDialog.bloodTypePlaceholder")}
+                      <Input
+                        {...field}
+                        inputMode="numeric"
+                        maxLength={14}
+                        placeholder={t("profileDialog.nationalIdPlaceholder")}
+                        className="h-11 rounded-xl"
                         disabled={isPending}
                       />
                     </FormControl>
+                    <FormDescription>
+                      {t("profileDialog.nationalIdHint")}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
-
-            {/* Chronic conditions ------------------------------------------ */}
-            <FormField
-              control={form.control}
-              name="chronicConditions"
-              render={() => (
-                <FormItem>
-                  <FormLabel>{t("profileDialog.conditions")}</FormLabel>
-                  <FormDescription>
-                    {t("profileDialog.conditionsHint")}
-                  </FormDescription>
-                  <div className="grid gap-2 rounded-xl border p-4 sm:grid-cols-2">
-                    {/* The condition string is the stored identifier — it is
-                        never translated at rest, only on the label (§3). */}
-                    {CHRONIC_CONDITIONS.map((condition) => {
-                      const id = `condition-${condition.replace(/\s+/g, "-")}`;
-                      return (
-                        <div key={condition} className="flex items-center gap-2">
-                          <Checkbox
-                            id={id}
-                            checked={conditions.includes(condition)}
-                            onCheckedChange={(checked) =>
-                              toggleCondition(condition, checked === true)
-                            }
-                            disabled={isPending}
-                          />
-                          <Label
-                            htmlFor={id}
-                            className="text-sm font-normal text-muted-foreground"
-                          >
-                            {L.condition(condition)}
-                          </Label>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Pregnancy — only meaningful for a female profile -------------- */}
-            {gender === "female" && (
-              <FormField
-                control={form.control}
-                name="isPregnant"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between gap-4 rounded-xl border p-4">
-                    <div className="space-y-1">
-                      <FormLabel>{t("profileDialog.pregnant")}</FormLabel>
-                      <FormDescription>
-                        {t("profileDialog.pregnantHint")}
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={(checked) => field.onChange(checked)}
-                        disabled={isPending}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            )}
 
             <DialogFooter>
               <Button

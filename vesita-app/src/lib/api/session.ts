@@ -7,16 +7,15 @@
  * them; live mode slots in underneath.
  *
  * What is real in live mode: sign-in, sign-up, sign-out, session restore,
- * account profile (name/phone/avatar), patient profiles (full CRUD under
- * `/me/profiles`), provider discovery (degraded), availability (degraded), and
- * booking write (partial).
+ * account profile (name/phone/gender/date-of-birth/avatar), patient profiles
+ * (full CRUD under `/me/profiles`), provider discovery (degraded), availability
+ * (degraded), and booking write (partial).
  *
  * What stays on the mock in *both* modes, because MedPoint cannot serve it:
  *   • favorites — no `/v1/favorites` resource
  *   • booking read/cancel/reschedule — wire Booking lacks relations and datetime
  *   • the demo role switcher (`loginAs`) — a demo affordance with no backend
  *   • Google sign-in — needs a real Google `id_token` we have no client for
- *   • governorate / blood type / date-of-birth on the account — no such columns
  */
 
 import * as mockAuth from "@/lib/api/auth";
@@ -70,18 +69,37 @@ export async function logout(): Promise<void> {
 /**
  * Update the account.
  *
- * Live mode persists only what MedPoint can actually store — `name` and `phone`.
- * The remaining fields have no column on the server, so they are *not* silently
- * merged into the returned user: that would look like a save and then vanish on
- * the next reload. The profile form tells the user as much when live.
+ * Live mode writes through two endpoints that split the account between them:
+ * `PUT /v1/profile` owns name and phone, `PATCH /v1/users/:id` owns gender and
+ * date-of-birth. Each call is made only when the patch actually touches its
+ * fields, so editing a name is still one request.
+ *
+ * The order matters on failure. Name and phone go first because they are what
+ * the header, the greeting and every booking read off the session — if the
+ * second call fails, the user is looking at the identity they just saved, and
+ * the form surfaces the error against a field they can retry.
  */
 export async function updateProfile(id: string, patch: Partial<User>): Promise<User> {
   if (!isLive()) return mockAuth.updateProfile(id, patch);
 
-  return liveProfile.updateProfile({
-    name: patch.name,
-    phone: patch.phone,
-  });
+  const touchesAccount = patch.name !== undefined || patch.phone !== undefined;
+  const touchesPerson = patch.gender !== undefined || patch.dateOfBirth !== undefined;
+
+  let user: User | undefined;
+
+  if (touchesAccount) {
+    user = await liveProfile.updateProfile({ name: patch.name, phone: patch.phone });
+  }
+  if (touchesPerson) {
+    user = await liveProfile.updateUser(id, {
+      gender: patch.gender,
+      dateOfBirth: patch.dateOfBirth,
+    });
+  }
+
+  // A patch of nothing writable (or of nothing at all): report the account as it
+  // stands rather than inventing a response neither endpoint returned.
+  return user ?? (await liveAuth.getCurrentUser());
 }
 
 /** Whether the signed-in user can upload or remove their avatar (live only). */
@@ -103,11 +121,15 @@ export async function deleteAvatar(): Promise<User> {
   return liveProfile.deleteAvatar();
 }
 
-/** Fields the active backend can actually persist on the account. */
+/**
+ * Fields the account can persist.
+ *
+ * The same set in both modes now that gender and date-of-birth have a live
+ * writer (`PATCH /v1/users/:id`) — the mock is seeded to match the API rather
+ * than to exceed it.
+ */
 export function editableProfileFields(): ReadonlyArray<keyof User> {
-  return isLive()
-    ? ["name", "phone"]
-    : ["name", "phone", "governorateId", "gender", "dateOfBirth", "bloodType"];
+  return ["name", "phone", "gender", "dateOfBirth"];
 }
 
 /** Whether the signed-in user can change their password (live only). */
@@ -118,16 +140,6 @@ export function supportsPasswordChange(): boolean {
 /** Whether the self-service password-reset flow is available (live only). */
 export function supportsPasswordReset(): boolean {
   return isLive();
-}
-
-/**
- * Whether the signup form collects gender and governorate.
- *
- * MedPoint register accepts only `full_name`, `email`, `password` and `phone`.
- * Those extra fields exist for the mock dataset only.
- */
-export function signupCollectsProfileFields(): boolean {
-  return !isLive();
 }
 
 /**

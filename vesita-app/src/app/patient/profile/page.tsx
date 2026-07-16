@@ -32,28 +32,27 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { editableProfileFields } from "@/lib/api/session";
-import { GOVERNORATES } from "@/lib/data/egypt";
 import { TODAY } from "@/lib/data/seed";
 import { useApiError } from "@/lib/i18n/use-api-error";
-import { useDomain, useFormat } from "@/lib/i18n/use-format";
+import { useFormat } from "@/lib/i18n/use-format";
 import { useLabels } from "@/lib/i18n/use-labels";
 
-const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
-
-const BLOOD_OPTIONS = BLOOD_TYPES.map((type) => ({ value: type, label: type }));
-
 /**
- * The validation messages are copy, so the schema is built per-render.
+ * The account, as the API defines it.
  *
- * `requireExtras` is false against MedPoint, which has no column for gender,
- * date of birth, blood type or governorate. Demanding them there would make the
- * form permanently unsubmittable — the user cannot supply what the server will
- * not keep — so those fields are dropped from the form entirely rather than
- * accepted and silently discarded. They still live on the patient profile
- * (§1), which is what the booking flow actually reads.
+ * These four fields are exactly what can be written back: `name` and `phone`
+ * through `PUT /v1/profile`, `gender` and `dateOfBirth` through
+ * `PATCH /v1/users/:id`. Blood type and governorate used to sit here too; the
+ * API has no column for either, so they were only ever saved to the mock.
+ *
+ * Gender and date of birth stay optional — an account can exist without them
+ * and the API accepts them unset, so requiring them here would block someone
+ * from correcting a typo in their own name. The booking flow reads its clinical
+ * facts off the patient profile (§1), not off the account.
+ *
+ * The validation messages are copy, so the schema is built per-render.
  */
-function buildSchema(t: (key: string) => string, requireExtras: boolean) {
+function buildSchema(t: (key: string) => string) {
   return z
     .object({
       name: z.string().trim().min(3, t("account.validation.name")),
@@ -63,32 +62,9 @@ function buildSchema(t: (key: string) => string, requireExtras: boolean) {
         .regex(/^01[0125]\d{8}$/, t("account.validation.phone")),
       gender: z.enum(["male", "female"]).optional(),
       dateOfBirth: z.string().optional(),
-      bloodType: z.string().optional(),
-      governorateId: z.string().optional(),
     })
     .superRefine((values, ctx) => {
-      if (!requireExtras) return;
-
-      const require = (
-        field: "gender" | "dateOfBirth" | "bloodType" | "governorateId",
-        message: string,
-      ) => {
-        if (!values[field]) {
-          ctx.addIssue({ code: "custom", path: [field], message });
-        }
-      };
-
-      require("gender", t("account.validation.gender"));
-      require("bloodType", t("account.validation.bloodType"));
-      require("governorateId", t("account.validation.governorate"));
-
-      if (!values.dateOfBirth) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["dateOfBirth"],
-          message: t("account.validation.dateOfBirthRequired"),
-        });
-      } else if (new Date(values.dateOfBirth).getTime() >= TODAY.getTime()) {
+      if (values.dateOfBirth && new Date(values.dateOfBirth).getTime() >= TODAY.getTime()) {
         ctx.addIssue({
           code: "custom",
           path: ["dateOfBirth"],
@@ -104,14 +80,11 @@ export default function PatientProfilePage() {
   const t = useTranslations("patient");
   const L = useLabels();
   const { formatDate, initialsOf } = useFormat();
-  const { getGovernorateName } = useDomain();
   const describeError = useApiError();
 
   const { user, isLoading, updateProfile } = useAuth();
 
-  // Only offer the fields the active backend can actually keep.
-  const storesExtras = editableProfileFields().includes("gender");
-  const schema = useMemo(() => buildSchema(t, storesExtras), [t, storesExtras]);
+  const schema = useMemo(() => buildSchema(t), [t]);
 
   const form = useForm<ProfileValues>({
     resolver: zodResolver(schema),
@@ -121,8 +94,6 @@ export default function PatientProfilePage() {
           phone: user.phone,
           gender: user.gender ?? "male",
           dateOfBirth: user.dateOfBirth?.slice(0, 10) ?? "",
-          bloodType: user.bloodType ?? "",
-          governorateId: user.governorateId ?? "",
         }
       : undefined,
   });
@@ -131,11 +102,6 @@ export default function PatientProfilePage() {
     { value: "male", label: L.gender("male") },
     { value: "female", label: L.gender("female") },
   ];
-
-  const governorateOptions = GOVERNORATES.map((governorate) => ({
-    value: governorate.id,
-    label: getGovernorateName(governorate.id),
-  }));
 
   if (isLoading || !user) return <ProfileSkeleton />;
 
@@ -241,8 +207,6 @@ export default function PatientProfilePage() {
                   )}
                 />
 
-                {storesExtras && (
-                  <>
                 <FormField
                   control={form.control}
                   name="gender"
@@ -281,56 +245,7 @@ export default function PatientProfilePage() {
                     </FormItem>
                   )}
                 />
-
-                <FormField
-                  control={form.control}
-                  name="bloodType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("account.bloodType")}</FormLabel>
-                      <FormControl>
-                        <AppSelect
-                          value={field.value ?? ""}
-                          onValueChange={field.onChange}
-                          options={BLOOD_OPTIONS}
-                          placeholder={t("account.bloodTypePlaceholder")}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {t("account.bloodTypeHint")}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="governorateId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("account.governorate")}</FormLabel>
-                      <FormControl>
-                        <AppSelect
-                          value={field.value ?? ""}
-                          onValueChange={field.onChange}
-                          options={governorateOptions}
-                          placeholder={t("account.governoratePlaceholder")}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                  </>
-                )}
               </div>
-
-              {!storesExtras && (
-                <p className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-muted-foreground">
-                  {t("account.limitedFields")}
-                </p>
-              )}
 
               <div className="flex justify-end gap-2 border-t pt-5">
                 <Button

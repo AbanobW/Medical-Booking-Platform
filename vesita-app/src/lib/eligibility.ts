@@ -12,8 +12,15 @@ import type {
  *
  * A service may restrict who can book it. The booking flow must not let a
  * patient finalize a booking for a profile that fails these rules — this is
- * what stops a pregnant patient booking a CT scan, or a child booking a service
- * with an adult age floor.
+ * what stops a child booking a service with an adult age floor.
+ *
+ * Screening covers the rules a profile carries the facts to answer: gender and
+ * age. A service's pregnancy and excluded-condition rules are still declared
+ * and still shown — `eligibilityDescriptors` renders them and the patient
+ * acknowledges them — but they cannot be auto-checked, because the API keeps no
+ * pregnancy or chronic-condition field on a profile. Screening what is not on
+ * file would mean asking at booking time and trusting the answer; §3's
+ * show-and-acknowledge gate already covers that ground honestly.
  *
  * Every reason a patient is shown carries a stable `code` and the values that
  * go into it, so the UI can render it in Arabic as easily as in English. The
@@ -124,23 +131,9 @@ export function evaluateEligibilityDetailed(
     });
   }
 
-  if (!rules.pregnancySafe && profile.isPregnant) {
-    violations.push({
-      code: "pregnancy",
-      message: `${service.name} is not performed during pregnancy.`,
-      params: { service: service.name },
-    });
-  }
-
-  for (const condition of rules.excludedConditions) {
-    if (profile.chronicConditions.includes(condition)) {
-      violations.push({
-        code: "condition",
-        message: `${service.name} is not suitable for patients with ${condition.toLowerCase()}.`,
-        params: { service: service.name, condition },
-      });
-    }
-  }
+  // `pregnancySafe` and `excludedConditions` are deliberately not screened here:
+  // a profile stores neither, so there is nothing to compare. They reach the
+  // patient through `eligibilityDescriptors` and the §3 acknowledgement instead.
 
   return { eligible: violations.length === 0, violations };
 }

@@ -110,8 +110,7 @@ export function toPatientProfile(wire: WirePatientProfile, accountId: string): P
     gender: genderOf(wire.gender) ?? "male",
     dateOfBirth: toISODateOnly(wire.date_of_birth) ?? "",
     phone: toLocalPhone(wire.phone) || undefined,
-    chronicConditions: [],
-    isPregnant: false,
+    nationalId: wire.national_id || undefined,
     createdAt: wire.created_at ?? new Date().toISOString(),
   };
 }

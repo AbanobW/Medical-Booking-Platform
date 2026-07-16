@@ -2,13 +2,10 @@
 
 import Link from "next/link";
 import {
-  Activity,
-  Baby,
   CalendarDays,
-  Droplet,
+  IdCard,
   Pencil,
   Phone,
-  ShieldCheck,
   Trash2,
   UserRound,
 } from "lucide-react";
@@ -34,10 +31,10 @@ import { useMutation } from "@/hooks/use-async";
 import { deletePatientProfile } from "@/lib/api/profiles";
 import { ageOf } from "@/lib/eligibility";
 import { useApiError } from "@/lib/i18n/use-api-error";
-import { useDomain, useFormat } from "@/lib/i18n/use-format";
+import { useFormat } from "@/lib/i18n/use-format";
 import { useLabels } from "@/lib/i18n/use-labels";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { INSURANCE_ENABLED, type PatientProfile } from "@/lib/types";
+import { type PatientProfile } from "@/lib/types";
 
 const RELATIONSHIP_TONES: Record<string, string> = {
   self: "bg-primary/10 text-primary",
@@ -60,7 +57,6 @@ export function PatientProfileCard({
   const t = useTranslations("patient");
   const L = useLabels();
   const { initialsOf } = useFormat();
-  const { getInsurancePlanName } = useDomain();
   const describeError = useApiError();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -105,12 +101,6 @@ export function PatientProfileCard({
               >
                 {L.relationship(profile.relationship)}
               </Badge>
-              {profile.isPregnant && (
-                <Badge variant="secondary" className="gap-1 bg-primary/10 text-primary">
-                  <Baby />
-                  {t("profileCard.pregnant")}
-                </Badge>
-              )}
             </div>
 
             <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
@@ -124,10 +114,10 @@ export function PatientProfileCard({
                   {t("profileCard.age", { count: age })}
                 </span>
               )}
-              {profile.bloodType && (
+              {profile.nationalId && (
                 <span className="flex items-center gap-1.5">
-                  <Droplet className="size-3.5" />
-                  <span className="ltr-nums">{profile.bloodType}</span>
+                  <IdCard className="size-3.5" />
+                  <span className="ltr-nums">{profile.nationalId}</span>
                 </span>
               )}
               {profile.phone && (
@@ -136,42 +126,8 @@ export function PatientProfileCard({
                   <span className="ltr-nums">{profile.phone}</span>
                 </span>
               )}
-              {/* Insurance stays behind its master switch (§14). */}
-              {INSURANCE_ENABLED && profile.insurance && (
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="size-3.5" />
-                  {t("profileCard.insurance", {
-                    plan: getInsurancePlanName(profile.insurance.planId),
-                  })}
-                </span>
-              )}
             </p>
           </div>
-        </div>
-
-        <div className="space-y-2">
-          <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Activity className="size-3.5" />
-            {t("profileCard.conditions")}
-          </p>
-          {profile.chronicConditions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {t("profileCard.noConditions")}
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {/* Stored in English — the string *is* the identifier (§3). */}
-              {profile.chronicConditions.map((condition) => (
-                <Badge
-                  key={condition}
-                  variant="outline"
-                  className="font-normal"
-                >
-                  {L.condition(condition)}
-                </Badge>
-              ))}
-            </div>
-          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t pt-4">

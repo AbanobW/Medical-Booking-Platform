@@ -113,8 +113,10 @@ for (const profile of DB.patientProfiles) {
   if (profile.relationship === "self") {
     selfCount.set(profile.accountId, (selfCount.get(profile.accountId) ?? 0) + 1);
   }
-  if (profile.gender === "male" && profile.isPregnant)
-    problems.push(`profile ${profile.id}: male profile flagged pregnant`);
+  // A national ID is optional, but a malformed one would fail the form's own
+  // validation — the dataset must not contain what a user could not have typed.
+  if (profile.nationalId && !/^\d{14}$/.test(profile.nationalId))
+    problems.push(`profile ${profile.id}: national ID is not 14 digits`);
 }
 for (const patient of DB.patients) {
   const n = selfCount.get(patient.id) ?? 0;

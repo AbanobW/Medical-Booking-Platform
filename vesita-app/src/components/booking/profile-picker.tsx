@@ -11,23 +11,18 @@ import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AppSelect } from "@/components/ui/app-select";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { ErrorState } from "@/components/shared/states";
 import { createPatientProfile } from "@/lib/api/profiles";
-import { CHRONIC_CONDITIONS } from "@/lib/data/clinical";
 import { TODAY, toISODate } from "@/lib/data/seed";
 import { ageOf } from "@/lib/eligibility";
 import { useApiError } from "@/lib/i18n/use-api-error";
@@ -42,15 +37,21 @@ const EG_PHONE = /^01[0125][0-9]{8}$/;
 /** "self" is created with the account — a family member is one of the other three. */
 const FAMILY_RELATIONSHIPS: Relationship[] = ["child", "spouse", "parent"];
 
-/** The validation messages are translated, so the schema is built inside the form. */
+/**
+ * The quick-add form: the minimum `/v1/me/profiles` needs to create someone.
+ *
+ * Deliberately shorter than the full dialog on `/patient/profiles` — national ID
+ * is optional to the API and this form sits in the middle of a booking, so it
+ * asks only for what the booking itself screens against (§3).
+ *
+ * The validation messages are translated, so the schema is built inside the form.
+ */
 interface ProfileFormValues {
   relationship: "child" | "spouse" | "parent";
   fullName: string;
   gender: Gender;
   dateOfBirth: string;
   phone: string;
-  isPregnant: boolean;
-  chronicConditions: string[];
 }
 
 /**
@@ -106,8 +107,6 @@ export function ProfilePicker({
           .refine((value) => value === "" || EG_PHONE.test(value), {
             message: t("patient.validation.phone"),
           }),
-        isPregnant: z.boolean(),
-        chronicConditions: z.array(z.string()),
       }),
     [t],
   );
@@ -120,12 +119,8 @@ export function ProfilePicker({
       gender: "male",
       dateOfBirth: "",
       phone: "",
-      isPregnant: false,
-      chronicConditions: [],
     },
   });
-
-  const gender = form.watch("gender");
 
   async function save(values: ProfileFormValues) {
     setIsSaving(true);
@@ -136,8 +131,6 @@ export function ProfilePicker({
         gender: values.gender,
         dateOfBirth: values.dateOfBirth,
         phone: values.phone.trim() || undefined,
-        chronicConditions: values.chronicConditions,
-        isPregnant: values.gender === "female" && values.isPregnant,
       });
 
       onCreated(profile);
@@ -259,12 +252,7 @@ export function ProfilePicker({
                         <FormControl>
                           <AppSelect
                             value={field.value}
-                            onValueChange={(value) => {
-                              field.onChange(value as Gender);
-                              if (value === "male") {
-                                form.setValue("isPregnant", false);
-                              }
-                            }}
+                            onValueChange={(value) => field.onChange(value as Gender)}
                             options={[
                               { value: "male", label: L.gender("male") },
                               { value: "female", label: L.gender("female") },
@@ -317,84 +305,7 @@ export function ProfilePicker({
                     )}
                   />
 
-                  {gender === "female" && (
-                    <FormField
-                      control={form.control}
-                      name="isPregnant"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("patient.field.pregnant")}</FormLabel>
-                          <div className="flex h-11 items-center gap-3 rounded-xl border px-4">
-                            <FormControl>
-                              <Switch
-                                checked={field.value}
-                                onCheckedChange={(checked: boolean) =>
-                                  field.onChange(checked)
-                                }
-                              />
-                            </FormControl>
-                            <span className="text-sm text-muted-foreground">
-                              {field.value
-                                ? tCommon("labels.yes")
-                                : tCommon("labels.no")}
-                            </span>
-                          </div>
-                          <FormDescription>
-                            {t("patient.field.pregnantHint")}
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
                 </div>
-
-                <FormField
-                  control={form.control}
-                  name="chronicConditions"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("patient.field.conditions")}</FormLabel>
-                      <FormDescription>
-                        {t("patient.field.conditionsHint")}
-                      </FormDescription>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {CHRONIC_CONDITIONS.map((condition) => {
-                          const checked = field.value.includes(condition);
-                          const id = `condition-${condition.replace(/\s+/g, "-")}`;
-
-                          return (
-                            <div
-                              key={condition}
-                              className="flex items-center gap-3 rounded-xl border bg-background px-3 py-2.5"
-                            >
-                              <Checkbox
-                                id={id}
-                                checked={checked}
-                                onCheckedChange={(next: boolean) =>
-                                  field.onChange(
-                                    next
-                                      ? [...field.value, condition]
-                                      : field.value.filter(
-                                          (c: string) => c !== condition,
-                                        ),
-                                  )
-                                }
-                              />
-                              <Label
-                                htmlFor={id}
-                                className="cursor-pointer text-sm font-normal"
-                              >
-                                {L.condition(condition)}
-                              </Label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
 
                 <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                   <Button
@@ -490,29 +401,6 @@ function ProfileCard({
         <Badge variant={isSelected ? "default" : "secondary"} className="shrink-0">
           {L.relationship(profile.relationship)}
         </Badge>
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {profile.isPregnant && (
-          <Badge variant="outline" className="text-[0.7rem] font-normal">
-            {t("patient.pregnantBadge")}
-          </Badge>
-        )}
-        {profile.chronicConditions.length > 0 ? (
-          profile.chronicConditions.map((condition) => (
-            <Badge
-              key={condition}
-              variant="outline"
-              className="text-[0.7rem] font-normal"
-            >
-              {L.condition(condition)}
-            </Badge>
-          ))
-        ) : (
-          <span className="text-xs text-muted-foreground">
-            {t("patient.noConditions")}
-          </span>
-        )}
       </div>
     </button>
   );
