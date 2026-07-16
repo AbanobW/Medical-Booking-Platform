@@ -93,7 +93,6 @@ export function useDomain() {
       getGovernorateName: (id: string) => D.getGovernorateName(id, locale),
       getAreaName: (id: string) => D.getAreaName(id, locale),
       getSpecialtyName: (id: string) => D.getSpecialtyName(id, locale),
-      getInsurancePlanName: (id: string) => D.getInsurancePlanName(id, locale),
     }),
     [locale],
   );

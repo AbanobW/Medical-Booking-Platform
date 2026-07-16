@@ -1,10 +1,5 @@
 import type { Locale } from "@/i18n/config";
-import {
-  GOVERNORATES,
-  INSURANCE_PLANS,
-  SPECIALTIES,
-  ALL_AREAS,
-} from "@/lib/data/egypt";
+import { GOVERNORATES, SPECIALTIES, ALL_AREAS } from "@/lib/data/egypt";
 import type { LocalizedText } from "@/lib/types";
 
 export type { LocalizedText };
@@ -12,10 +7,11 @@ export type { LocalizedText };
 /**
  * Locale-aware names for the domain model.
  *
- * The dataset already carries `nameAr` on every named entity — providers,
- * specialties, governorates, areas, insurance plans, lab tests and scans — so
- * translating a name is a field pick, not a lookup. `named()` is the one place
- * that pick happens.
+ * Every named entity carries a `nameAr` — specialties, governorates and areas
+ * from the static lookup tables in `@/lib/data/egypt`; providers, insurance
+ * plans, lab tests and scans from whatever the API returned — so translating a
+ * name is a field pick, not a lookup. `named()` is the one place that pick
+ * happens, regardless of where the pair came from.
  */
 
 /** Anything in the dataset that ships both names. */
@@ -91,9 +87,10 @@ export function getSpecialtyName(id: string, locale: Locale): string {
   );
 }
 
-export function getInsurancePlanName(id: string, locale: Locale): string {
-  return named(
-    INSURANCE_PLANS.find((p) => p.id === id),
-    locale,
-  );
-}
+/**
+ * Insurance plan names have no local lookup: `/v1/insurances` is a live list
+ * (`@/lib/api/medpoint/insurance#getInsurancePlans`), not a static table, so
+ * there is nothing here to look an id up against synchronously. A caller that
+ * already fetched the list resolves a name with `named()` directly against the
+ * plan it found, the same way any other `Named` entity is rendered.
+ */

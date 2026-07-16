@@ -12,12 +12,9 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import {
-  GOVERNORATES,
-  INSURANCE_PLANS,
-  SPECIALTIES,
-  getAreasFor,
-} from "@/lib/data/egypt";
+import { useAsync } from "@/hooks/use-async";
+import { getInsurancePlans } from "@/lib/api/medpoint/insurance";
+import { GOVERNORATES, SPECIALTIES, getAreasFor } from "@/lib/data/egypt";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import { useLabels } from "@/lib/i18n/use-labels";
 import { INSURANCE_ENABLED, PRICE_RANGE, type Gender, type SearchFilters } from "@/lib/types";
@@ -47,8 +44,13 @@ function FilterControls({ filters, onChange, onReset }: Omit<FilterSidebarProps,
   const t = useTranslations("search");
   const L = useLabels();
   const { formatEGP } = useFormat();
-  const { getSpecialtyName, getGovernorateName, getAreaName, getInsurancePlanName } =
-    useDomain();
+  const { named, getSpecialtyName, getGovernorateName, getAreaName } = useDomain();
+  // Only fetched while the insurance filter can actually be used — no sense
+  // paying for a request the dropdown below is disabled anyway.
+  const { data: insurancePlans } = useAsync(
+    () => (INSURANCE_ENABLED ? getInsurancePlans() : Promise.resolve([])),
+    [],
+  );
 
   const areas = getAreasFor(filters.governorateId ?? "");
   const isDoctorSearch = filters.type === "doctor" || !filters.type;
@@ -277,9 +279,9 @@ function FilterControls({ filters, onChange, onReset }: Omit<FilterSidebarProps,
           placeholder={t("filters.anyInsurance")}
           disabled={!INSURANCE_ENABLED}
           aria-label={t("filters.insurancePlan")}
-          options={INSURANCE_PLANS.map((plan) => ({
+          options={(insurancePlans ?? []).map((plan) => ({
             value: plan.id,
-            label: getInsurancePlanName(plan.id),
+            label: named(plan),
           }))}
         />
         {!INSURANCE_ENABLED && (

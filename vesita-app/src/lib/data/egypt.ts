@@ -1,4 +1,4 @@
-import type { Governorate, InsurancePlan, Specialty } from "@/lib/types";
+import type { Governorate, Specialty } from "@/lib/types";
 
 /**
  * Static Egyptian reference data: governorates, their areas, and the medical
@@ -206,22 +206,8 @@ export function getSpecialtyName(id: string): string {
   return getSpecialty(id)?.name ?? "General Practice";
 }
 
-// ---------------------------------------------------------------------------
-// Insurance networks (§14 — future phase)
-//
-// The Egyptian networks the platform will support when insurance ships. The
-// data model carries them now so switching the phase on needs no migration.
-// ---------------------------------------------------------------------------
-
-export const INSURANCE_PLANS: InsurancePlan[] = [
-  { id: "axa", name: "AXA", nameAr: "أكسا" },
-  { id: "mednet", name: "MedNet", nameAr: "ميدنت" },
-  { id: "bupa", name: "Bupa", nameAr: "بوبا" },
-  { id: "metlife", name: "MetLife", nameAr: "ميتلايف" },
-  { id: "allianz", name: "Allianz", nameAr: "أليانز" },
-  { id: "globemed", name: "GlobeMed", nameAr: "جلوب ميد" },
-];
-
-export function getInsurancePlanName(id: string): string {
-  return INSURANCE_PLANS.find((p) => p.id === id)?.name ?? id;
-}
+// Insurance plans are NOT here. This used to hardcode 6 networks (AXA, MedNet,
+// Bupa, MetLife, Allianz, GlobeMed) as a stand-in for the insurance phase (§14)
+// — but `/v1/insurances` is real and already lists 13 actual plans, so a local
+// duplicate is exactly the kind of stale data this file exists to not contain.
+// See `@/lib/api/medpoint/insurance#getInsurancePlans`.

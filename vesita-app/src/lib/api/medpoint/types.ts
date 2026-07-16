@@ -46,6 +46,13 @@ export interface WireCoupon extends WireResource {
   expires_at?: string | null;
 }
 
+export interface WireInsurance extends WireResource {
+  type: "Insurance";
+  /** One name only — no separate Arabic field on the wire. */
+  plan_name: string;
+  policy_number?: string | null;
+}
+
 export interface WireUser extends WireResource {
   type: "User";
   name: string;
