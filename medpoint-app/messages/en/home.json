@@ -1,0 +1,112 @@
+{
+  "hero": {
+    "badge": "Trusted by patients in 27 governorates",
+    "title": "Find the right doctor, lab or scan — and book it in a minute.",
+    "subtitle": "Search, compare and book verified doctors, medical labs and radiology centers across Egypt. Instant confirmation, transparent pricing, and cashback on every visit."
+  },
+  "valueProps": {
+    "verified": {
+      "title": "Every provider is verified",
+      "description": "We check licences, syndicate registration and accreditation before a profile goes live."
+    },
+    "pricing": {
+      "title": "Transparent pricing",
+      "description": "The consultation fee, test price or scan price you see is the price you pay. No surprises."
+    },
+    "reviews": {
+      "title": "Real reviews only",
+      "description": "Reviews can only be left by patients who actually completed a booking through MedPoint."
+    }
+  },
+  "specialties": {
+    "eyebrow": "Browse by specialty",
+    "title": "Popular specialties",
+    "description": "Pick a specialty and see every verified doctor near you, with real prices and open slots.",
+    "allDoctors": "All doctors",
+    "doctorCount": "{count, plural, =0 {No doctors} one {# doctor} other {# doctors}}",
+    "errorTitle": "Couldn't load specialties",
+    "emptyTitle": "No specialties yet",
+    "emptyDescription": "Specialties appear here as doctors join the platform."
+  },
+  "rails": {
+    "viewAll": "View all",
+    "browseAll": "Browse all",
+    "errorTitle": "Couldn't load providers",
+    "errorDescription": "We hit a problem fetching this list. Please try again.",
+    "emptyTitle": "Nothing featured yet",
+    "emptyDescription": "Featured providers will appear here as soon as they join.",
+    "doctors": {
+      "eyebrow": "Top rated",
+      "title": "Featured doctors",
+      "description": "Highly rated consultants and specialists with open slots this week."
+    },
+    "labs": {
+      "eyebrow": "Analysis",
+      "title": "Featured medical labs",
+      "description": "Accredited laboratories with transparent test prices and home sample collection."
+    },
+    "radiology": {
+      "eyebrow": "Imaging",
+      "title": "Featured radiology centers",
+      "description": "X-ray, ultrasound, CT and MRI centers with modern equipment and fast reporting."
+    }
+  },
+  "howItWorks": {
+    "eyebrow": "How it works",
+    "title": "Four steps from symptom to appointment",
+    "description": "No phone calls, no waiting on hold, no guessing what it will cost.",
+    "search": {
+      "title": "Search",
+      "description": "Filter by specialty, area, price and rating — or just type a symptom, a test or a scan name."
+    },
+    "slot": {
+      "title": "Pick a slot",
+      "description": "See real availability for the next 30 days and choose the time that fits your day."
+    },
+    "confirm": {
+      "title": "Confirm instantly",
+      "description": "Book in under a minute. You get an SMS and WhatsApp confirmation with the clinic address."
+    },
+    "visit": {
+      "title": "Visit & earn cashback",
+      "description": "Pay cash at the clinic or online, then collect cashback in your MedPoint wallet after the visit."
+    }
+  },
+  "faq": {
+    "eyebrow": "FAQ",
+    "title": "Questions patients ask us",
+    "description": "Still stuck? Call us on {phone}, any day from 9am to 11pm.",
+    "items": {
+      "free": {
+        "q": "Is booking through MedPoint free?",
+        "a": "Yes. Booking a doctor, lab test or scan through MedPoint costs you nothing extra — you pay the provider exactly the price shown on their profile. We earn a commission from the provider, never from you."
+      },
+      "verification": {
+        "q": "How do I know a doctor or center is genuine?",
+        "a": "Every provider on MedPoint is verified before their profile is published. For doctors we check Medical Syndicate registration and their specialty degree; for labs and radiology centers we check Ministry of Health licensing and any accreditation they claim, such as ISO or CAP."
+      },
+      "cancel": {
+        "q": "Can I cancel or reschedule a booking?",
+        "a": "You can cancel or move a booking free of charge from your dashboard up to 4 hours before the appointment. If you paid online, the refund is returned to your original payment method or your MedPoint wallet, whichever you choose."
+      },
+      "payment": {
+        "q": "How do I pay?",
+        "a": "Most patients pay cash at the clinic. You can also pay online with a credit or debit card, Vodafone Cash, or InstaPay — and paying online is what makes you eligible for cashback on the visit."
+      },
+      "cashback": {
+        "q": "What is cashback and how do I use it?",
+        "a": "Selected doctors, labs and radiology centers run cashback campaigns that return a percentage of the amount you paid as MedPoint wallet credit, usually within 24 hours of the completed visit. Wallet credit can be applied to any future booking on the platform."
+      },
+      "homeCollection": {
+        "q": "Do labs really collect samples from my home?",
+        "a": "Many do. Labs that offer it show a “Home sample collection” badge on their profile, and you pick the home-visit option while booking. A trained phlebotomist comes to your address in the time window you choose, and results arrive digitally."
+      }
+    }
+  },
+  "cta": {
+    "title": "Your next appointment is a minute away",
+    "description": "Search verified doctors, labs and radiology centers near you — see real prices and real availability before you commit.",
+    "findDoctor": "Find a doctor",
+    "bookTest": "Book a test or scan"
+  }
+}

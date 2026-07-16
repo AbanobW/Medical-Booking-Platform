@@ -1,0 +1,229 @@
+{
+  "meta": {
+    "title": "{site} — Book Doctors, Labs & Radiology in Egypt",
+    "description": "Search, compare and book verified doctors, medical labs and radiology centers across Egypt. Instant confirmation, transparent pricing, and cashback on every visit."
+  },
+  "language": {
+    "change": "Change language"
+  },
+  "theme": {
+    "change": "Change theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "actions": {
+    "save": "Save",
+    "saveChanges": "Save changes",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "continue": "Continue",
+    "submit": "Submit",
+    "edit": "Edit",
+    "delete": "Delete",
+    "remove": "Remove",
+    "add": "Add",
+    "create": "Create",
+    "update": "Update",
+    "search": "Search",
+    "filter": "Filter",
+    "clear": "Clear",
+    "clearAll": "Clear all",
+    "apply": "Apply",
+    "reset": "Reset",
+    "retry": "Try again",
+    "viewAll": "View all",
+    "viewDetails": "View details",
+    "seeMore": "See more",
+    "seeLess": "See less",
+    "copy": "Copy",
+    "copied": "Copied",
+    "download": "Download",
+    "print": "Print",
+    "share": "Share",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "signUp": "Create account",
+    "bookNow": "Book now",
+    "learnMore": "Learn more"
+  },
+  "states": {
+    "loading": "Loading…",
+    "saving": "Saving…",
+    "empty": "Nothing here yet",
+    "error": "Something went wrong",
+    "errorDescription": "We couldn't load this. Please try again.",
+    "noResults": "No results",
+    "noResultsDescription": "Try adjusting your filters or search terms.",
+    "notFound": "Page not found",
+    "notFoundDescription": "The page you're looking for doesn't exist or has moved."
+  },
+  "labels": {
+    "name": "Name",
+    "fullName": "Full name",
+    "email": "Email",
+    "phone": "Phone",
+    "password": "Password",
+    "gender": "Gender",
+    "dateOfBirth": "Date of birth",
+    "address": "Address",
+    "governorate": "Governorate",
+    "area": "Area",
+    "specialty": "Specialty",
+    "price": "Price",
+    "rating": "Rating",
+    "date": "Date",
+    "time": "Time",
+    "status": "Status",
+    "total": "Total",
+    "notes": "Notes",
+    "optional": "Optional",
+    "required": "Required",
+    "all": "All",
+    "yes": "Yes",
+    "no": "No",
+    "from": "From",
+    "to": "To",
+    "of": "of",
+    "showing": "Showing {from}–{to} of {total}",
+    "page": "Page {page}",
+    "reviews": "{count, plural, =0 {No reviews} one {# review} other {# reviews}}",
+    "results": "{count, plural, =0 {No results} one {# result} other {# results}}"
+  },
+  "validation": {
+    "required": "This field is required.",
+    "invalidEmail": "Enter a valid email address.",
+    "invalidPhone": "Enter a valid Egyptian phone number.",
+    "passwordTooShort": "Password must be at least 6 characters.",
+    "selectOption": "Please choose an option."
+  },
+  "pagination": {
+    "previous": "Previous",
+    "next": "Next",
+    "rowsPerPage": "Rows per page",
+    "pageOfPages": "{page} / {pages}"
+  },
+  "table": {
+    "search": "Search the table",
+    "emptyTitle": "No results",
+    "emptyDescription": "Try adjusting your search or filters.",
+    "sortBy": "Sort by {column}"
+  },
+  "providerCard": {
+    "labSubtitle": "Medical Laboratory",
+    "radiologySubtitle": "Radiology Center",
+    "verified": "Verified",
+    "pending": "Pending review",
+    "addFavorite": "Add to favorites",
+    "removeFavorite": "Remove from favorites",
+    "favoriteAdded": "Added to favorites",
+    "favoriteRemoved": "Removed from favorites",
+    "favoriteSignIn": "Sign in to save providers to your favorites.",
+    "favoriteFailed": "Couldn't update your favorites. Please try again.",
+    "likelyAvailableToday": "Likely available today",
+    "likelyAvailable": "Likely available",
+    "noOpenSlots": "Likely nothing open in the next 2 weeks — check the profile to be sure.",
+    "consultationFee": "Consultation fee",
+    "startingFrom": "Starting from",
+    "book": "Book",
+    "specialty": "Specialty",
+    "subspecialty": "Subspecialty",
+    "noReviewsYet": "No reviews yet"
+  },
+  "rating": {
+    "stars": "{value} out of 5 stars",
+    "rate": "Rate {star} out of 5",
+    "reviewCount": "{count, plural, =0 {No reviews} one {# review} other {# reviews}}",
+    "waitingTime": "Waiting time",
+    "staff": "Staff",
+    "cleanliness": "Cleanliness",
+    "communication": "Communication"
+  },
+  "review": {
+    "verifiedVisit": "Verified visit",
+    "providerResponse": "Response from the provider",
+    "helpful": "Helpful ({count})"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "bell": "Notifications",
+    "bellUnread": "Notifications, {count} unread",
+    "unread": "Unread",
+    "markAsRead": "Mark as read",
+    "markAllRead": "Mark all read",
+    "markedAllRead": "{count, plural, =0 {Nothing to mark as read.} one {# notification marked as read.} other {# notifications marked as read.}}",
+    "delete": "Delete notification",
+    "viewAll": "View all notifications",
+    "emptyTitle": "You're all caught up",
+    "emptyDescription": "New booking updates will show up here.",
+    "channel": {
+      "sms": "SMS",
+      "email": "Email",
+      "whatsapp": "WhatsApp",
+      "browser": "Browser"
+    }
+  },
+  "calendar": {
+    "previousDates": "Earlier dates",
+    "laterDates": "Later dates",
+    "dayAvailability": "{day}, {count, plural, =0 {no places available} one {# place available} other {# places available}}",
+    "sessions": "Sessions",
+    "availableTimes": "Available times",
+    "noSessions": "No session on this date. Please choose another day.",
+    "noSlots": "No open slots on this date. Please choose another day.",
+    "fullyBooked": "Fully booked",
+    "placesLeft": "{remaining} of {capacity} places left",
+    "full": "Full",
+    "busy": "Busy",
+    "session": {
+      "morning": "Morning session",
+      "afternoon": "Afternoon session",
+      "evening": "Evening session"
+    }
+  },
+  "charts": {
+    "revenue": {
+      "title": "Revenue",
+      "description": "Realised revenue from completed bookings, last 12 months",
+      "series": "Revenue"
+    },
+    "bookings": {
+      "title": "Bookings",
+      "description": "Completed and confirmed bookings against cancellations",
+      "series": "Bookings",
+      "cancellations": "Cancellations"
+    },
+    "trend": {
+      "title": "Booking trends",
+      "description": "Monthly booking volume across the platform"
+    }
+  },
+  "map": {
+    "location": "Location",
+    "directions": "Directions",
+    "openInMaps": "Open in Google Maps"
+  },
+  "stats": {
+    "vsLastMonth": "vs last month"
+  },
+  "ui": {
+    "close": "Close",
+    "more": "More",
+    "breadcrumb": "Breadcrumb",
+    "pagination": "Pagination",
+    "previous": "Previous",
+    "next": "Next",
+    "previousPage": "Go to previous page",
+    "nextPage": "Go to next page",
+    "morePages": "More pages",
+    "toggleSidebar": "Toggle sidebar",
+    "sidebarTitle": "Sidebar",
+    "sidebarDescription": "Displays the mobile sidebar.",
+    "commandTitle": "Command palette",
+    "commandDescription": "Search for a command to run…",
+    "selectPlaceholder": "Select…"
+  }
+}

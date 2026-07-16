@@ -2,7 +2,7 @@
 
 The state of the frontend↔backend integration, and what it takes to finish it.
 Written to be read cold: an agent resuming this work should not need to re-derive
-the map from `vesita-app/src/lib/api/`.
+the map from `medpoint-app/src/lib/api/`.
 
 **Verified against live staging (`https://medpoint.intrazero.org`), last re-probed 2026-07-16.**
 Re-probe before you trust it — see [Verify before you trust](#verify-before-you-trust).
@@ -11,7 +11,7 @@ Re-probe before you trust it — see [Verify before you trust](#verify-before-yo
 - `.claude/Business-Logic-and-Product-Decisions-v2.md` — what the product must do. Product truth.
 - `.claude/BACKEND-GAPS.md` — what staging fails to do, phrased as an ask to the backend team.
 - `.claude/API-CONTRACT.md` — endpoint catalogue, wire DTOs, and the field-level gap map.
-- `vesita-app/CLAUDE.md` — the build contract for the app itself.
+- `medpoint-app/CLAUDE.md` — the build contract for the app itself.
 
 ---
 
@@ -37,7 +37,7 @@ Two consequences follow directly:
   through the ordinary error/empty-state path rather than through a silent fallback.
 
 The result is an app that is honest about a genuinely thin backend. Read
-`vesita-app/CLAUDE.md`'s opening section before touching any screen — it states this
+`medpoint-app/CLAUDE.md`'s opening section before touching any screen — it states this
 rule for the build itself.
 
 ---
@@ -79,7 +79,7 @@ UI says so rather than inventing an attribution. This is a small, local backend 
 
 ## Orientation
 
-App root is **`vesita-app/`**. The integration layer is `vesita-app/src/lib/api/`:
+App root is **`medpoint-app/`**. The integration layer is `medpoint-app/src/lib/api/`:
 
 ```
 src/lib/api/
@@ -154,7 +154,7 @@ decisions the code actually still embodies:
 | 1 | **Never join two resources by id.** Every model's row index hashes to the same string with the same salt — `Provider` row 1, `Branch` row 1, `Service` row 1 are all `W6V1Y2Pn83Q7mDEK`. This looks exactly like a foreign key and is not one: joining on it pairs row N with row N regardless of what they actually are (a lab would get a doctor's consultation). `medpoint/providers.ts#buildCatalog` attaches a branch to a provider **only** via the real `provider_id`/`branch_id` fields, and explicitly documents why not to "fix" the resulting empty-services problem by matching ids instead. | `medpoint/providers.ts` (`buildCatalog`) | ids are salted per model, or globally unique |
 | 2 | **`fetchAllPages` trusts the reported total, not the batch size.** The server pins every page at 10 rows regardless of what's requested (`limit`/`per_page` both ignored) — the old version sent `limit` and stopped on the first page shorter than requested, which meant *every* page was "short" and the catalog silently saw 10 of 49 services, 10 of 1044 slots. Fixed to walk pages until `items.length >= pagination.total`, capped at `MAX_PAGES = 40` with a console warning if that cap is hit before the total is reached (currently true for `/slots`, at 105 pages for 1044 rows). | `medpoint/cache.ts` | the API honours `per_page`, or exposes a filter so whole tables stop needing a full walk |
 | 3 | **Payment is refused, not attempted-then-swallowed.** `beginPayment`/`payBooking` throw a `501` instead of calling `POST /v1/payments` and ignoring a rejection. This blocks online-fee bookings entirely rather than risk showing a confirmed-paid booking the server never recorded. | `medpoint/bookings.ts` | `POST /v1/payments` has a confirmed accepted shape **and** bookings can be read back (so a payment can be reconciled against something) |
-| 4 | **Tokens in `localStorage`** (`vesita:medpoint:access:v1` / `…:refresh:v1`). Readable by any XSS. Accepted deliberately: the app is a client-rendered SPA with no server session. | `tokens.ts` | an httpOnly `SameSite` refresh cookie ships — needs CORS + `Allow-Credentials` first |
+| 4 | **Tokens in `localStorage`** (`medpoint:access:v1` / `…:refresh:v1`). Readable by any XSS. Accepted deliberately: the app is a client-rendered SPA with no server session. | `tokens.ts` | an httpOnly `SameSite` refresh cookie ships — needs CORS + `Allow-Credentials` first |
 | 5 | **`refreshSession()` is written but has zero call sites.** `POST /auth/refresh-token` 500s (`RefreshToken::createFrom()` type-hints the framework's base `Request`), so wiring it into a 401-retry today would turn every expired session into a 500 instead of a clean sign-out. | `medpoint/auth.ts` (defined, unused) | refresh-token stops 500ing — then wire it into `http.ts`'s 401 handling |
 | 6 | **`roleOf()` hard-codes `"patient"`.** MedPoint ships full RBAC (`/v1/roles`, `/v1/permissions`) but a new signup gets no role and `WireUser` carries none. Provider and admin sign-in are impossible against MedPoint as a result — the admin screens that do work (users, providers, coupons) are reached with a manually-issued admin token, not through the app's own sign-in. | `medpoint/mappers.ts#roleOf` | a role appears on the user payload |
 | 7 | **Location data is `null` rather than a fuzzy-matched guess.** `governorateIdOf`/`areaIdOf` (`medpoint/mappers.ts`) resolve the wire's free-text governorate/area against `GOVERNORATES`/areas and return `null` on a miss — this used to default to `"cairo"`/`"nasr-city"`, silently relocating an unrecognised branch to the capital. A wrong location is worse than an unknown one. | `medpoint/mappers.ts` | the backend offers a controlled vocabulary, or ids instead of free text |

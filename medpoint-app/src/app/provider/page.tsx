@@ -1,0 +1,336 @@
+"use client";
+
+import Link from "next/link";
+import { useTranslations } from "next-intl";
+import {
+  BarChart3,
+  CalendarCheck,
+  Gauge,
+  Hourglass,
+  Star,
+  TrendingUp,
+  UserPlus,
+  UserX,
+  XCircle,
+  Wallet,
+} from "lucide-react";
+
+import { useCurrentProvider } from "@/components/provider/use-current-provider";
+import {
+  BookingStatusBadge,
+  LongWaitBadge,
+} from "@/components/provider/badges";
+import { BookingsChart, RevenueChart } from "@/components/shared/charts";
+import { RatingStars } from "@/components/shared/rating";
+import { StatisticsCard } from "@/components/shared/statistics-card";
+import {
+  ChartSkeleton,
+  EmptyState,
+  ErrorState,
+  ListSkeleton,
+  StatGridSkeleton,
+} from "@/components/shared/states";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { useAsync } from "@/hooks/use-async";
+import { getBookings } from "@/lib/api/bookings";
+import { getProviderStats } from "@/lib/api/stats";
+import { todayISO } from "@/lib/time";
+import { DASH } from "@/lib/i18n/format";
+import { useApiError } from "@/lib/i18n/use-api-error";
+import { useDomain, useFormat } from "@/lib/i18n/use-format";
+import { isCancelled, schedulingModeFor } from "@/lib/types";
+
+export default function ProviderDashboardPage() {
+  const t = useTranslations("provider");
+  const describeError = useApiError();
+  const {
+    formatDate,
+    formatDuration,
+    formatTime,
+    formatEGP,
+    formatNumber,
+    initialsOf,
+  } = useFormat();
+  const { bookingServiceName } = useDomain();
+
+  const { providerId, provider } = useCurrentProvider();
+
+  const stats = useAsync(
+    () => getProviderStats(providerId),
+    [providerId],
+  );
+
+  const today = useAsync(
+    () => getBookings({ providerId, page: 1, pageSize: 200 }),
+    [providerId],
+  );
+
+  const isDoctor = provider ? schedulingModeFor(provider.type) === "session" : false;
+
+  /** An unknown rate is a dash, not "—%". */
+  const percent = (value: number | null) =>
+    value === null ? DASH : `${formatNumber(value)}%`;
+
+  // Cancelled bookings are not "on today" — the four cancellation/refund states
+  // all collapse to the same thing here (§7).
+  const todaysAppointments = (today.data?.items ?? [])
+    .filter((b) => b.date === todayISO() && !isCancelled(b.status))
+    .sort((a, b) =>
+      isDoctor
+        ? (a.queueNumber ?? 0) - (b.queueNumber ?? 0)
+        : a.time.localeCompare(b.time),
+    );
+
+  return (
+    <div className="space-y-6">
+      {/* ---------------------------------------------------------------- stats */}
+      {stats.isLoading && !stats.data ? (
+        <StatGridSkeleton />
+      ) : stats.error ? (
+        <ErrorState
+          title={t("dashboard.statsError")}
+          description={describeError(stats.error)}
+          onRetry={stats.refetch}
+        />
+      ) : stats.data ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatisticsCard
+            label={t("dashboard.totalBookings")}
+            value={formatNumber(stats.data.totalBookings)}
+            change={stats.data.bookingsChange ?? undefined}
+            icon={CalendarCheck}
+            tone="primary"
+          />
+          <StatisticsCard
+            label={t("dashboard.revenue")}
+            value={formatEGP(stats.data.revenue)}
+            change={stats.data.revenueChange ?? undefined}
+            icon={Wallet}
+            tone="success"
+          />
+          <StatisticsCard
+            label={t("dashboard.newPatients")}
+            value={formatNumber(stats.data.newPatients)}
+            change={stats.data.newPatientsChange ?? undefined}
+            icon={UserPlus}
+            tone="info"
+          />
+          <StatisticsCard
+            label={t("dashboard.cancellations")}
+            value={formatNumber(stats.data.cancellations)}
+            change={stats.data.cancellationsChange ?? undefined}
+            invertChange
+            icon={XCircle}
+            tone="destructive"
+          />
+        </div>
+      ) : null}
+
+      {/* --------------------------------------------- performance (§15) */}
+      {stats.isLoading && !stats.data ? (
+        <StatGridSkeleton />
+      ) : stats.data ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatisticsCard
+            label={t("dashboard.utilization")}
+            value={percent(stats.data.utilizationRate)}
+            change={stats.data.utilizationChange ?? undefined}
+            icon={Gauge}
+            tone="primary"
+            hint={
+              isDoctor
+                ? t("dashboard.utilizationHintSession")
+                : t("dashboard.utilizationHintSlot")
+            }
+          />
+          <StatisticsCard
+            label={t("dashboard.averageWait")}
+            value={
+              stats.data.averageWaitMinutes === null
+                ? DASH
+                : formatDuration(stats.data.averageWaitMinutes)
+            }
+            icon={Hourglass}
+            tone="warning"
+            hint={t("dashboard.averageWaitHint")}
+          />
+          <StatisticsCard
+            label={t("dashboard.cancellationRate")}
+            value={percent(stats.data.cancellationRate)}
+            icon={XCircle}
+            tone="destructive"
+            hint={t("dashboard.cancellationRateHint")}
+          />
+          <StatisticsCard
+            label={t("dashboard.missedVisits")}
+            value={percent(stats.data.noShowRate)}
+            icon={UserX}
+            tone="info"
+            hint={t("dashboard.missedVisitsHint")}
+          />
+        </div>
+      ) : null}
+
+      {/* --------------------------------------------------------------- charts */}
+      {stats.isLoading && !stats.data ? (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <ChartSkeleton />
+          <ChartSkeleton />
+        </div>
+      ) : stats.data ? (
+        stats.data.monthly.length > 0 ? (
+          <div className="grid gap-6 xl:grid-cols-2">
+            <BookingsChart
+              data={stats.data.monthly}
+              title={t("dashboard.bookingsChartTitle")}
+              description={t("dashboard.bookingsChartDescription")}
+            />
+            <RevenueChart data={stats.data.monthly} />
+          </div>
+        ) : (
+          <EmptyState
+            icon={BarChart3}
+            title={t("dashboard.chartsEmptyTitle")}
+            description={t("dashboard.chartsEmptyDescription")}
+          />
+        )
+      ) : null}
+
+      {/* ------------------------------------------------- today + avg rating */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+            <div>
+              <CardTitle className="text-base">
+                {t("dashboard.todayTitle")}
+              </CardTitle>
+              <CardDescription>{formatDate(todayISO())}</CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              render={<Link href="/provider/bookings" />}
+            >
+              {t("dashboard.allBookings")}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {today.isLoading && !today.data ? (
+              <ListSkeleton count={3} />
+            ) : today.error ? (
+              <ErrorState
+                title={t("dashboard.todayError")}
+                description={describeError(today.error)}
+                onRetry={today.refetch}
+              />
+            ) : todaysAppointments.length === 0 ? (
+              <EmptyState
+                icon={CalendarCheck}
+                title={t("dashboard.todayEmptyTitle")}
+                description={t("dashboard.todayEmptyDescription")}
+              />
+            ) : (
+              <ul className="space-y-3">
+                {todaysAppointments.map((booking) => (
+                  <li
+                    key={booking.id}
+                    className="flex flex-wrap items-center gap-4 rounded-2xl border bg-card p-4"
+                  >
+                    <Avatar className="size-10 shrink-0">
+                      <AvatarFallback>
+                        {initialsOf(booking.patientInfo.fullName)}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">
+                        {booking.patientInfo.fullName}
+                      </p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        {bookingServiceName(booking)}
+                      </p>
+                      {booking.longWaitReported && (
+                        <LongWaitBadge className="mt-1" />
+                      )}
+                    </div>
+
+                    <span className="ltr-nums text-sm font-semibold tabular-nums">
+                      {booking.queueNumber !== undefined
+                        ? t("dashboard.queueAt", {
+                            number: booking.queueNumber,
+                            time: formatTime(
+                              booking.estimatedTime ?? booking.time,
+                            ),
+                          })
+                        : formatTime(booking.time)}
+                    </span>
+                    <BookingStatusBadge status={booking.status} />
+                    <span className="ltr-nums text-sm font-semibold tabular-nums">
+                      {formatEGP(booking.total)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              {t("dashboard.ratingTitle")}
+            </CardTitle>
+            <CardDescription>{t("dashboard.ratingDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center gap-3 py-6">
+            {stats.isLoading && !stats.data ? (
+              <ListSkeleton count={1} />
+            ) : stats.data ? (
+              <>
+                <span className="text-5xl font-bold tabular-nums">
+                  {stats.data.averageRating === null
+                    ? DASH
+                    : stats.data.averageRating.toFixed(1)}
+                </span>
+                {/* Stars would read as a zero rating; an unrated provider has none. */}
+                {stats.data.averageRating !== null && (
+                  <RatingStars value={stats.data.averageRating} size="lg" />
+                )}
+                <div className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
+                  {stats.data.totalBookings === null ? (
+                    <span>{t("dashboard.visitsUnknown")}</span>
+                  ) : (
+                    <>
+                      <TrendingUp className="size-4" />
+                      <span>
+                        {t("dashboard.visitsServed", {
+                          count: stats.data.totalBookings,
+                        })}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  className="mt-2 h-10 rounded-xl px-4"
+                  render={<Link href="/provider/reviews" />}
+                >
+                  <Star className="size-4" />
+                  {t("dashboard.readReviews")}
+                </Button>
+              </>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

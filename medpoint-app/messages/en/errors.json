@@ -1,0 +1,120 @@
+{
+  "service": {
+    "unavailable": "The service is temporarily unavailable. Please try again.",
+    "notFound": "Service not found.",
+    "lastOne": "You must offer at least one service."
+  },
+  "booking": {
+    "notFound": "Booking not found.",
+    "providerNotAccepting": "This provider is not currently accepting bookings.",
+    "serviceNotAtBranch": "This service is not offered at the selected branch.",
+    "branchClosed": "This branch is not open on the selected date.",
+    "acknowledgementRequired": "The preparation instructions and eligibility rules must be acknowledged before booking.",
+    "slotNoLongerOffered": "That time is no longer offered. Please pick another.",
+    "slotUnavailable": "That time is not available. Please pick another.",
+    "duplicateForProfile": "{name} already has a booking at this time.",
+    "notAwaitingPayment": "This booking is no longer awaiting payment.",
+    "notHeld": "This booking is not held.",
+    "holdExpired": "Your {minutes}-minute reservation window expired and the place was released. Please book again.",
+    "paymentFailed": "The payment did not go through, so the place was released. Please try booking again.",
+    "cannotCancel": "A booking that is {status, select, completed {completed} no_show {recorded as missed} cancelled_by_patient {already cancelled} cancelled_by_provider {already cancelled} refund_pending {awaiting a refund} refunded {refunded} other {in this state}} cannot be cancelled.",
+    "noRefundPending": "There is no refund pending on this booking.",
+    "notConfirmedForCompletion": "Only a confirmed booking can be completed.",
+    "notConfirmedForNoShow": "Only a confirmed booking can be marked as missed.",
+    "noShowTooEarly": "A missed visit can only be recorded after the session has ended.",
+    "longWaitOnNoShow": "This visit is recorded as missed. Please contact support to correct it.",
+    "notReschedulable": "Only a live booking can be rescheduled.",
+    "invalidTransition": "A booking cannot be moved to {status, select, held {a hold} awaiting_payment {awaiting payment} confirmed {confirmed} refund_pending {refund pending} other {that status}} directly."
+  },
+  "capacity": {
+    "comfortBusy": "This session is busy. You can still book — the wait will be longer.",
+    "strictFull": "This session is now full. Here is the next available time.",
+    "strictFullReschedule": "That session is full. Please pick another time."
+  },
+  "eligibility": {
+    "failed": "{name} is not eligible for {service}.",
+    "violation": {
+      "gender": "{service} is only available to {gender, select, male {male} female {female} other {eligible}} patients.",
+      "min_age": "{service} is for patients aged {minAge} and over. {name} is {age}.",
+      "max_age": "{service} is for patients aged {maxAge} and under. {name} is {age}.",
+      "pregnancy": "{service} is not performed during pregnancy.",
+      "condition": "{service} is not suitable for patients with {condition}."
+    },
+    "rule": {
+      "gendersOnly": "{gender, select, male {Men} female {Women} other {Eligible patients}} only",
+      "ageRange": "Ages {minAge}–{maxAge}",
+      "minAge": "Ages {minAge} and over",
+      "maxAge": "Ages {maxAge} and under",
+      "noPregnancy": "Not performed during pregnancy",
+      "excludedCondition": "Not suitable with {condition}"
+    }
+  },
+  "profile": {
+    "notFound": "Patient profile not found.",
+    "selfExists": "This account already has a profile for you. Add this person as a family member instead.",
+    "cannotRemoveSelf": "Your own profile cannot be removed.",
+    "hasBookings": "{name} has {count, plural, one {# booking} other {# bookings}} on record. Medical and booking history belongs to the profile, so it cannot be removed."
+  },
+  "provider": {
+    "notFound": "Provider not found."
+  },
+  "branch": {
+    "notFound": "Branch not found."
+  },
+  "coupon": {
+    "unknown": "This coupon code does not exist.",
+    "inactive": "This coupon is no longer active.",
+    "expired": "This coupon has expired.",
+    "usageLimitReached": "This coupon has reached its usage limit.",
+    "onlyForProviderType": "This coupon only applies to {type, select, doctor {doctor} lab {lab} radiology {radiology} other {certain}} bookings.",
+    "notForThisProviderType": "This coupon does not apply to this kind of booking.",
+    "belowMinimum": "Requires a minimum order of EGP {amount}.",
+    "applied": "Coupon applied — you saved EGP {amount}.",
+    "codeExists": "A coupon with that code already exists.",
+    "notFound": "Coupon not found."
+  },
+  "campaign": {
+    "notFound": "Campaign not found."
+  },
+  "review": {
+    "notFound": "Review not found.",
+    "notCompleted": "You can only review a completed appointment.",
+    "alreadyExists": "You have already reviewed this appointment."
+  },
+  "notification": {
+    "notFound": "Notification not found."
+  },
+  "user": {
+    "notFound": "User not found."
+  },
+  "auth": {
+    "accountNotFound": "No account found with that email address.",
+    "accountSuspended": "This account has been suspended. Contact support.",
+    "emailTaken": "An account with that email already exists.",
+    "otpIncorrect": "That code is incorrect. Please try again.",
+    "noDemoAccount": "No demo account available for the \"{role}\" role."
+  },
+  "schedule": {
+    "invalidWindow": "{startTime}–{endTime} is not a valid working window.",
+    "capacityRequired": "A working day needs a capacity of at least one place."
+  },
+  "holiday": {
+    "duplicate": "That date is already marked as a holiday.",
+    "notFound": "Holiday not found."
+  },
+  "package": {
+    "notForDoctors": "Doctors do not offer packages.",
+    "notFound": "Package not found."
+  },
+  "api": {
+    "validation": "Please check the highlighted fields and try again.",
+    "unauthenticated": "Your session has expired. Please sign in again.",
+    "forbidden": "You don't have permission to do that.",
+    "notFound": "We couldn't find what you were looking for.",
+    "rateLimited": "Too many attempts. Please wait a moment and try again.",
+    "serverError": "The service is temporarily unavailable. Please try again.",
+    "requestFailed": "That request didn't go through. Please try again.",
+    "networkError": "We couldn't reach the server. Check your connection and try again.",
+    "notConfigured": "The app isn't configured to reach the API. Set NEXT_PUBLIC_API_BASE_URL."
+  }
+}

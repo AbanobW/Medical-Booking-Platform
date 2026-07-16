@@ -4,7 +4,7 @@ The reference you open when you are about to write or change a mapper.
 
 Sources: `.claude/MedPoint.postman_collection.json` for request shapes (it ships **no
 example responses** — that is why every response below was verified by probing live
-staging on 2026-07-14), and `vesita-app/src/lib/api/` for what the app actually does with
+staging on 2026-07-14), and `medpoint-app/src/lib/api/` for what the app actually does with
 them.
 
 Read `.claude/INTEGRATION.md` first for the current per-domain status and the registry of
@@ -140,7 +140,7 @@ to; `getFavorites`/`getFavoriteIds` return empty and `toggleFavorite` throws.
 ## 2. Wire DTOs
 
 The payloads as Laravel actually sends them. Verbatim from
-`vesita-app/src/lib/api/medpoint/types.ts`.
+`medpoint-app/src/lib/api/medpoint/types.ts`.
 
 Three conventions bite you every time: **snake_case**, **money as decimal strings**
 (`"449.00"`), and **plain dates as full timestamps** (`"2026-08-01T00:00:00.000000Z"`).
@@ -291,7 +291,7 @@ failure   { "message": "...", "errors": { "email": ["..."] } }
 ## 3. Domain contracts
 
 What the UI consumes. **This is the contract the backend must eventually satisfy.** All
-from `vesita-app/src/lib/types.ts` — quoted, not paraphrased.
+from `medpoint-app/src/lib/types.ts` — quoted, not paraphrased.
 
 ### `Booking` — `types.ts:699-777`
 
