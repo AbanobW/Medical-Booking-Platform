@@ -116,23 +116,45 @@ below mean nothing is attributable to a provider in the first place.
 
 **Ask:** filtering, sorting and full-text search on `/v1/providers` and `/v1/services`.
 
-### 1.5 `Provider` is too thin to render
+### 1.5 `Provider` is thin, but less than it was — partially fixed
+
+Re-probed 2026-07-16. `GET /v1/providers` now returns:
 
 ```json
 { "type": "Provider", "id": "…", "provider_type": "doctor",
-  "name": "Dr. Hala Mansour — Cardiology", "status": "active", … }
+  "name": "Dr. Hala Mansour — Cardiology",
+  "gender": null, "specialty": null, "subspecialty": null,
+  "rating_avg": null, "rating_count": 0,
+  "syndicate_number": null, "verified_at": null,
+  "status": "active", … }
 ```
 
-No rating, review count, photo, price, sub-specialty or bio — and no dedicated specialty
-field; it's currently glued into the `name` string ("Dr. X — Cardiology") and parsed back
-out client-side (`mappers.ts#parseProviderName`). Governorate/area/branches *do* join
-correctly today via `WireBranch.provider_id`.
+Seven fields were added since this was first documented: `gender`, `specialty`,
+`subspecialty`, `rating_avg`, `rating_count`, `syndicate_number`, `verified_at`. This is
+real, meaningful progress on this item — a rating and a specialty no longer have to be
+inferred or left blank once populated.
 
-A `ProviderCard` renders from this, but with most of itself as an em dash: no rating, no
-review count, no photo, and — the part that actually blocks booking — no price, because
-price is derived from the provider's services and no service can be attributed to a
-branch (§1.2, §1.7). The frontend does not fabricate a number here any more; it shows the
-gap.
+**But every one of them is still `null` (or `0`) on every provider on staging today**, so
+in practice nothing has changed yet: `specialty` being null means `mappers.ts#parseProviderName`
+splitting it out of `name` is still the load-bearing path, not a fallback for an edge case.
+The frontend now prefers the dedicated field when it's populated and falls back to the
+name-parse when it isn't (`toProvider`, `mappers.ts`).
+
+Two things this surfaced that were **frontend bugs, now fixed**, not backend gaps:
+- `parseProviderName`'s no-match case returned the literal string `"general"`, which is not
+  a real id in `SPECIALTIES` (the closest entry is `"general-surgery"`, a different
+  specialty). `getSpecialtyName` then papered over the miss with the invented label
+  "General Practice" — a category no doctor claimed. Fixed to return `null`, which the UI
+  already renders as a dash.
+- `"Orthopaedics"` (British spelling, no alias) fell into that same bug — "Dr. Omar Sabry —
+  Orthopaedics" resolved to nothing and showed "General Practice". Added the missing alias.
+
+Still missing and still blocking: no rating on a card until real ratings exist (`rating_avg`
+stays null until then — a real `rating_count: 0` is now distinguishable from "unknown", but
+there's nothing to average yet), no photo, no bio — and, unchanged and far more consequential
+— **still no price**, because price is derived from the provider's services and no service
+can be attributed to a branch (§1.2, §1.7, unaffected by this update). The frontend does not
+fabricate any of these; it shows the gap.
 
 ### 1.6 No favourites resource
 

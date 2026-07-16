@@ -205,11 +205,22 @@ export interface WireProvider extends WireResource {
   provider_type: string;
   name: string;
   status: string;
+  /** Added since first mapped (re-probed 2026-07-16); null on every provider so far. */
+  gender?: "male" | "female" | null;
+  specialty?: string | null;
+  subspecialty?: string | null;
+  rating_avg?: number | string | null;
+  /** A real 0 (no ratings yet), unlike a null average. */
+  rating_count?: number | null;
+  syndicate_number?: string | null;
+  verified_at?: string | null;
 }
 
 export interface WireBranch extends WireResource {
   type: "Branch";
   provider_id?: string;
+  /** Added since first mapped; null on every branch so far. */
+  name?: string | null;
   governorate?: string;
   area?: string;
   address?: string;
@@ -600,14 +611,20 @@ fallback dataset behind them any more.
 | `photo` / `coverImage` / `bio` | ✗ | **`null`** — no generated placeholder any more; the UI renders nothing (or falls back to initials) rather than a fabricated avatar |
 | `governorateId` / `areaId` / `address` / `location` / `phone` | via `WireBranch` | joined client-side through the real `provider_id`/`branch_id` fields (not id-matching — see the hashid warning above); **`null` on a fuzzy-match miss**, never a default location |
 | `price` | via `WireService` | `min(services.price)` **where a service can be attributed to this provider's branch — which today is none of them** (§1.2/§1.7 in BACKEND-GAPS.md), so `price` is `null` for every live provider |
-| `rating`, `reviewCount`, `bookingCount`, `waitingTimeMinutes` | ✗ | **`null`** — no reviews/analytics endpoint exists; distinct from a genuine `0` |
+| `rating` | `rating_avg` | `parseNullableNumber` — real field since 2026-07-16 (BACKEND-GAPS.md §1.5), still `null` on every provider on staging |
+| `reviewCount` | `rating_count` | direct — a real `0` (known: no ratings yet) is kept distinct from `null` (unknown) |
+| `bookingCount`, `waitingTimeMinutes` | ✗ | **`null`** — no analytics endpoint exists |
 | `isFeatured` | ✗ | `false` (a real default — "not featured" is a fact, not a gap) |
 | `schedule`, `acceptedInsurancePlanIds` | ✗ | empty array |
-| Doctor: `specialtyId` | parsed out of `name` | `parseProviderName`/`specialtyIdFromLabel` — `null` if the name carries no recognisable specialty (never `"general"` as a silent default) |
-| Doctor: `gender`, `yearsOfExperience` | ✗ | **`null`** |
+| `verifiedAt` | `verified_at` | direct — real field since 2026-07-16, still `null` on every provider |
+| Doctor: `specialtyId` | `specialty`, else parsed out of `name` | `specialty` is preferred when non-null via `specialtyIdFromLabel`; every provider still has it null, so `parseProviderName`'s split of `name` remains the load-bearing path. `null` if neither resolves to a specialty this app recognises (never `"general"` as a silent default — see BACKEND-GAPS.md §1.5 for the bug this used to be) |
+| Doctor: `gender` | `gender` | direct — real field since 2026-07-16, still `null` on every doctor |
+| Doctor: `subSpecialties` | `subspecialty` | `[subspecialty]` if present, else `[]` — the wire sends one value, not a list |
+| Doctor: `syndicateNumber` | `syndicate_number` | direct — real field since 2026-07-16, still `null` on every doctor; backs the FAQ's Medical Syndicate verification claim once populated |
+| Doctor: `yearsOfExperience` | ✗ | **`null`** |
 | Doctor: `clinicName` | ✗ | falls back to the branch name, or `null` |
 | Doctor: `title` | ✗ | `"Dr."` — this one *is* a real constant, not a gap; every doctor genuinely carries the title |
-| Doctor: `degrees` / `subSpecialties` / `languages` | ✗ | empty array |
+| Doctor: `degrees` / `languages` | ✗ | empty array |
 | Lab: `homeSampleCollection` | `home_collection` on services | `services.some(...)` — vacuously `false` today since no service attributes to this provider |
 | Lab/Radiology: `accreditation`, `packages` | ✗ | empty array |
 
@@ -615,7 +632,8 @@ Consequence: filter-by-specialty and filter-by-gender now correctly exclude ever
 they can't confirm (`null !== filterValue`), rather than the previous version's
 constants matching every doctor. That's more correct, but the practical result is the
 same: the filters can't usefully narrow anything, because the underlying field is unknown
-for every provider.
+for every provider — `gender` and `specialty` both being real, dedicated fields now doesn't
+change that until they're actually populated.
 
 ### `Service`
 
@@ -690,22 +708,27 @@ if the wire format drifts, this is the only file that changes.
 |---|---|---|
 | `toISODateOnly` | `:42` | `"2026-08-01T00:00:00.000000Z"` → `"2026-08-01"` |
 | `parseMoney` | `:48` | `"449.00"` → `449`; `null`/NaN → `0` (the one place `0` is a real fallback, not an unknown-value marker — a genuinely absent price is handled by the *caller* returning `null`, not by this function) |
-| `toLocalPhone` | `:55` | `+20…` or `0020…` → `0…`; `null` → `""` |
-| `toE164Phone` | `:63` | `0…` → `+20…`; already-`+` passes through |
-| `roleOf` | `:71` | ⚠️ takes no argument, returns `"patient"` unconditionally. See decision #6 in INTEGRATION.md |
-| `toUser` | `:83` | `birth` → `dateOfBirth`; **`avatar_url` is `null` if the account has none — no generated identicon** |
-| `toPatientProfile` | `:105` | **`null` `gender`/`date_of_birth`/`national_id` pass straight through as `null`** — no default; the auto-created SELF profile may genuinely have neither yet |
-| `governorateIdOf` / `areaIdOf` | `:130` / `:140` | fuzzy string match against the known governorate/area list; **`null` on a miss** — no longer defaults to `"cairo"`/`"nasr-city"` |
-| `toCoord` | `:216` | string-or-number lat/lng → `number \| null`; **`null` unless both coordinates are usable — never a Cairo fallback** |
-| `toBranch` | `:222` | `openingHours` is always `null` (no such field on the wire; it used to read `"09:00 – 21:00"`) |
-| `toPreparation` | `:253` | `prep_instructions` (free text) → the arrival-instruction line of a `PreparationInstructions`; `undefined` when the text is empty — never a synthesized "no restrictions" block |
-| `toEligibility` | `:274` | **always `undefined`** — `eligibility_rules` has never been observed populated on the wire, so nothing is guessed from its shape |
-| `wireServiceToConsultation` / `Lab` / `Test` / `Scan` | `:279`/`:292`/`:309` | `price`/`description`/`category`/`durationMinutes`/etc. are `null` where the wire has nothing, never a plausible constant (`30`, `24`, `"General"`) |
-| `baseProviderFields` / `toProvider` | `:342`/`:373` | discriminates on `provider_type`; `rating`/`reviewCount`/`photo`/`bio`/`price`/`waitingTimeMinutes` are `null`; `price` is `Math.min` over attributable services **with a `> 0` guard**, so a provider with zero attributable services (every live provider today) gets `null`, not `0` |
-| `capacityTypeOf` | `:446` | `"soft"` (or anything except the literal `"strict"`) → `"comfort"` — used for doctor sessions |
-| `slotToTimeSlot` | `:486` | prefixes `s:`; hard-codes `capacityType: "strict"` for lab/radiology slots (an assumption per §5 of the business doc, not something the wire states) |
-| `sessionToTimeSlot` | `:502` | prefixes `d:`; capacity type via `capacityTypeOf(wire.capacity_type)` |
-| `parseBookableId` | `:516` | ⚠️ **the reverse** — strips the prefix back into `{ bookableType: "Slot" \| "DoctorSession", bookableId }` for the `POST /bookings` body |
+| `parseNullableNumber` | `:60` | Same string-or-number parsing as `parseMoney`, but `null`/`undefined` stay `null` — for fields where absence means unknown, not zero (`rating_avg`) |
+| `toLocalPhone` | `:66` | `+20…` or `0020…` → `0…`; `null` → `""` |
+| `toE164Phone` | `:74` | `0…` → `+20…`; already-`+` passes through |
+| `roleOf` | `:82` | ⚠️ takes no argument, returns `"patient"` unconditionally. See decision #6 in INTEGRATION.md |
+| `genderOf` | `:90` | shared by `toUser` and `toProvider` — `"male"`/`"female"` pass through, anything else → `undefined` |
+| `toUser` | `:94` | `birth` → `dateOfBirth`; **`avatar_url` is `null` if the account has none — no generated identicon** |
+| `toPatientProfile` | `:116` | **`null` `gender`/`date_of_birth`/`national_id` pass straight through as `null`** — no default; the auto-created SELF profile may genuinely have neither yet |
+| `governorateIdOf` / `areaIdOf` | `:141` / `:151` | fuzzy string match against the known governorate/area list; **`null` on a miss** — no longer defaults to `"cairo"`/`"nasr-city"` |
+| `specialtyIdFromLabel` | `:190` | free-text label → a known specialty id; **`null` on no match** — used to return the literal string `"general"`, which resolved to nothing and rendered as the invented label "General Practice" (BACKEND-GAPS.md §1.5) |
+| `parseProviderName` | `:213` | splits `"Dr. X — Cardiology"` into a display name and a specialty id via `specialtyIdFromLabel`; `null` specialty if there's no dash or the tail doesn't match |
+| `toCoord` | `:237` | string-or-number lat/lng → `number \| null`; **`null` unless both coordinates are usable — never a Cairo fallback** |
+| `toBranch` | `:243` | prefers a real `name` field (added 2026-07-16, still null on every branch) over `area`/`address`/`id`; `openingHours` is always `null` (no such field on the wire; it used to read `"09:00 – 21:00"`) |
+| `toPreparation` | `:276` | `prep_instructions` (free text) → the arrival-instruction line of a `PreparationInstructions`; `undefined` when the text is empty — never a synthesized "no restrictions" block |
+| `toEligibility` | `:297` | **always `undefined`** — `eligibility_rules` has never been observed populated on the wire, so nothing is guessed from its shape |
+| `wireServiceToConsultation` / `Lab` / `Test` / `Scan` | `:302`/`:315`/`:332` | `price`/`description`/`category`/`durationMinutes`/etc. are `null` where the wire has nothing, never a plausible constant (`30`, `24`, `"General"`) |
+| `baseProviderFields` | `:365` | `rating` from `rating_avg` (`parseNullableNumber`), `reviewCount` direct from `rating_count`, `verifiedAt` direct from `verified_at` — all three added 2026-07-16, all still null/0 on staging; `photo`/`bio`/`price`/`waitingTimeMinutes` are still `null`, nothing on the wire for any of them |
+| `toProvider` | `:398` | discriminates on `provider_type`; doctor branch prefers the dedicated `specialty`/`gender`/`subspecialty`/`syndicate_number` fields when populated, falling back to `parseProviderName`'s split of `name` for specialty (the load-bearing path today, since `specialty` is still null everywhere); `price` is `Math.min` over attributable services **with a `> 0` guard**, so a provider with zero attributable services (every live provider today) gets `null`, not `0` |
+| `capacityTypeOf` | `:480` | `"soft"` (or anything except the literal `"strict"`) → `"comfort"` — used for doctor sessions |
+| `slotToTimeSlot` | `:520` | prefixes `s:`; hard-codes `capacityType: "strict"` for lab/radiology slots (an assumption per §5 of the business doc, not something the wire states) |
+| `sessionToTimeSlot` | `:536` | prefixes `d:`; capacity type via `capacityTypeOf(wire.capacity_type)` |
+| `parseBookableId` | `:550` | ⚠️ **the reverse** — strips the prefix back into `{ bookableType: "Slot" \| "DoctorSession", bookableId }` for the `POST /bookings` body |
 
 ### The phone round-trip matters
 
