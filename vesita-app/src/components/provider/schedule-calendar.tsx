@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { INTL_LOCALES, type Locale } from "@/i18n/config";
-import { addDays, TODAY, toISODate } from "@/lib/data/seed";
+import { addDays, now, toISODate } from "@/lib/time";
 import { useFormat } from "@/lib/i18n/use-format";
 import { cn } from "@/lib/utils";
 import type {
@@ -53,14 +53,14 @@ export function ScheduleCalendar({
   );
 
   const firstOfMonth = new Date(
-    Date.UTC(TODAY.getUTCFullYear(), TODAY.getUTCMonth() + offset, 1),
+    Date.UTC(now().getUTCFullYear(), now().getUTCMonth() + offset, 1),
   );
   const daysInMonth = new Date(
     Date.UTC(firstOfMonth.getUTCFullYear(), firstOfMonth.getUTCMonth() + 1, 0),
   ).getUTCDate();
 
   const leadingBlanks = firstOfMonth.getUTCDay();
-  const todayIso = toISODate(TODAY);
+  const todayIso = toISODate(now());
 
   const holidayByDate = new Map(holidays.map((h) => [h.date, h]));
   const workingByWeekday = new Map<Weekday, boolean>(

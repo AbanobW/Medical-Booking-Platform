@@ -3,26 +3,23 @@
 import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 
-import { findService } from "@/lib/api/bookings";
-import { DB } from "@/lib/data/seed";
-import { useDomain } from "@/lib/i18n/use-format";
 import { useLabels } from "@/lib/i18n/use-labels";
-import type { Booking, Provider } from "@/lib/types";
+import type { Booking } from "@/lib/types";
 
 /**
- * A booking carries denormalized *English* names (`providerName`,
- * `serviceName`) — a receipt written at the moment it was made. They are the
- * only thing the record knows, so to render a booking in Arabic we have to go
- * back to the entity the booking points at, where `nameAr` lives.
+ * The names to show on a booking card.
  *
- * The lookup is a synchronous map over the deterministic dataset, so a card
- * still renders in one pass (no per-card fetch, no hydration mismatch), and the
- * English snapshot stays the fallback if the provider ever disappears.
+ * A booking carries denormalized *English* names (`providerName`,
+ * `serviceName`) — a receipt written at the moment it was made — and that
+ * snapshot is now the whole story. This hook used to reach into the seeded
+ * dataset for the provider and read its `nameAr`, which only worked because
+ * every provider was already in the browser. With the data behind an API there
+ * is no synchronous map to consult, and fetching per card to translate a label
+ * would cost a request per row.
+ *
+ * So the receipt renders. Service names still translate where the app ships a
+ * key for them; a provider's name renders as it was recorded.
  */
-const PROVIDERS_BY_ID: Map<string, Provider> = new Map(
-  DB.providers.map((provider) => [provider.id, provider]),
-);
-
 export interface BookingNames {
   provider: string;
   service: string;
@@ -31,34 +28,19 @@ export interface BookingNames {
 }
 
 export function useBookingNames(booking: Booking): BookingNames {
-  const { named, getSpecialtyName } = useDomain();
   const L = useLabels();
   const t = useTranslations("patient");
 
   return useMemo(() => {
-    const provider = PROVIDERS_BY_ID.get(booking.providerId);
-    const service = provider
-      ? findService(provider, booking.serviceId)
-      : undefined;
-
-    // Lab tests and radiology scans ship `nameAr`. Consultations and packages
-    // don't — they come from a fixed template list, so they are translated by
-    // name here instead.
-    let serviceName = booking.serviceName;
-    if (service && "nameAr" in service) {
-      serviceName = named(service);
-    } else {
-      const key = `serviceName.${booking.serviceName}`;
-      if (t.has(key)) serviceName = t(key);
-    }
+    // Consultations and packages come from a fixed template list, so they have a
+    // translation key. Anything else renders as recorded.
+    const key = `serviceName.${booking.serviceName}`;
+    const service = t.has(key) ? t(key) : booking.serviceName;
 
     return {
-      provider: provider ? named(provider) : booking.providerName,
-      service: serviceName,
-      specialty:
-        provider?.type === "doctor"
-          ? getSpecialtyName(provider.specialtyId)
-          : L.providerType(booking.providerType),
+      provider: booking.providerName,
+      service,
+      specialty: L.providerType(booking.providerType),
     };
-  }, [booking, named, getSpecialtyName, L, t]);
+  }, [booking, L, t]);
 }

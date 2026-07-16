@@ -5,7 +5,7 @@
  * paginated lists and filter/sort in the browser.
  */
 
-import { ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import { apiRequest } from "@/lib/api/http";
 import { createCachedLoader, fetchAllPages } from "@/lib/api/medpoint/cache";
 import { toProvider } from "@/lib/api/medpoint/mappers";

@@ -9,7 +9,7 @@
  * from every response — including the one that comes back from a refresh.
  */
 
-import { ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import { apiRequest } from "@/lib/api/http";
 import { toE164Phone, toUser } from "@/lib/api/medpoint/mappers";
 import type { WireAuthSession, WireUser } from "@/lib/api/medpoint/types";

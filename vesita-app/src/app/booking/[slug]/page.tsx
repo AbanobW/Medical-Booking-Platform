@@ -11,7 +11,7 @@ import { EmptyState, ErrorState } from "@/components/shared/states";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAsync } from "@/hooks/use-async";
-import { ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import { getProviderBySlug } from "@/lib/api/providers";
 import { useApiError } from "@/lib/i18n/use-api-error";
 

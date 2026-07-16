@@ -5,7 +5,7 @@
  * created booking is enriched from wizard context and stored in the overlay.
  */
 
-import { ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import type { HoldBookingInput } from "@/lib/api/bookings";
 import { apiRequest } from "@/lib/api/http";
 import { getSlotsForDate } from "@/lib/api/medpoint/availability";

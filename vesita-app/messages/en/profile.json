@@ -2,7 +2,10 @@
   "meta": {
     "doctorNotFound": "Doctor not found",
     "labNotFound": "Lab not found",
-    "radiologyNotFound": "Radiology center not found"
+    "radiologyNotFound": "Radiology center not found",
+    "doctorTitle": "Doctor profile",
+    "labTitle": "Lab profile",
+    "radiologyTitle": "Radiology centre profile"
   },
   "error": {
     "loadTitle": "Couldn't load this profile"

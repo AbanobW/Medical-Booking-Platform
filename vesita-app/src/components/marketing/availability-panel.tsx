@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAsync } from "@/hooks/use-async";
 import { getAvailability } from "@/lib/api/providers";
-import { todayISO } from "@/lib/data/seed";
+import { todayISO } from "@/lib/time";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useFormat } from "@/lib/i18n/use-format";
 import type { Provider, TimeSlot } from "@/lib/types";

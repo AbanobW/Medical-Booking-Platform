@@ -1,5 +1,5 @@
 import { INTL_LOCALES, type Locale } from "@/i18n/config";
-import { TODAY } from "@/lib/data/seed";
+import { now, toISODate } from "@/lib/time";
 
 /**
  * Locale-aware presentation helpers — the bilingual replacement for
@@ -60,7 +60,7 @@ export function formatTime(time: string, locale: Locale): string {
  */
 export function relativeDay(iso: string, locale: Locale): string {
   const date = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
-  const today = new Date(`${TODAY.toISOString().slice(0, 10)}T00:00:00Z`);
+  const today = new Date(`${toISODate(now())}T00:00:00Z`);
   const days = Math.round((date.getTime() - today.getTime()) / DAY_MS);
 
   if (days >= -1 && days <= 1) {
@@ -77,7 +77,7 @@ export function relativeDay(iso: string, locale: Locale): string {
 /** "3 days ago", "in 2 weeks" — for timestamps. */
 export function timeAgo(isoTimestamp: string, locale: Locale): string {
   const then = new Date(isoTimestamp).getTime();
-  const diff = then - TODAY.getTime();
+  const diff = then - now().getTime();
   const abs = Math.abs(diff);
 
   const units: [Intl.RelativeTimeFormatUnit, number][] = [
@@ -131,8 +131,27 @@ export function formatDelta(value: number, locale: Locale): string {
   }).format(value / 100);
 }
 
-/** Formats a number as Egyptian Pounds, e.g. `EGP 350` / `‏350 ج.م.‏`. */
-export function formatEGP(amount: number, locale: Locale): string {
+/**
+ * What an unknown value looks like.
+ *
+ * The API leaves a great deal unanswered — a provider has no rating, no photo
+ * and often no attributable price. Every one of those used to arrive here as a
+ * plausible number (`0`), and `formatEGP(0)` rendered "0 ج.م.", which told the
+ * patient the visit was free. An unknown value is now `null` all the way down
+ * and prints as a dash: the reader can tell "we don't know" from "it is zero".
+ *
+ * An em dash rather than a hyphen — it reads as "no value" in both scripts and
+ * does not look like a minus sign next to a currency.
+ */
+export const DASH = "—";
+
+/**
+ * Formats a number as Egyptian Pounds, e.g. `EGP 350` / `‏350 ج.م.‏`.
+ *
+ * `null` is an unknown price, not a free one — see `DASH`.
+ */
+export function formatEGP(amount: number | null | undefined, locale: Locale): string {
+  if (amount === null || amount === undefined) return DASH;
   return new Intl.NumberFormat(intl(locale), {
     style: "currency",
     currency: "EGP",
@@ -141,7 +160,11 @@ export function formatEGP(amount: number, locale: Locale): string {
 }
 
 /** Compact currency for dashboard tiles, e.g. `EGP 1.2M`. */
-export function formatEGPCompact(amount: number, locale: Locale): string {
+export function formatEGPCompact(
+  amount: number | null | undefined,
+  locale: Locale,
+): string {
+  if (amount === null || amount === undefined) return DASH;
   return new Intl.NumberFormat(intl(locale), {
     style: "currency",
     currency: "EGP",
@@ -150,8 +173,15 @@ export function formatEGPCompact(amount: number, locale: Locale): string {
   }).format(amount);
 }
 
-export function formatNumber(value: number, locale: Locale): string {
+export function formatNumber(value: number | null | undefined, locale: Locale): string {
+  if (value === null || value === undefined) return DASH;
   return new Intl.NumberFormat(intl(locale)).format(value);
+}
+
+/** Any value the API did not answer, for a plain text slot. */
+export function orDash(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") return DASH;
+  return String(value);
 }
 
 /**

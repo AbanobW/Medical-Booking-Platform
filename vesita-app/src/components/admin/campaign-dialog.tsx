@@ -36,7 +36,7 @@ import {
   updateCampaign,
   type CampaignInput,
 } from "@/lib/api/admin";
-import { addDays, TODAY } from "@/lib/data/seed";
+import { addDays, now } from "@/lib/time";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useLabels } from "@/lib/i18n/use-labels";
 import { PROVIDER_ROLES, type CashbackCampaign, type ProviderRole } from "@/lib/types";
@@ -79,8 +79,8 @@ function emptyValues(): CampaignFormValues {
     description: "",
     percentage: 10,
     maxCashback: 100,
-    startsAt: TODAY.toISOString().slice(0, 10),
-    endsAt: addDays(TODAY, 30).toISOString().slice(0, 10),
+    startsAt: now().toISOString().slice(0, 10),
+    endsAt: addDays(now(), 30).toISOString().slice(0, 10),
     appliesTo: [],
   };
 }

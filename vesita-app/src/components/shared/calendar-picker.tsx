@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { INTL_LOCALES } from "@/i18n/config";
-import { addDays, TODAY, toISODate } from "@/lib/data/seed";
+import { addDays, now, toISODate } from "@/lib/time";
 import { useFormat } from "@/lib/i18n/use-format";
 import { cn } from "@/lib/utils";
 import type { SchedulingMode, TimeSlot } from "@/lib/types";
@@ -95,7 +95,7 @@ export function CalendarPicker({
 
   const days = useMemo(() => {
     return Array.from({ length: 28 }, (_, i) => {
-      const date = addDays(TODAY, i + weekOffset * 28);
+      const date = addDays(now(), i + weekOffset * 28);
       const iso = toISODate(date);
       const slots = availability[iso] ?? [];
       const open = slots.filter((s) => s.isAvailable).length;

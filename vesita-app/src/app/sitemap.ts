@@ -1,10 +1,21 @@
 import type { MetadataRoute } from "next";
 
 import { GOVERNORATES, SPECIALTIES } from "@/lib/data/egypt";
-import { DB } from "@/lib/data/seed";
 import { SITE } from "@/lib/site";
 
-/** Every public URL: static pages, search facets, and one page per provider. */
+/**
+ * Every public URL: static pages and search facets.
+ *
+ * Provider pages are **not** listed. They used to be enumerated from the seeded
+ * dataset, which was available synchronously at build time. The real catalogue
+ * lives behind `/v1/providers`, which requires a bearer token — and a sitemap is
+ * generated on the server with no signed-in user, so there is no token to send.
+ * Listing providers again needs either a public (unauthenticated) provider
+ * endpoint or a build-time service credential; see BACKEND-GAPS.md.
+ *
+ * The facet pages below are static and carry the long-tail search traffic
+ * regardless, so the sitemap is thinner but not wrong.
+ */
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = SITE.url;
   const lastModified = new Date();
@@ -31,16 +42,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.7,
   }));
 
-  const segment = { doctor: "doctors", lab: "labs", radiology: "radiology" } as const;
-
-  const providers: MetadataRoute.Sitemap = DB.providers
-    .filter((p) => p.status === "approved")
-    .map((p) => ({
-      url: `${base}/${segment[p.type]}/${p.slug}`,
-      lastModified,
-      changeFrequency: "weekly" as const,
-      priority: 0.8,
-    }));
-
-  return [...staticPages, ...facets, ...providers];
+  return [...staticPages, ...facets];
 }

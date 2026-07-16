@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { Logo } from "@/components/layout/logo";
 import { GOVERNORATES, SPECIALTIES } from "@/lib/data/egypt";
-import { TODAY } from "@/lib/data/seed";
+import { now } from "@/lib/time";
 import { useDomain } from "@/lib/i18n/use-format";
 import { SITE } from "@/lib/site";
 
@@ -146,7 +146,7 @@ export function SiteFooter() {
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t pt-6 sm:flex-row">
           <p className="text-xs text-muted-foreground">
             {t("footer.copyright", {
-              year: String(TODAY.getFullYear()),
+              year: String(now().getFullYear()),
               site: SITE.name,
             })}
           </p>

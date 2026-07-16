@@ -1,33 +1,15 @@
 /**
- * Where the app's data actually comes from.
+ * Where the app's data comes from: MedPoint, and nothing else.
  *
- * The MedPoint backend can serve authentication and the account profile, but it
- * cannot yet serve discovery, booking or favourites — its `Booking` payload has
- * no date, no service and no foreign keys, its list endpoints take no filters,
- * and there is no favourites resource at all (see `BACKEND-GAPS.md`). Flipping
- * the whole app over would therefore blank out most of it.
+ * There is no mock and no seeded dataset. Every value on screen was served by
+ * the API or is absent — an absent value renders as an em dash, it is never
+ * invented, defaulted or back-filled. A screen with no endpoint behind it shows
+ * an empty state saying so.
  *
- * So the two backends coexist: `apiMode()` sets the global mode, and
- * `capabilities.ts` decides per domain which backend answers. Anything MedPoint
- * cannot serve stays on the seeded mock in *both* modes — `live` widens what is
- * real, it never takes a screen away.
+ * The consequence is deliberate: where the API is thin, the UI is thin, and the
+ * gap is visible rather than papered over. `BACKEND-GAPS.md` tracks what is
+ * missing and what it blocks.
  */
-
-export type ApiMode = "mock" | "live";
-
-/** `NEXT_PUBLIC_*` is inlined at build time, so this must not be destructured. */
-function readMode(): ApiMode {
-  return process.env.NEXT_PUBLIC_API_MODE === "live" ? "live" : "mock";
-}
-
-export function apiMode(): ApiMode {
-  return readMode();
-}
-
-/** True when any MedPoint capability may be used (see `capabilities.ts`). */
-export function isLive(): boolean {
-  return readMode() === "live";
-}
 
 /**
  * Where the browser sends an API call.

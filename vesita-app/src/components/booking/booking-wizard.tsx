@@ -51,7 +51,7 @@ import {
   payBooking,
   releaseHold,
 } from "@/lib/api/bookings";
-import { ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import { getAvailability } from "@/lib/api/providers";
 import { getPatientProfiles } from "@/lib/api/profiles";
 import { evaluateEligibility } from "@/lib/eligibility";

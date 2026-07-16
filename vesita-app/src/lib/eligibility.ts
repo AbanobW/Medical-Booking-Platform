@@ -1,4 +1,4 @@
-import { TODAY } from "@/lib/data/seed";
+import { now } from "@/lib/time";
 import type {
   EligibilityResult,
   EligibilityRules,
@@ -55,7 +55,7 @@ export interface EligibilityDescriptor {
   message: string;
 }
 
-export function ageOf(dateOfBirth: string, at: Date = TODAY): number {
+export function ageOf(dateOfBirth: string, at: Date = now()): number {
   const dob = new Date(`${dateOfBirth}T00:00:00.000Z`);
   // An unset or malformed date of birth (e.g. an auto-created profile the user
   // has not completed) must not surface as NaN — treat it as no age known.

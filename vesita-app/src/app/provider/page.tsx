@@ -41,7 +41,7 @@ import {
 import { useAsync } from "@/hooks/use-async";
 import { getBookings } from "@/lib/api/bookings";
 import { getProviderStats } from "@/lib/api/stats";
-import { todayISO } from "@/lib/data/seed";
+import { todayISO } from "@/lib/time";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import { isCancelled, schedulingModeFor } from "@/lib/types";

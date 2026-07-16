@@ -14,12 +14,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAsync, useMutation } from "@/hooks/use-async";
 import { deleteCoupon, getCoupons } from "@/lib/api/admin";
-import { TODAY } from "@/lib/data/seed";
+import { now } from "@/lib/time";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import type { Coupon } from "@/lib/types";
 
-const NOW = TODAY.toISOString();
+const NOW = now().toISOString();
 
 /** A slim usage meter — the number carries the value, the bar carries the shape. */
 function UsageMeter({ used, limit }: { used: number; limit: number }) {

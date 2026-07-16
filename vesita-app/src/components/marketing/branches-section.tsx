@@ -8,7 +8,7 @@ import { MapPlaceholder } from "@/components/shared/map-placeholder";
 import { EmptyState } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { TODAY } from "@/lib/data/seed";
+import { now } from "@/lib/time";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import { type Branch, type Weekday } from "@/lib/types";
 
@@ -31,7 +31,7 @@ export function BranchesSection({
   const { formatTime, locale } = useFormat();
   const { getAreaName, getGovernorateName } = useDomain();
 
-  const today = TODAY.getUTCDay() as Weekday;
+  const today = now().getUTCDay() as Weekday;
 
   /** A compact "Sat · Sun · Mon" style summary of a branch's week. */
   const openDaysOf = (branch: Branch): string[] =>

@@ -23,7 +23,7 @@ import {
   findOverlayBookingById,
 } from "@/lib/api/medpoint/overlay";
 import { SPECIALTIES } from "@/lib/data/egypt";
-import { TODAY, toISODate } from "@/lib/data/seed";
+import { now, toISODate } from "@/lib/time";
 import { evaluateEligibilityDetailed } from "@/lib/eligibility";
 import { BUSINESS } from "@/lib/site";
 import {
@@ -47,7 +47,7 @@ import {
   type TimeSlot,
 } from "@/lib/types";
 
-const TODAY_ISO = toISODate(TODAY);
+const TODAY_ISO = toISODate(now());
 
 function mergeOverlayIntoPage(
   page: Paginated<Booking>,
@@ -439,7 +439,7 @@ function notify(
     isRead: false,
     // Anchor to the dataset clock, not the wall clock — otherwise timeAgo()
     // renders fresh notifications as coming from the future ("tomorrow").
-    createdAt: TODAY.toISOString(),
+    createdAt: now().toISOString(),
     actionUrl,
   });
 }

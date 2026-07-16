@@ -42,7 +42,7 @@ import {
   removeHoliday,
   updateSchedule,
 } from "@/lib/api/provider-admin";
-import { TODAY, todayISO, toISODate } from "@/lib/data/seed";
+import { now, toISODate, todayISO } from "@/lib/time";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useFormat } from "@/lib/i18n/use-format";
 import { useLabels } from "@/lib/i18n/use-labels";
@@ -134,7 +134,7 @@ export default function ProviderSchedulePage() {
   const destroy = useMutation(removeHoliday);
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [date, setDate] = useState(toISODate(TODAY));
+  const [date, setDate] = useState(toISODate(now()));
   const [reason, setReason] = useState("");
 
   const mode: SchedulingMode = provider

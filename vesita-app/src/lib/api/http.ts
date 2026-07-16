@@ -18,7 +18,7 @@
  * toast at the user.
  */
 
-import { ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import { apiBaseUrl } from "@/lib/api/config";
 import { clearTokens, getAccessToken, notifyUnauthorized } from "@/lib/api/tokens";
 

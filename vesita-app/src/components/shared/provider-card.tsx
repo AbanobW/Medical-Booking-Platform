@@ -18,12 +18,12 @@ import { useAsync } from "@/hooks/use-async";
 import { getNextSlots } from "@/lib/api/providers";
 import { toggleFavorite } from "@/lib/api/engagement";
 import { getSpecialtyName } from "@/lib/data/egypt";
-import { todayISO } from "@/lib/data/seed";
+import { todayISO } from "@/lib/time";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import { cn } from "@/lib/utils";
 import type { Provider } from "@/lib/types";
 
-/** `TODAY` is the fixed dataset anchor — never `new Date()`. */
+/** `now()` is the fixed dataset anchor — never `new Date()`. */
 function isToday(date: string): boolean {
   return date === todayISO();
 }

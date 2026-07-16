@@ -2,14 +2,14 @@
  * Availability from MedPoint slots and doctor-sessions — client-side filtering.
  */
 
-import { ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import { createCachedLoader, fetchAllPages } from "@/lib/api/medpoint/cache";
 import { sessionToTimeSlot, slotToTimeSlot } from "@/lib/api/medpoint/mappers";
 import type {
   WireDoctorSession,
   WireSlot,
 } from "@/lib/api/medpoint/types";
-import { addDays, TODAY, toISODate } from "@/lib/data/seed";
+import { addDays, now, toISODate } from "@/lib/time";
 import type { Provider, TimeSlot } from "@/lib/types";
 import { getProviderById } from "@/lib/api/medpoint/providers";
 
@@ -53,12 +53,12 @@ export async function getAvailability(
     sessionsLoader.load(),
   ]);
 
-  const start = toISODate(TODAY);
-  const end = toISODate(addDays(TODAY, days - 1));
+  const start = toISODate(now());
+  const end = toISODate(addDays(now(), days - 1));
 
   const byDate: Record<string, TimeSlot[]> = {};
   for (let i = 0; i < days; i++) {
-    byDate[toISODate(addDays(TODAY, i))] = [];
+    byDate[toISODate(addDays(now(), i))] = [];
   }
 
   for (const wire of slots) {

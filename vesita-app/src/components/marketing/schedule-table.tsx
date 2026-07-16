@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFormat } from "@/lib/i18n/use-format";
 import { useLabels } from "@/lib/i18n/use-labels";
-import { TODAY } from "@/lib/data/seed";
+import { now } from "@/lib/time";
 import { type DaySchedule, type Weekday } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -49,7 +49,7 @@ export function ScheduleTable({
   const L = useLabels();
   const { formatTime } = useFormat();
 
-  const today = TODAY.getUTCDay() as Weekday;
+  const today = now().getUTCDay() as Weekday;
 
   return (
     <Card className={className}>

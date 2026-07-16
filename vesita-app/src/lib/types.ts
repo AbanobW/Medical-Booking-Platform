@@ -202,30 +202,39 @@ export interface Suspension {
   cancelledBookingCount?: number;
 }
 
-/** Fields common to doctors, labs and radiology centers. */
+/**
+ * Fields common to doctors, labs and radiology centers.
+ *
+ * A field typed `| null` is one the API may not answer. `null` means "not
+ * known", and the UI renders it as an em dash — it is never coerced to `0`, to
+ * an empty string, or to a plausible default. A zero rating and an unrated
+ * provider are different facts and the model keeps them different.
+ */
 export interface ProviderBase {
   id: string;
   type: ProviderRole;
   slug: string;
   name: string;
   nameAr: string;
-  photo: string;
-  coverImage: string;
-  bio: LocalizedText;
-  rating: number;
-  reviewCount: number;
+  /** No avatar endpoint — null until the API serves one. */
+  photo: string | null;
+  coverImage: string | null;
+  bio: LocalizedText | null;
+  /** No reviews endpoint yet: null, not zero. */
+  rating: number | null;
+  reviewCount: number | null;
   /** Entry price — consultation fee, or cheapest test/scan. */
-  price: number;
-  governorateId: string;
-  areaId: string;
-  address: string;
-  location: GeoPoint;
-  phone: string;
+  price: number | null;
+  governorateId: string | null;
+  areaId: string | null;
+  address: string | null;
+  location: GeoPoint | null;
+  phone: string | null;
   status: ProviderStatus;
   isFeatured: boolean;
   /** Total lifetime bookings — drives the "Most Booked" sort. */
-  bookingCount: number;
-  waitingTimeMinutes: number;
+  bookingCount: number | null;
+  waitingTimeMinutes: number | null;
   joinedAt: string;
   /**
    * The provider's default weekly availability.
@@ -250,13 +259,14 @@ export interface ProviderBase {
 export interface Doctor extends ProviderBase {
   type: "doctor";
   title: string;
-  specialtyId: string;
+  /** Parsed out of the provider's name ("Dr. X — Cardiology"); null if absent. */
+  specialtyId: string | null;
   subSpecialties: string[];
-  gender: Gender;
-  yearsOfExperience: number;
+  gender: Gender | null;
+  yearsOfExperience: number | null;
   degrees: string[];
   languages: string[];
-  clinicName: string;
+  clinicName: string | null;
   consultationTypes: ConsultationType[];
 }
 
@@ -289,12 +299,13 @@ export interface Branch {
   id: string;
   providerId: string;
   name: string;
-  governorateId: string;
-  areaId: string;
-  address: string;
-  phone: string;
-  location: GeoPoint;
-  openingHours: string;
+  governorateId: string | null;
+  areaId: string | null;
+  address: string | null;
+  phone: string | null;
+  location: GeoPoint | null;
+  /** No opening-hours field on the wire — null, never a plausible 09:00–21:00. */
+  openingHours: string | null;
   /** Branch-specific working hours, sessions and slots. */
   schedule: DaySchedule[];
   /** IDs of the provider's services actually offered here. */
@@ -403,9 +414,9 @@ export interface ConsultationType {
   kind: "consultation";
   name: string;
   nameAr: string;
-  description: LocalizedText;
-  price: number;
-  durationMinutes: number;
+  description: LocalizedText | null;
+  price: number | null;
+  durationMinutes: number | null;
   isActive: boolean;
 }
 
@@ -418,14 +429,22 @@ export interface LabTest {
    * Grouping key for the service catalogue ("Hematology", "X-Ray"). This is an
    * identifier, not copy — translate it at render with `useLabels().serviceCategory`.
    */
-  category: string;
-  description: LocalizedText;
-  price: number;
+  category: string | null;
+  description: LocalizedText | null;
+  price: number | null;
   /** Turnaround time before results are ready. */
-  resultTimeHours: number;
-  fastingRequired: boolean;
-  preparation: PreparationInstructions;
-  eligibility: EligibilityRules;
+  resultTimeHours: number | null;
+  fastingRequired: boolean | null;
+  /**
+   * Undefined when the API did not send rules — never a permissive stand-in.
+   *
+   * `{ pregnancySafe: true, excludedConditions: [] }` used to be substituted
+   * here, which asserted that every scan was safe in pregnancy. Absent rules
+   * mean unknown, and `requiresAcknowledgement` treats unknown as "nothing to
+   * show", not "nothing to worry about".
+   */
+  preparation?: PreparationInstructions;
+  eligibility?: EligibilityRules;
   isActive: boolean;
 }
 
@@ -435,13 +454,14 @@ export interface RadiologyScan {
   name: string;
   nameAr: string;
   /** Grouping key — see `LabTest.category`. */
-  category: string;
-  description: LocalizedText;
-  price: number;
-  durationMinutes: number;
-  contrastRequired: boolean;
-  preparation: PreparationInstructions;
-  eligibility: EligibilityRules;
+  category: string | null;
+  description: LocalizedText | null;
+  price: number | null;
+  durationMinutes: number | null;
+  contrastRequired: boolean | null;
+  /** Absent means unknown — see `LabTest.preparation`. */
+  preparation?: PreparationInstructions;
+  eligibility?: EligibilityRules;
   isActive: boolean;
 }
 

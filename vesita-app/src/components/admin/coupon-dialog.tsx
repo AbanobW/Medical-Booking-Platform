@@ -33,7 +33,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutation } from "@/hooks/use-async";
 import { createCoupon, updateCoupon, type CouponInput } from "@/lib/api/admin";
-import { addDays, TODAY } from "@/lib/data/seed";
+import { addDays, now } from "@/lib/time";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useLabels } from "@/lib/i18n/use-labels";
 import { PROVIDER_ROLES, type Coupon, type ProviderRole } from "@/lib/types";
@@ -96,7 +96,7 @@ function emptyValues(): CouponFormValues {
     minOrderValue: 0,
     maxDiscount: undefined,
     usageLimit: 100,
-    expiresAt: addDays(TODAY, 30).toISOString().slice(0, 10),
+    expiresAt: addDays(now(), 30).toISOString().slice(0, 10),
     isActive: true,
     appliesTo: [],
   };

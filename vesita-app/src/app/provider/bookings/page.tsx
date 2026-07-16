@@ -42,7 +42,7 @@ import {
   markNoShow,
   processRefund,
 } from "@/lib/api/bookings";
-import { todayISO } from "@/lib/data/seed";
+import { todayISO } from "@/lib/time";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useDomain, useFormat } from "@/lib/i18n/use-format";
 import { useLabels } from "@/lib/i18n/use-labels";

@@ -32,7 +32,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { TODAY } from "@/lib/data/seed";
+import { now } from "@/lib/time";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useFormat } from "@/lib/i18n/use-format";
 import { useLabels } from "@/lib/i18n/use-labels";
@@ -64,7 +64,7 @@ function buildSchema(t: (key: string) => string) {
       dateOfBirth: z.string().optional(),
     })
     .superRefine((values, ctx) => {
-      if (values.dateOfBirth && new Date(values.dateOfBirth).getTime() >= TODAY.getTime()) {
+      if (values.dateOfBirth && new Date(values.dateOfBirth).getTime() >= now().getTime()) {
         ctx.addIssue({
           code: "custom",
           path: ["dateOfBirth"],

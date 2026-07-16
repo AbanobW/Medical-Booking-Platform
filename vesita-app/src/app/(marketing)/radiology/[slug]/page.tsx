@@ -1,39 +1,23 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
-import { getLocale } from "@/i18n/locale";
-import { JsonLd, findProviderForRoute, providerJsonLd, providerMetadata } from "@/lib/seo";
 import RadiologyProfilePage from "./profile-client";
 
-interface Props {
-  params: Promise<{ slug: string }>;
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("profile");
+  return { title: t("meta.radiologyTitle") };
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params;
-  const center = findProviderForRoute(slug, "radiology");
-
-  if (!center) {
-    const t = await getTranslations("profile");
-    return { title: t("meta.radiologyNotFound") };
-  }
-  return providerMetadata(center);
-}
-
-/** See the doctor route — same server-resolve-then-render pattern. */
-export default async function Page({ params }: Props) {
-  const { slug } = await params;
-  const center = findProviderForRoute(slug, "radiology");
-
-  if (!center) notFound();
-
-  const locale = await getLocale();
-
-  return (
-    <>
-      <JsonLd data={providerJsonLd(center, locale)} />
-      <RadiologyProfilePage />
-    </>
-  );
+/**
+ * Radiology centre profile.
+ *
+ * A thin server wrapper now. It used to resolve the slug against the seeded
+ * catalogue so an unknown centre was a real 404 with per-centre metadata and
+ * JSON-LD. The catalogue is behind an authenticated endpoint that a server
+ * render has no token for, so the slug is resolved by the client component
+ * instead — which shows its own not-found state — and the title is generic.
+ * See `@/lib/seo`.
+ */
+export default function Page() {
+  return <RadiologyProfilePage />;
 }

@@ -115,23 +115,32 @@ export function toPatientProfile(wire: WirePatientProfile, accountId: string): P
   };
 }
 
-function governorateIdOf(name: string | undefined): string {
-  if (!name) return "cairo";
+/**
+ * Resolve the API's governorate label ("Cairo") to a known id.
+ *
+ * `null` when it matches nothing. This used to default to `"cairo"`, which
+ * silently relocated every unrecognised branch to the capital and made the
+ * governorate filter lie.
+ */
+function governorateIdOf(name: string | undefined): string | null {
+  if (!name) return null;
   const lower = name.toLowerCase();
   const match = GOVERNORATES.find(
     (g) => g.name.toLowerCase() === lower || g.id === lower,
   );
-  return match?.id ?? "cairo";
+  return match?.id ?? null;
 }
 
-function areaIdOf(governorateId: string, areaName: string | undefined): string {
+/** Same contract as `governorateIdOf`: an unmatched area is null, not the first one. */
+function areaIdOf(governorateId: string | null, areaName: string | undefined): string | null {
+  if (!governorateId || !areaName) return null;
   const gov = GOVERNORATES.find((g) => g.id === governorateId);
-  if (!gov || !areaName) return gov?.areas[0]?.id ?? "nasr-city";
+  if (!gov) return null;
   const lower = areaName.toLowerCase();
   const match = gov.areas.find(
     (a) => a.name.toLowerCase() === lower || a.id === lower,
   );
-  return match?.id ?? gov.areas[0]?.id ?? "nasr-city";
+  return match?.id ?? null;
 }
 
 function providerTypeOf(raw: string): ProviderRole {
@@ -194,38 +203,72 @@ function providerStatusOf(raw: string): ProviderStatus {
   return "pending";
 }
 
-function avatarFor(seed: string, name: string): string {
-  return `/api/avatar?seed=${seed}&name=${encodeURIComponent(name)}`;
-}
-
-function coverFor(seed: string): string {
-  return `/api/cover?seed=${seed}`;
-}
-
 function emptyLocalized(name: string): { en: string; ar: string } {
   return { en: name, ar: name };
 }
 
+/** `"30.671000"` → `30.671`. Null unless the API sent a usable number. */
+function toCoord(value: number | string | undefined): number | null {
+  if (value === undefined || value === null) return null;
+  const n = typeof value === "string" ? Number.parseFloat(value) : value;
+  return Number.isFinite(n) ? n : null;
+}
+
 export function toBranch(wire: WireBranch, providerId: string): Branch {
   const governorateId = governorateIdOf(wire.governorate);
-  const lat = typeof wire.lat === "string" ? Number.parseFloat(wire.lat) : (wire.lat ?? 30.04);
-  const lng = typeof wire.lng === "string" ? Number.parseFloat(wire.lng) : (wire.lng ?? 31.24);
+  const lat = toCoord(wire.lat);
+  const lng = toCoord(wire.lng);
 
   return {
     id: wire.id,
     providerId,
-    name: wire.area ?? wire.address ?? "Main branch",
+    name: wire.area ?? wire.address ?? wire.id,
     governorateId,
     areaId: areaIdOf(governorateId, wire.area),
-    address: wire.address ?? "",
-    phone: wire.phones?.[0] ?? "",
-    location: { lat: Number.isFinite(lat) ? lat : 30.04, lng: Number.isFinite(lng) ? lng : 31.24 },
-    openingHours: "09:00 – 21:00",
+    address: wire.address ?? null,
+    phone: wire.phones?.[0] ?? null,
+    // Both or neither: half a coordinate is not a location.
+    location: lat !== null && lng !== null ? { lat, lng } : null,
+    // The wire carries no opening hours. It used to say "09:00 – 21:00" here,
+    // which every branch then displayed as fact.
+    openingHours: null,
     schedule: [],
     serviceIds: [],
     priceOverrides: {},
     isActive: true,
   };
+}
+
+/**
+ * `prep_instructions` is a free-text string on the wire; the domain wants a
+ * structured `PreparationInstructions`. There is no honest conversion between
+ * the two, so the text becomes the arrival instruction and nothing else is
+ * claimed. Null text means no preparation block at all.
+ */
+function toPreparation(
+  wire: WireService,
+): PreparationInstructions | undefined {
+  const text = wire.prep_instructions?.trim();
+  if (!text) return undefined;
+
+  return {
+    fastingRequired: false,
+    waterAllowed: true,
+    medicationRestrictions: [],
+    arrivalInstructions: emptyLocalized(text),
+    documentsRequired: [],
+  };
+}
+
+/**
+ * `eligibility_rules` arrives as an opaque array the API never documents and, in
+ * practice, never populates. Until its shape is known there is nothing to map:
+ * returning `undefined` says "unknown", where the old
+ * `{ pregnancySafe: true, excludedConditions: [] }` said "safe for everyone".
+ */
+function toEligibility(wire: WireService): EligibilityRules | undefined {
+  void wire;
+  return undefined;
 }
 
 function wireServiceToConsultation(wire: WireService): ConsultationType {
@@ -234,9 +277,9 @@ function wireServiceToConsultation(wire: WireService): ConsultationType {
     kind: "consultation",
     name: wire.name,
     nameAr: wire.name,
-    description: emptyLocalized(wire.name),
+    description: null,
     price: parseMoney(wire.price),
-    durationMinutes: 30,
+    durationMinutes: null,
     isActive: true,
   };
 }
@@ -247,19 +290,13 @@ function wireServiceToLabTest(wire: WireService): LabTest {
     kind: "test",
     name: wire.name,
     nameAr: wire.name,
-    category: wire.category ?? "General",
-    description: emptyLocalized(wire.name),
+    category: wire.category ?? null,
+    description: null,
     price: parseMoney(wire.price),
-    resultTimeHours: 24,
-    fastingRequired: false,
-    preparation: {
-      fastingRequired: false,
-      waterAllowed: true,
-      medicationRestrictions: [],
-      arrivalInstructions: emptyLocalized(""),
-      documentsRequired: [],
-    },
-    eligibility: { pregnancySafe: true, excludedConditions: [] },
+    resultTimeHours: null,
+    fastingRequired: null,
+    preparation: toPreparation(wire),
+    eligibility: toEligibility(wire),
     isActive: true,
   };
 }
@@ -270,19 +307,13 @@ function wireServiceToScan(wire: WireService): RadiologyScan {
     kind: "scan",
     name: wire.name,
     nameAr: wire.name,
-    category: wire.category ?? "General",
-    description: emptyLocalized(wire.name),
+    category: wire.category ?? null,
+    description: null,
     price: parseMoney(wire.price),
-    durationMinutes: 30,
-    contrastRequired: false,
-    preparation: {
-      fastingRequired: false,
-      waterAllowed: true,
-      medicationRestrictions: [],
-      arrivalInstructions: emptyLocalized(""),
-      documentsRequired: [],
-    },
-    eligibility: { pregnancySafe: true, excludedConditions: [] },
+    durationMinutes: null,
+    contrastRequired: null,
+    preparation: toPreparation(wire),
+    eligibility: toEligibility(wire),
     isActive: true,
   };
 }
@@ -293,30 +324,40 @@ export interface ProviderAssembly {
   services?: WireService[];
 }
 
+/**
+ * The fields every provider type shares.
+ *
+ * Almost all of them are `null`, and that is the honest answer: `/v1/providers`
+ * returns `{type, id, provider_type, name, status, created_at, updated_at}` and
+ * nothing else. There is no rating, no photo, no bio, no price and no waiting
+ * time on the wire — each of those used to be filled with a plausible constant
+ * here (`rating: 0`, `waitingTimeMinutes: 30`, a generated avatar), which is
+ * exactly the invented data this model no longer carries.
+ */
 function baseProviderFields(wire: WireProvider, branches: Branch[], displayName: string) {
-  const governorateId = branches[0]?.governorateId ?? "cairo";
-  const areaId = branches[0]?.areaId ?? "nasr-city";
+  const main = branches[0];
 
   return {
     id: wire.id,
     slug: slugify(displayName),
     name: displayName,
     nameAr: displayName,
-    photo: avatarFor(wire.id, displayName),
-    coverImage: coverFor(wire.id),
-    bio: emptyLocalized(wire.name),
-    rating: 0,
-    reviewCount: 0,
-    price: 0,
-    governorateId,
-    areaId,
-    address: branches[0]?.address ?? "",
-    location: branches[0]?.location ?? { lat: 30.04, lng: 31.24 },
-    phone: branches[0]?.phone ?? "",
+    photo: null,
+    coverImage: null,
+    bio: null,
+    rating: null,
+    reviewCount: null,
+    price: null,
+    // A provider's location is its main branch's; null when it has no branch.
+    governorateId: main?.governorateId ?? null,
+    areaId: main?.areaId ?? null,
+    address: main?.address ?? null,
+    location: main?.location ?? null,
+    phone: main?.phone ?? null,
     status: providerStatusOf(wire.status),
     isFeatured: false,
-    bookingCount: 0,
-    waitingTimeMinutes: 30,
+    bookingCount: null,
+    waitingTimeMinutes: null,
     joinedAt: wire.created_at ?? new Date().toISOString(),
     schedule: [],
     branches,
@@ -340,38 +381,29 @@ export function toProvider(assembly: ProviderAssembly): Provider {
   }
 
   const base = baseProviderFields(assembly.wire, branches, displayName);
-  const minPrice = services.length
-    ? Math.min(...services.map((s) => parseMoney(s.price)))
-    : 0;
-  base.price = minPrice;
+
+  // The entry price is the cheapest service we can prove belongs to this
+  // provider. With no services attributed, the price is unknown — null, not 0.
+  // `0` rendered as "0 ج.م.", telling the patient the visit was free.
+  const prices = services.map((s) => parseMoney(s.price)).filter((p) => p > 0);
+  base.price = prices.length ? Math.min(...prices) : null;
 
   if (type === "doctor") {
-    const consultations = services.map(wireServiceToConsultation);
     const doctor: Doctor = {
       ...base,
       type: "doctor",
       title: "Dr.",
       specialtyId,
       subSpecialties: [],
-      gender: "male",
-      yearsOfExperience: 0,
+      gender: null,
+      yearsOfExperience: null,
       degrees: [],
-      languages: ["Arabic"],
-      clinicName: branches[0]?.name ?? assembly.wire.name,
-      consultationTypes: consultations.length
-        ? consultations
-        : [
-            {
-              id: `${assembly.wire.id}-consult`,
-              kind: "consultation",
-              name: "Consultation",
-              nameAr: "كشف",
-              description: emptyLocalized("Consultation"),
-              price: minPrice || 300,
-              durationMinutes: 30,
-              isActive: true,
-            },
-          ],
+      languages: [],
+      clinicName: branches[0]?.name ?? null,
+      // No stand-in consultation. A doctor with no attributable service has
+      // nothing bookable, and the booking flow must say so rather than offer an
+      // invented "Consultation, 300 EGP" that exists on no price list.
+      consultationTypes: services.map(wireServiceToConsultation),
     };
     return doctor;
   }

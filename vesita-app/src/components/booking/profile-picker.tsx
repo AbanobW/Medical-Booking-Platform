@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/shared/states";
 import { createPatientProfile } from "@/lib/api/profiles";
-import { TODAY, toISODate } from "@/lib/data/seed";
+import { now, toISODate } from "@/lib/time";
 import { ageOf } from "@/lib/eligibility";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useFormat } from "@/lib/i18n/use-format";
@@ -31,7 +31,7 @@ import { useLabels } from "@/lib/i18n/use-labels";
 import type { Gender, PatientProfile, Relationship } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const TODAY_ISO = toISODate(TODAY);
+const TODAY_ISO = toISODate(now());
 const EG_PHONE = /^01[0125][0-9]{8}$/;
 
 /** "self" is created with the account — a family member is one of the other three. */

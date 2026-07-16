@@ -9,7 +9,7 @@
  * profile answers 404 ("not yours"), not 403.
  */
 
-import { ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import { apiList, apiRequest } from "@/lib/api/http";
 import { toE164Phone, toPatientProfile } from "@/lib/api/medpoint/mappers";
 import type { WirePatientProfile } from "@/lib/api/medpoint/types";

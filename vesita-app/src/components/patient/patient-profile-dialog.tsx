@@ -33,7 +33,7 @@ import {
   updatePatientProfile,
   type PatientProfileInput,
 } from "@/lib/api/profiles";
-import { TODAY } from "@/lib/data/seed";
+import { now } from "@/lib/time";
 import { useApiError } from "@/lib/i18n/use-api-error";
 import { useLabels } from "@/lib/i18n/use-labels";
 import {
@@ -61,7 +61,7 @@ function buildSchema(t: (key: string) => string) {
     dateOfBirth: z
       .string()
       .min(1, t("profileDialog.validation.dateOfBirthRequired"))
-      .refine((value) => new Date(`${value}T00:00:00.000Z`) <= TODAY, {
+      .refine((value) => new Date(`${value}T00:00:00.000Z`) <= now(), {
         message: t("profileDialog.validation.dateOfBirthPast"),
       }),
     phone: z

@@ -1,4 +1,4 @@
-import { TODAY } from "@/lib/data/seed";
+import { now, toISODate } from "@/lib/time";
 
 /** Presentation helpers shared across the app. */
 
@@ -49,7 +49,7 @@ export function formatTime(time: string): string {
  */
 export function relativeDay(iso: string): string {
   const date = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
-  const today = new Date(`${TODAY.toISOString().slice(0, 10)}T00:00:00Z`);
+  const today = new Date(`${toISODate(now())}T00:00:00Z`);
   const days = Math.round((date.getTime() - today.getTime()) / DAY_MS);
 
   if (days === 0) return "Today";
@@ -61,7 +61,7 @@ export function relativeDay(iso: string): string {
 /** "3 days ago", "in 2 weeks" — for timestamps. */
 export function timeAgo(isoTimestamp: string): string {
   const then = new Date(isoTimestamp).getTime();
-  const diff = then - TODAY.getTime();
+  const diff = then - now().getTime();
   const abs = Math.abs(diff);
 
   const units: [Intl.RelativeTimeFormatUnit, number][] = [

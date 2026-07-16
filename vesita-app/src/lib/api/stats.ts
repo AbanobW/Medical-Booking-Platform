@@ -1,7 +1,7 @@
 import { db, request } from "@/lib/api/client";
 import { isUpcoming } from "@/lib/api/bookings";
 import { GOVERNORATES, SPECIALTIES } from "@/lib/data/egypt";
-import { TODAY } from "@/lib/data/seed";
+import { now } from "@/lib/time";
 import {
   isCancelled,
   type AdminStats,
@@ -28,14 +28,14 @@ function pctChange(current: number, previous: number): number {
 
 /**
  * Buckets bookings into the last `months` calendar months, ending with the
- * month containing `TODAY`.
+ * month containing `now()`.
  */
 function monthlySeries(bookings: Booking[], months = 12): TimeSeriesPoint[] {
   const series: TimeSeriesPoint[] = [];
 
   for (let i = months - 1; i >= 0; i--) {
     const cursor = new Date(
-      Date.UTC(TODAY.getUTCFullYear(), TODAY.getUTCMonth() - i, 1),
+      Date.UTC(now().getUTCFullYear(), now().getUTCMonth() - i, 1),
     );
     const prefix = `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, "0")}`;
     const inMonth = bookings.filter((b) => b.date.startsWith(prefix));
@@ -56,8 +56,8 @@ function monthlySeries(bookings: Booking[], months = 12): TimeSeriesPoint[] {
 
 /** Splits a set of bookings into "this month" and "last month" halves. */
 function splitByMonth(bookings: Booking[]) {
-  const thisPrefix = `${TODAY.getUTCFullYear()}-${String(TODAY.getUTCMonth() + 1).padStart(2, "0")}`;
-  const last = new Date(Date.UTC(TODAY.getUTCFullYear(), TODAY.getUTCMonth() - 1, 1));
+  const thisPrefix = `${now().getUTCFullYear()}-${String(now().getUTCMonth() + 1).padStart(2, "0")}`;
+  const last = new Date(Date.UTC(now().getUTCFullYear(), now().getUTCMonth() - 1, 1));
   const lastPrefix = `${last.getUTCFullYear()}-${String(last.getUTCMonth() + 1).padStart(2, "0")}`;
 
   return {
@@ -234,8 +234,8 @@ export function getAdminStats(): Promise<AdminStats> {
     // Users created this month vs last, so the deltas aren't fabricated.
     const newUsers = (prefix: string) =>
       state.users.filter((u) => u.createdAt.startsWith(prefix)).length;
-    const thisPrefix = `${TODAY.getUTCFullYear()}-${String(TODAY.getUTCMonth() + 1).padStart(2, "0")}`;
-    const lastDate = new Date(Date.UTC(TODAY.getUTCFullYear(), TODAY.getUTCMonth() - 1, 1));
+    const thisPrefix = `${now().getUTCFullYear()}-${String(now().getUTCMonth() + 1).padStart(2, "0")}`;
+    const lastDate = new Date(Date.UTC(now().getUTCFullYear(), now().getUTCMonth() - 1, 1));
     const lastPrefix = `${lastDate.getUTCFullYear()}-${String(lastDate.getUTCMonth() + 1).padStart(2, "0")}`;
 
     const newProviders = (prefix: string) =>
